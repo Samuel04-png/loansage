@@ -7,6 +7,15 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Textarea } from '../../../components/ui/textarea';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../../../components/ui/form';
 import { Loader2, Upload, X, Search } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
@@ -15,6 +24,7 @@ import { uploadCustomerDocument as uploadDoc } from '../../../lib/firebase/stora
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { NRCLookupDialog } from '../../../components/nrc/NRCLookupDialog';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 const customerSchema = z.object({
   fullName: z.string().min(2, 'Full name is required'),

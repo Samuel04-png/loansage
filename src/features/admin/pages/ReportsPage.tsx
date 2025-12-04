@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase/client';
+import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Download, Calendar, TrendingUp, DollarSign, Users, FileText, Loader2 } from 'lucide-react';
-import { formatCurrency, formatDate } from '../../../lib/utils';
+import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -40,24 +41,43 @@ export function ReportsPage() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['reports', profile?.agency_id, dateRange],
     queryFn: async () => {
-      if (!profile?.agency_id) return null;
+      if (!profile?.agency_id) return { loans: [], customers: [], repayments: [] };
 
-      const { data: loans } = await supabase
-        .from('loans')
-        .select('*')
-        .eq('agency_id', profile.agency_id);
+      // Fetch loans
+      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+      const loansSnapshot = await getDocs(loansRef);
+      const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const { data: customers } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('agency_id', profile.agency_id);
+      // Fetch customers
+      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+      const customersSnapshot = await getDocs(customersRef);
+      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const { data: repayments } = await supabase
-        .from('repayments')
-        .select('*, loans!inner(agency_id)')
-        .eq('loans.agency_id', profile.agency_id);
+      // Fetch repayments from all loans
+      const allRepayments: any[] = [];
+      for (const loan of loans) {
+        try {
+          const repaymentsRef = collection(
+            db,
+            'agencies',
+            profile.agency_id,
+            'loans',
+            loan.id,
+            'repayments'
+          );
+          const repaymentsSnapshot = await getDocs(repaymentsRef);
+          const loanRepayments = repaymentsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            loanId: loan.id,
+            ...doc.data(),
+          }));
+          allRepayments.push(...loanRepayments);
+        } catch (error) {
+          console.warn(`Failed to fetch repayments for loan ${loan.id}:`, error);
+        }
+      }
 
-      return { loans, customers, repayments };
+      return { loans, customers, repayments: allRepayments };
     },
     enabled: !!profile?.agency_id,
   });
@@ -86,7 +106,7 @@ export function ReportsPage() {
   };
 
   const totalLoanAmount = stats?.loans?.reduce((sum: number, loan: any) => sum + Number(loan.amount || 0), 0) || 0;
-  const totalRepayments = stats?.repayments?.filter((r: any) => r.status === 'paid').reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0) || 0;
+  const totalRepayments = stats?.repayments?.filter((r: any) => r.status === 'paid' || r.status === 'completed').reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount || 0), 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -132,7 +152,7 @@ export function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Total Portfolio</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalLoanAmount)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalLoanAmount, 'ZMW')}</p>
               </div>
               <DollarSign className="w-8 h-8 text-emerald-600" />
             </div>
@@ -144,7 +164,7 @@ export function ReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Total Repayments</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalRepayments)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalRepayments, 'ZMW')}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-blue-600" />
             </div>

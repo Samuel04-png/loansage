@@ -12,7 +12,11 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Badge } from '../../../components/ui/badge';
-import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { cn } from '../../../lib/utils';
+import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database } from 'lucide-react';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
 import { uploadAgencyLogo } from '../../../lib/firebase/storage-helpers';
@@ -400,12 +404,16 @@ export function SettingsPage() {
   if (agencyLoading && !agency) {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
-          <p className="text-slate-600">Loading settings...</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Settings</h2>
+          <p className="text-sm text-neutral-600">Loading settings...</p>
+        </motion.div>
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
         </div>
       </div>
     );
@@ -413,183 +421,212 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
-        <p className="text-slate-600">Manage your agency and account settings</p>
-      </div>
+      {/* Header - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h2 className="text-2xl font-bold text-neutral-900 mb-1">Settings</h2>
+        <p className="text-sm text-neutral-600">Manage your agency and account settings</p>
+      </motion.div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('agency')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'agency'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Building2 className="w-4 h-4 inline mr-2" />
-          Agency Settings
-        </button>
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'employees'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Users className="w-4 h-4 inline mr-2" />
-          Employees
-        </button>
-        <button
-          onClick={() => setActiveTab('account')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'account'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <User className="w-4 h-4 inline mr-2" />
-          Account
-        </button>
-      </div>
+      {/* Tabs - Reference Style with ShadCN Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4 rounded-xl bg-neutral-100 p-1">
+          <TabsTrigger 
+            value="agency" 
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <Building2 className="w-4 h-4 mr-2" />
+            Agency
+          </TabsTrigger>
+          <TabsTrigger 
+            value="employees"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Employees
+          </TabsTrigger>
+          <TabsTrigger 
+            value="account"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <User className="w-4 h-4 mr-2" />
+            Account
+          </TabsTrigger>
+          <TabsTrigger 
+            value="data"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <Database className="w-4 h-4 mr-2" />
+            Data
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Agency Settings Tab */}
-      {activeTab === 'agency' && (
-        <form onSubmit={agencyForm.handleSubmit(handleAgencySubmit)}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Settings</CardTitle>
-              <CardDescription>
-                {agency ? 'Update your agency information' : 'Create your agency organization'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="name">Agency Name *</Label>
-                <Input
-                  id="name"
-                  {...agencyForm.register('name')}
-                  className={agencyForm.formState.errors.name ? 'border-red-500' : ''}
-                />
-                {agencyForm.formState.errors.name && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {agencyForm.formState.errors.name.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email">Business Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...agencyForm.register('email')}
-                    className={agencyForm.formState.errors.email ? 'border-red-500' : ''}
-                  />
-                  {agencyForm.formState.errors.email && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {agencyForm.formState.errors.email.message}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="phone">Business Phone *</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    {...agencyForm.register('phone')}
-                    className={agencyForm.formState.errors.phone ? 'border-red-500' : ''}
-                  />
-                  {agencyForm.formState.errors.phone && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {agencyForm.formState.errors.phone.message}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="address">Address *</Label>
-                <Input
-                  id="address"
-                  {...agencyForm.register('address')}
-                  className={agencyForm.formState.errors.address ? 'border-red-500' : ''}
-                />
-                {agencyForm.formState.errors.address && (
-                  <p className="text-sm text-red-600 mt-1">
-                    {agencyForm.formState.errors.address.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label>Logo</Label>
-                <div className="flex items-center gap-4 mt-2">
-                  {agency?.logo_url && (
-                    <img src={agency.logo_url} alt="Current logo" className="h-16 w-auto" />
-                  )}
-                  <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
-                    <Upload className="w-8 h-8 text-slate-400 mb-2" />
-                    <span className="text-sm text-slate-500">Upload Logo</span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+        {/* Agency Settings Tab */}
+        <TabsContent value="agency" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <form onSubmit={agencyForm.handleSubmit(handleAgencySubmit)}>
+              <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-neutral-900">Organization Settings</CardTitle>
+                  <CardDescription className="text-sm text-neutral-600">
+                    {agency ? 'Update your agency information' : 'Create your agency organization'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-semibold text-neutral-900">Agency Name *</Label>
+                    <Input
+                      id="name"
+                      {...agencyForm.register('name')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        agencyForm.formState.errors.name && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
                     />
-                  </label>
-                </div>
-                {logoFile && (
-                  <p className="text-sm text-slate-600 mt-2">Selected: {logoFile.name}</p>
-                )}
-              </div>
+                    {agencyForm.formState.errors.name && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {agencyForm.formState.errors.name.message}
+                      </p>
+                    )}
+                  </div>
 
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      {agency ? 'Update Agency' : 'Create Agency'}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </form>
-      )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-semibold text-neutral-900">Business Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        {...agencyForm.register('email')}
+                        className={cn(
+                          "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                          agencyForm.formState.errors.email && 'border-[#EF4444] focus:border-[#EF4444]'
+                        )}
+                      />
+                      {agencyForm.formState.errors.email && (
+                        <p className="text-sm text-[#EF4444] mt-1">
+                          {agencyForm.formState.errors.email.message}
+                        </p>
+                      )}
+                    </div>
 
-      {/* Employees Tab */}
-      {activeTab === 'employees' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold">Employee Management</h3>
-              <p className="text-sm text-slate-600">Manage your agency employees</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="text-sm font-semibold text-neutral-900">Business Phone *</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        {...agencyForm.register('phone')}
+                        className={cn(
+                          "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                          agencyForm.formState.errors.phone && 'border-[#EF4444] focus:border-[#EF4444]'
+                        )}
+                      />
+                      {agencyForm.formState.errors.phone && (
+                        <p className="text-sm text-[#EF4444] mt-1">
+                          {agencyForm.formState.errors.phone.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address" className="text-sm font-semibold text-neutral-900">Address *</Label>
+                    <Input
+                      id="address"
+                      {...agencyForm.register('address')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        agencyForm.formState.errors.address && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
+                    />
+                    {agencyForm.formState.errors.address && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {agencyForm.formState.errors.address.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-neutral-900">Logo</Label>
+                    <div className="flex items-center gap-4">
+                      {agency?.logo_url && (
+                        <img src={agency.logo_url} alt="Current logo" className="h-16 w-auto rounded-lg border border-neutral-200" />
+                      )}
+                      <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-neutral-300 rounded-xl cursor-pointer hover:bg-neutral-50 transition-colors">
+                        <Upload className="w-8 h-8 text-neutral-400 mb-2" />
+                        <span className="text-sm text-neutral-500">Upload Logo</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    </div>
+                    {logoFile && (
+                      <p className="text-sm text-neutral-600 mt-2">Selected: {logoFile.name}</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-neutral-200">
+                    <Button 
+                      type="submit" 
+                      disabled={loading}
+                      className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          {agency ? 'Update Agency' : 'Create Agency'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+          </motion.div>
+        </TabsContent>
+
+        {/* Employees Tab */}
+        <TabsContent value="employees" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-6"
+          >
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-1">Employee Management</h3>
+                <p className="text-sm text-neutral-600">Manage your agency employees</p>
+              </div>
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInviteDrawerOpen(true);
+                }}
+                type="button"
+                className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Invite Employee
+              </Button>
             </div>
-            <Button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setInviteDrawerOpen(true);
-              }}
-              type="button"
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite Employee
-            </Button>
-          </div>
 
-          <Card>
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
             <CardContent className="p-0">
               {employees.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -671,153 +708,192 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer Management</CardTitle>
-              <CardDescription>Quick access to add customers</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => setAddCustomerDrawerOpen(true)}>
-                <Users className="mr-2 h-4 w-4" />
-                Add Customer
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white mt-6">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900">Customer Management</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">Quick access to add customers</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  onClick={() => setAddCustomerDrawerOpen(true)}
+                  className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl"
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Add Customer
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
 
-      {/* Account Tab */}
-      {activeTab === 'account' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>Update your personal information</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-4">
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" value={user?.email || ''} disabled />
-                  <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
-                </div>
-                <div>
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input
-                    id="fullName"
-                    {...profileForm.register('fullName')}
-                    className={profileForm.formState.errors.fullName ? 'border-red-500' : ''}
-                  />
-                  {profileForm.formState.errors.fullName && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {profileForm.formState.errors.fullName.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Changes
-                      </>
+        {/* Account Tab */}
+        <TabsContent value="account" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-6"
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900">Profile Information</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">Update your personal information</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-semibold text-neutral-900">Email</Label>
+                    <Input 
+                      id="email" 
+                      value={user?.email || ''} 
+                      disabled 
+                      className="rounded-xl border-neutral-200 bg-neutral-50"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">Email cannot be changed</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName" className="text-sm font-semibold text-neutral-900">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      {...profileForm.register('fullName')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        profileForm.formState.errors.fullName && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
+                    />
+                    {profileForm.formState.errors.fullName && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {profileForm.formState.errors.fullName.message}
+                      </p>
                     )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                  </div>
+                  <div className="flex justify-end pt-4 border-t border-neutral-200">
+                    <Button 
+                      type="submit" 
+                      disabled={loading}
+                      className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-              <CardDescription>Update your account password</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
-                <div>
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    {...passwordForm.register('currentPassword')}
-                    className={passwordForm.formState.errors.currentPassword ? 'border-red-500' : ''}
-                  />
-                  {passwordForm.formState.errors.currentPassword && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.currentPassword.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    {...passwordForm.register('newPassword')}
-                    className={passwordForm.formState.errors.newPassword ? 'border-red-500' : ''}
-                  />
-                  {passwordForm.formState.errors.newPassword && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.newPassword.message}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    {...passwordForm.register('confirmPassword')}
-                    className={passwordForm.formState.errors.confirmPassword ? 'border-red-500' : ''}
-                  />
-                  {passwordForm.formState.errors.confirmPassword && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.confirmPassword.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="mr-2 h-4 w-4" />
-                        Update Password
-                      </>
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900">Change Password</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">Update your account password</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword" className="text-sm font-semibold text-neutral-900">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      {...passwordForm.register('currentPassword')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        passwordForm.formState.errors.currentPassword && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
+                    />
+                    {passwordForm.formState.errors.currentPassword && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {passwordForm.formState.errors.currentPassword.message}
+                      </p>
                     )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword" className="text-sm font-semibold text-neutral-900">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      {...passwordForm.register('newPassword')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        passwordForm.formState.errors.newPassword && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
+                    />
+                    {passwordForm.formState.errors.newPassword && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {passwordForm.formState.errors.newPassword.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-semibold text-neutral-900">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      {...passwordForm.register('confirmPassword')}
+                      className={cn(
+                        "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                        passwordForm.formState.errors.confirmPassword && 'border-[#EF4444] focus:border-[#EF4444]'
+                      )}
+                    />
+                    {passwordForm.formState.errors.confirmPassword && (
+                      <p className="text-sm text-[#EF4444] mt-1">
+                        {passwordForm.formState.errors.confirmPassword.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex justify-end pt-4 border-t border-neutral-200">
+                    <Button 
+                      type="submit" 
+                      disabled={loading}
+                      className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="mr-2 h-4 w-4" />
+                          Update Password
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
 
-      {activeTab === 'data' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Management</CardTitle>
-              <CardDescription>
-                Import and export customer, loan, and employee data
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Export Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Export Data</h3>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Card>
+        {/* Data Tab */}
+        <TabsContent value="data" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-6"
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900">Data Management</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">
+                  Import and export customer, loan, and employee data
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Export Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Export Data</h3>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-2">
                         <FileText className="h-5 w-5 text-primary-600" />
@@ -879,14 +955,14 @@ export function SettingsPage() {
                       </Button>
                     </CardContent>
                   </Card>
+                  </div>
                 </div>
-              </div>
 
-              {/* Import Section */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Import Data</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
+                {/* Import Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Import Data</h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card>
                     <CardHeader>
                       <CardTitle>Import Customers</CardTitle>
                       <CardDescription>Upload a CSV file to import customers</CardDescription>
@@ -977,12 +1053,13 @@ export function SettingsPage() {
                       )}
                     </CardContent>
                   </Card>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
+      </Tabs>
 
       {/* Drawers */}
       <InviteEmployeeDrawer

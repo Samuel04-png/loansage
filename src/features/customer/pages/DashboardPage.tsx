@@ -4,9 +4,12 @@ import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
+import { Skeleton } from '../../../components/ui/skeleton';
 import { Wallet, FileText, Calendar, AlertCircle, TrendingUp, Clock } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
 export function CustomerDashboard() {
   const { profile } = useAuth();
@@ -116,129 +119,110 @@ export function CustomerDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome back!</h2>
-        <p className="text-slate-600">Here's an overview of your loans.</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h2 className="text-2xl font-bold text-neutral-900 mb-2">Welcome back!</h2>
+        <p className="text-neutral-600">Here's an overview of your loans.</p>
+      </motion.div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Outstanding Balance</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {formatCurrency(dashboardData?.totalOutstanding || 0, dashboardData?.currency || 'ZMW')}
-                </p>
-              </div>
-              <Wallet className="h-8 w-8 text-primary-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Active Loans</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {dashboardData?.totalLoans || 0}
-                </p>
-              </div>
-              <FileText className="h-8 w-8 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {dashboardData?.nextPayment ? (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Next Payment</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {formatCurrency(Number(dashboardData.nextPayment.amount), dashboardData.currency || 'ZMW')}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Due {formatDateSafe(dashboardData.nextPayment.dueDate)}
-                  </p>
-                </div>
-                <Calendar className="h-8 w-8 text-amber-600" />
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Next Payment</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">-</p>
-                  <p className="text-xs text-slate-500 mt-1">No upcoming payments</p>
-                </div>
-                <Clock className="h-8 w-8 text-slate-400" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Loan History</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {dashboardData?.loanHistory?.length || 0}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">Total loans</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Loan History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {dashboardData?.loanHistory && dashboardData.loanHistory.length > 0 ? (
-            <div className="space-y-4">
-              {dashboardData.loanHistory.map((loan: any) => (
-                <Link
-                  key={loan.id}
-                  to={`/customer/loans/${loan.id}`}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
-                >
+      <div className="grid gap-6 md:grid-cols-4">
+        {[
+          { label: 'Outstanding Balance', value: formatCurrency(dashboardData?.totalOutstanding || 0, dashboardData?.currency || 'ZMW'), icon: Wallet, color: 'text-[#FACC15]' },
+          { label: 'Active Loans', value: dashboardData?.totalLoans || 0, icon: FileText, color: 'text-[#006BFF]' },
+          { label: 'Next Payment', value: dashboardData?.nextPayment ? formatCurrency(dashboardData.nextPayment.amount, dashboardData?.currency || 'ZMW') : 'N/A', icon: Calendar, color: 'text-[#22C55E]' },
+          { label: 'Payment Due', value: dashboardData?.nextPayment ? formatDateSafe(dashboardData.nextPayment.dueDate) : 'N/A', icon: Clock, color: 'text-[#EF4444]' },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + index * 0.05 }}
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold">Loan #{loan.id.substring(0, 8)}</p>
-                    <p className="text-sm text-slate-500">
-                      {formatCurrency(Number(loan.amount || 0), 'ZMW')} • {loan.loanType || 'Personal Loan'} • {formatDateSafe(loan.createdAt)}
-                    </p>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
+                    <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
                   </div>
-                  <Badge variant={loan.status === 'active' ? 'success' : loan.status === 'pending' ? 'warning' : 'outline'}>
-                    {loan.status}
-                  </Badge>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No loan history yet</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Loan History - Reference Style */}
+      {dashboardData?.loanHistory && dashboardData.loanHistory.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Loan History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {dashboardData.loanHistory.map((loan: any, index: number) => (
+                  <motion.div
+                    key={loan.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + index * 0.05 }}
+                  >
+                    <Link
+                      to={`/customer/loans/${loan.id}`}
+                      className="flex items-center justify-between p-4 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 transition-all duration-300"
+                    >
+                      <div>
+                        <p className="font-semibold text-neutral-900 mb-1">Loan #{loan.id.substring(0, 8)}</p>
+                        <p className="text-sm text-neutral-600">
+                          {formatCurrency(Number(loan.amount || 0), 'ZMW')} • {loan.loanType || 'Personal Loan'} • {formatDateSafe(loan.createdAt)}
+                        </p>
+                      </div>
+                      <Badge 
+                        className={
+                          loan.status === 'active' 
+                            ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20"
+                            : loan.status === 'pending'
+                            ? "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20"
+                            : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                        }
+                      >
+                        {loan.status}
+                      </Badge>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 }

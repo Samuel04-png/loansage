@@ -3,6 +3,22 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
 import { useWhitelabel } from '../../../lib/whitelabel';
 import { Button } from '../../../components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '../../../components/ui/sheet';
 import {
   LayoutDashboard,
   FileText,
@@ -16,8 +32,9 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -25,6 +42,25 @@ export function CustomerLayout() {
   const { profile, signOut } = useAuth();
   const { logoUrl, agencyName } = useWhitelabel();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const getUserInitials = () => {
+    const name = profile?.full_name || 'Customer';
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/customer/dashboard' },
@@ -49,144 +85,204 @@ export function CustomerLayout() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50/50">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-slate-200 bg-white fixed inset-y-0 z-30">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
+    <div className="min-h-screen flex bg-[#F8FAFC]">
+      {/* Sidebar - Desktop - Reference Style */}
+      <aside className="hidden md:flex flex-col w-64 bg-white fixed inset-y-0 z-30 shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
+        {/* Logo Section */}
+        <div className="h-16 flex items-center px-6 border-b border-neutral-200/50">
           <img 
             src={logoUrl || '/logo/loansagelogo.png'} 
             alt={agencyName} 
-            className="h-8 w-auto mr-3"
+            className="h-8 w-auto mr-3 max-h-8 object-contain"
             onError={(e) => {
-              // Fallback to icon if image fails to load
               (e.target as HTMLImageElement).style.display = 'none';
-              const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
-              if (fallback) fallback.style.display = 'flex';
             }}
           />
-          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center mr-3 hidden">
-            <Wallet className="text-white w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block leading-none">
+          <div className="flex-1 min-w-0">
+            <span className="text-lg font-semibold text-neutral-900 tracking-tight block leading-tight truncate">
               {agencyName}
             </span>
-            <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">
+            <span className="text-[10px] font-medium text-neutral-500 tracking-wider uppercase">
               CUSTOMER PORTAL
             </span>
           </div>
         </div>
 
+        {/* Navigation - Reference Style */}
         <div className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <Link
+          {navItems.map((item, index) => (
+            <motion.div
               key={item.id}
-              to={item.path}
-              className={cn(
-                'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all group',
-                activePath === item.id
-                  ? 'bg-slate-100 text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-              )}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
             >
-              <item.icon
+              <Link
+                to={item.path}
                 className={cn(
-                  'w-5 h-5 mr-3 transition-colors',
-                  activePath === item.id ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'
+                  'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative',
+                  activePath === item.id
+                    ? 'bg-[#006BFF]/10 text-[#006BFF] font-semibold'
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
                 )}
-              />
-              {item.label}
-            </Link>
+              >
+                <item.icon
+                  className={cn(
+                    'w-5 h-5 mr-3 transition-colors',
+                    activePath === item.id ? 'text-[#006BFF]' : 'text-neutral-400 group-hover:text-neutral-600'
+                  )}
+                />
+                <span className="flex-1">{item.label}</span>
+                {activePath === item.id && (
+                  <motion.div
+                    layoutId="activeIndicator"
+                    className="absolute right-2 w-1.5 h-1.5 rounded-full bg-[#006BFF]"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+              </Link>
+            </motion.div>
           ))}
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-          <div className="flex items-center p-2 rounded-lg border border-slate-200 bg-white mb-3 shadow-sm">
-            <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center">
-              <UserCircle className="w-5 h-5 text-slate-500" />
-            </div>
-            <div className="ml-3 overflow-hidden">
-              <p className="text-sm font-medium text-slate-900 truncate">
+        {/* User Profile Section - Reference Style */}
+        <div className="p-4 border-t border-neutral-200/50 bg-white">
+          <div className="flex items-center p-3 rounded-xl border border-neutral-200/50 bg-white mb-3 shadow-sm hover:shadow-md transition-shadow">
+            <Avatar className="h-10 w-10 border-2 border-neutral-200">
+              <AvatarImage src={profile?.avatar_url} />
+              <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white font-semibold">
+                {getUserInitials()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="ml-3 flex-1 overflow-hidden min-w-0">
+              <p className="text-sm font-semibold text-neutral-900 truncate">
                 {profile?.full_name || 'Customer'}
               </p>
-              <p className="text-xs text-slate-500 truncate">{profile?.email}</p>
+              <p className="text-xs text-neutral-500 truncate">{profile?.email}</p>
             </div>
           </div>
 
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-xs"
+            className="w-full justify-start text-xs text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
             onClick={handleSignOut}
           >
-            <LogOut className="w-3 h-3 mr-2" />
+            <LogOut className="w-4 h-4 mr-2" />
             Sign Out
           </Button>
         </div>
       </aside>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-900/50 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      <aside
-        className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-200 md:hidden',
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        <div className="h-16 flex items-center px-6 border-b border-slate-100 justify-between">
-          <span className="text-lg font-bold text-slate-900">{agencyName}</span>
-          <button onClick={() => setMobileMenuOpen(false)}>
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
-        </div>
-        <div className="p-4 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.id}
-              to={item.path}
-              onClick={() => setMobileMenuOpen(false)}
-              className={cn(
-                'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all',
-                activePath === item.id
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-              )}
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </aside>
+      {/* Mobile Sidebar - Using Sheet Component */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-64 p-0">
+          <SheetHeader className="px-6 py-4 border-b border-neutral-200/50">
+            <SheetTitle className="text-left">
+              <div className="flex items-center">
+                <img 
+                  src={logoUrl || '/logo/loansagelogo.png'} 
+                  alt={agencyName} 
+                  className="h-8 w-auto mr-3 max-h-8 object-contain"
+                />
+                <span className="text-lg font-semibold text-neutral-900">{agencyName}</span>
+              </div>
+            </SheetTitle>
+          </SheetHeader>
+          <div className="px-4 py-6 space-y-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.id}
+                to={item.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all',
+                  activePath === item.id
+                    ? 'bg-[#006BFF]/10 text-[#006BFF] font-semibold'
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+                )}
+              >
+                <item.icon className={cn(
+                  'w-5 h-5 mr-3',
+                  activePath === item.id ? 'text-[#006BFF]' : 'text-neutral-400'
+                )} />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Main Content */}
       <main className="flex-1 md:ml-64 flex flex-col min-h-0 overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 z-20">
-          <div className="flex items-center">
-            <button className="mr-4 md:hidden" onClick={() => setMobileMenuOpen(true)}>
-              <Menu className="w-5 h-5 text-slate-600" />
-            </button>
-            <h1 className="text-xl font-semibold text-slate-900 capitalize">
+        {/* Header - Reference Style */}
+        <header className={cn(
+          "h-16 bg-white border-b border-neutral-200/50 flex items-center justify-between px-4 sm:px-8 z-20 sticky top-0 transition-all duration-300",
+          scrolled && "bg-white/95 backdrop-blur-sm shadow-sm"
+        )}>
+          <div className="flex items-center gap-4">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                >
+                  <Menu className="h-5 w-5 text-neutral-600" />
+                </Button>
+              </SheetTrigger>
+            </Sheet>
+            <h1 className="text-xl font-semibold text-neutral-900 capitalize">
               {activePath.replace('-', ' ')}
             </h1>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">
+          <div className="flex items-center gap-3">
+            {/* Notifications */}
+            <button className="relative p-2 text-neutral-400 hover:text-neutral-600 transition-colors rounded-lg hover:bg-neutral-50">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
             </button>
+            
+            {/* User Menu - Reference Style */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
+                  <Avatar className="h-9 w-9 border-2 border-neutral-200">
+                    <AvatarImage src={profile?.avatar_url} />
+                    <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-semibold">{profile?.full_name || 'Customer'}</p>
+                    <p className="text-xs text-neutral-500">{profile?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/customer/settings" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-red-600 focus:text-red-600">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-          <div className="max-w-7xl mx-auto">
+        {/* Scrollable Area - Reference Style */}
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
             <Outlet />
           </div>
         </div>

@@ -9,45 +9,67 @@ import {
   CheckCircle2, 
   ArrowRight,
   Star,
-  Zap
+  Zap,
+  Brain,
+  Lock,
+  BarChart3,
+  Sparkles
 } from 'lucide-react';
 
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       {/* Navigation */}
-      <nav className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-slate-200/50 bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <img 
-                src="/logo/loansagelogo.png" 
-                alt="LoanSage" 
-                className="h-8 w-auto"
-                onError={(e) => {
-                  // Fallback to icon if image fails to load
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'flex';
-                }}
-              />
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center hidden">
-                <ShieldAlert className="w-5 h-5 text-white" />
+          <div className="flex justify-between items-center h-20">
+            <Link to="/" className="flex items-center gap-3 group">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative"
+              >
+                <img 
+                  src="/logo/loansagelogo.png" 
+                  alt="LoanSage" 
+                  className="h-12 w-auto transition-all duration-300 group-hover:drop-shadow-lg"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+                <div className="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center hidden">
+                  <ShieldAlert className="w-6 h-6 text-white" />
+                </div>
+              </motion.div>
+              <div className="flex flex-col">
+                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
+                  LoanSage
+                </span>
+                <span className="hidden sm:block text-xs text-slate-500 font-medium">AI-Powered Loan Management</span>
               </div>
-              <span className="text-xl font-bold text-slate-900">LoanSage</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link to="/about" className="text-sm text-slate-600 hover:text-slate-900">
+            </Link>
+            <div className="flex items-center gap-3 sm:gap-6">
+              <Link 
+                to="/about" 
+                className="hidden sm:block text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors"
+              >
                 About
               </Link>
-              <Link to="/contact" className="text-sm text-slate-600 hover:text-slate-900">
+              <Link 
+                to="/contact" 
+                className="hidden sm:block text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors"
+              >
                 Contact
               </Link>
               <Link to="/auth/login">
-                <Button variant="ghost" size="sm">Sign In</Button>
+                <Button variant="ghost" size="sm" className="font-medium text-xs sm:text-sm">Sign In</Button>
               </Link>
               <Link to="/auth/signup">
-                <Button size="sm">Get Started</Button>
+                <Button size="sm" className="font-medium shadow-md hover:shadow-lg transition-shadow text-xs sm:text-sm px-3 sm:px-4">
+                  Get Started
+                </Button>
               </Link>
             </div>
           </div>
@@ -55,108 +77,205 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-20 pb-32">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden pt-24 pb-40">
+        {/* Animated Background Elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+          <div className="absolute -bottom-8 left-1/3 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.6 }}
             className="text-center"
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-50 text-primary-700 text-sm font-medium mb-8">
-              <Zap className="w-4 h-4" />
+            {/* Logo in Hero */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="flex justify-center mb-8"
+            >
+              <div className="relative">
+                <img 
+                  src="/logo/loansagelogo.png" 
+                  alt="LoanSage Logo" 
+                  className="h-24 w-auto mx-auto drop-shadow-2xl"
+                />
+                <motion.div
+                  animate={{ 
+                    boxShadow: [
+                      "0 0 0 0 rgba(0, 107, 255, 0.4)",
+                      "0 0 0 20px rgba(0, 107, 255, 0)",
+                    ]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeOut"
+                  }}
+                  className="absolute inset-0 rounded-full"
+                />
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-100 text-primary-700 text-sm font-semibold mb-8 shadow-sm"
+            >
+              <Sparkles className="w-4 h-4" />
               Enterprise Microfinance Platform
-            </div>
-            <h1 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6">
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-extrabold text-slate-900 mb-6 leading-tight px-4"
+            >
               Manage Loans with
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400">
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 via-purple-600 to-primary-400">
                 AI-Powered Intelligence
               </span>
-            </h1>
-            <p className="text-xl text-slate-600 max-w-2xl mx-auto mb-8">
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
+              className="text-base sm:text-lg md:text-xl lg:text-2xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed px-4"
+            >
               Complete loan management solution with multi-tenant support, white-labeling, 
               and AI-driven risk assessment for modern microfinance institutions.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <Link to="/auth/signup">
-                <Button size="lg" className="text-lg px-8">
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.6 }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4"
+            >
+              <Link to="/auth/signup" className="w-full sm:w-auto">
+                <Button 
+                  size="lg" 
+                  className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 rounded-xl shadow-xl hover:shadow-2xl transition-all hover:scale-105 font-semibold"
+                >
                   Start Free Trial
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
-              <Button variant="outline" size="lg" className="text-lg px-8">
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 rounded-xl border-2 hover:bg-slate-50 font-semibold"
+              >
                 Watch Demo
               </Button>
-            </div>
+            </motion.div>
+
+            {/* Trust Indicators */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8, duration: 0.6 }}
+              className="mt-16 flex flex-wrap items-center justify-center gap-8 text-sm text-slate-500"
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary-600" />
+                <span className="font-medium">No Credit Card Required</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary-600" />
+                <span className="font-medium">14-Day Free Trial</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-primary-600" />
+                <span className="font-medium">Cancel Anytime</span>
+              </div>
+            </motion.div>
           </motion.div>
         </div>
-
-        {/* Gradient Orbs */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary-200 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-1/3 w-96 h-96 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-white">
+      <section className="py-32 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-20"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
               Everything you need to manage loans
             </h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
               Powerful features designed for microfinance institutions of all sizes
             </p>
-          </div>
+          </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 icon: Users,
                 title: 'Multi-Tenant Architecture',
                 description: 'Isolated data for each agency with complete white-labeling support',
+                color: 'from-blue-500 to-blue-600',
               },
               {
-                icon: ShieldAlert,
+                icon: Brain,
                 title: 'AI Risk Assessment',
-                description: 'Powered by Google Gemini for intelligent loan underwriting',
+                description: 'Powered by DeepSeek AI for intelligent loan underwriting and risk analysis',
+                color: 'from-purple-500 to-purple-600',
               },
               {
                 icon: TrendingUp,
                 title: 'Real-Time Analytics',
                 description: 'Comprehensive dashboards and reports for data-driven decisions',
+                color: 'from-green-500 to-green-600',
               },
               {
                 icon: FileText,
                 title: 'Document Management',
                 description: 'Secure storage and organization of all loan documents',
+                color: 'from-orange-500 to-orange-600',
               },
               {
-                icon: CheckCircle2,
+                icon: Lock,
                 title: 'Role-Based Access',
                 description: 'Granular permissions for admins, employees, and customers',
+                color: 'from-red-500 to-red-600',
               },
               {
-                icon: Zap,
-                title: 'Mobile Ready',
-                description: 'Full-featured mobile apps for iOS and Android',
+                icon: BarChart3,
+                title: 'Advanced Reporting',
+                description: 'Generate comprehensive reports and insights with one click',
+                color: 'from-indigo-500 to-indigo-600',
               },
             ].map((feature, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="p-6 rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-lg transition-all"
+                transition={{ delay: index * 0.1, duration: 0.5 }}
+                whileHover={{ y: -8, scale: 1.02 }}
+                className="group p-8 rounded-2xl border border-slate-200 bg-white hover:border-primary-300 hover:shadow-2xl transition-all duration-300 cursor-pointer"
               >
-                <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-primary-600" />
+                <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg`}>
+                  <feature.icon className="w-7 h-7 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-primary-600 transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-slate-600">{feature.description}</p>
+                <p className="text-slate-600 leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -236,18 +355,20 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-300 py-12">
+      <footer className="bg-slate-900 text-slate-300 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-4 gap-12">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                  <ShieldAlert className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">LoanSage</span>
+              <div className="flex items-center gap-3 mb-6">
+                <img 
+                  src="/logo/loansagelogo.png" 
+                  alt="LoanSage" 
+                  className="h-10 w-auto"
+                />
+                <span className="text-2xl font-bold text-white">LoanSage</span>
               </div>
-              <p className="text-sm">
-                Enterprise microfinance platform powered by AI.
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Enterprise microfinance platform powered by AI. Transform your loan management with intelligent automation.
               </p>
             </div>
             <div>

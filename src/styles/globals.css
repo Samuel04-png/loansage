@@ -1,39 +1,133 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+/* Reference Design System Colors */
+:root {
+  /* Primary Blue - #006BFF */
+  --color-primary: #006BFF;
+  --color-primary-light: #3B82FF;
+  
+  /* Accent Gradient - #006BFF → #4F46E5 */
+  --color-accent-start: #006BFF;
+  --color-accent-end: #4F46E5;
+  
+  /* Neutral Colors */
+  --color-neutral-900: #0E0E0F;
+  --color-neutral-700: #4B5563;
+  --color-neutral-500: #6B7280;
+  --color-neutral-300: #D1D5DB;
+  
+  /* Background Colors */
+  --color-bg: #F8FAFC;
+  --color-card-bg: #FFFFFF;
+  
+  /* Status Colors */
+  --color-success: #22C55E;
+  --color-warning: #FACC15;
+  --color-error: #EF4444;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --primary: 38 92% 50%; /* Dark gold/yellow from logo */
-    --secondary: 217 91% 30%; /* Dark blue from logo */
+    /* Core colors - Reference style (white/light gray backgrounds) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    
+    /* Primary - Vibrant blue accent matching reference (#006BFF) */
+    --primary: 217 100% 50%; /* #006BFF */
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 217 100% 60%; /* #3B82FF */
+    
+    /* Secondary - Light gray for subtle backgrounds */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    /* Muted - Light gray for secondary text */
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 217 91% 30%; /* Dark blue */
+    
+    /* Accent - Purple gradient for secondary highlights (#4F46E5) */
+    --accent: 262 83% 58%; /* #4F46E5 */
     --accent-foreground: 0 0% 100%;
+    
+    /* Destructive - Red for alerts/notifications */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Success - Green for positive indicators (#22C55E) */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Warning - Yellow for warnings (#FACC15) */
+    --warning: 48 96% 53%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Info - Blue for informational messages */
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Neutral colors - Reference palette */
+    --neutral-900: 0 0% 5%; /* #0E0E0F */
+    --neutral-700: 215 16% 33%; /* #4B5563 */
+    --neutral-500: 215 16% 47%; /* #6B7280 */
+    --neutral-300: 210 20% 82%; /* #D1D5DB */
+    --bg-surface: 210 40% 98%; /* #F8FAFC */
+    --card-bg: 0 0% 100%; /* #FFFFFF */
+    
+    /* Border and input */
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 38 92% 50%; /* Gold ring */
-    --radius: 0.75rem; /* Slightly more rounded */
+    --ring: 217 91% 60%; /* Blue ring matching primary */
+    
+    /* Border radius - Reference style (rounded-xl, rounded-2xl) */
+    --radius: 0.75rem; /* 12px for rounded-xl */
+    --radius-sm: 0.5rem; /* 8px */
+    --radius-md: 0.75rem; /* 12px */
+    --radius-lg: 1rem; /* 16px for rounded-2xl */
+    
+    /* Shadows - Soft drop shadows for floating cards */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    
+    /* Font sizes - Reference typography scale */
+    --fs-xs: 0.75rem; /* 12px */
+    --fs-sm: 0.875rem; /* 14px */
+    --fs-base: 1rem; /* 16px */
+    --fs-lg: 1.25rem; /* 20px */
+    --fs-xl: 1.5rem; /* 24px */
+    --fs-2xl: 2rem; /* 32px */
+    --fs-3xl: 2.5rem; /* 40px */
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 217 91% 60%;
   }
 }
 
@@ -60,9 +154,14 @@
     @apply scale-95;
   }
   
-  /* Card hover effects */
+  /* Card hover effects - Reference style floating cards */
   .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   }
   
   /* Smooth fade-in for content */
@@ -117,52 +216,6 @@ html {
   animation: spin 1s linear infinite;
 }
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 199.1 89.1% 48.2%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 199.1 89.1% 48.2%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 199.1 89.1% 48.2%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 199.1 89.1% 48.2%;
-  }
-}
 
 @layer base {
   * {
@@ -170,6 +223,39 @@ html {
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+  
+  /* Typography System - Reference Style */
+  .h1 {
+    font-size: var(--fs-3xl);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+  
+  .h2 {
+    font-size: var(--fs-2xl);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  
+  .h3 {
+    font-size: var(--fs-xl);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  
+  .body {
+    font-size: var(--fs-base);
+    font-weight: 400;
+    line-height: 1.6;
+    color: hsl(var(--foreground));
+  }
+  
+  .muted {
+    color: hsl(var(--muted-foreground));
+    font-size: var(--fs-sm);
   }
 }
 
@@ -224,5 +310,33 @@ html {
     transparent 100%
   );
   background-size: 1000px 100%;
+}
+
+/* Blob animation for landing page */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
 }
 

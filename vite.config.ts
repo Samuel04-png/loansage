@@ -14,12 +14,12 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'prompt',
-          includeAssets: ['favicon.ico', 'vite.svg'],
+          includeAssets: ['logo/loansagelogo.png'],
           manifest: {
             name: 'LoanSage - Microfinance Platform',
             short_name: 'LoanSage',
             description: 'Enterprise-grade microfinance SaaS platform',
-            theme_color: '#0ea5e9',
+            theme_color: '#006BFF',
             background_color: '#ffffff',
             display: 'standalone',
             orientation: 'portrait',
@@ -27,26 +27,61 @@ export default defineConfig(({ mode }) => {
             scope: '/',
             icons: [
               {
-                src: '/vite.svg',
-                sizes: 'any',
-                type: 'image/svg+xml',
+                src: '/logo/loansagelogo.png',
+                sizes: '72x72',
+                type: 'image/png',
+                purpose: 'any',
+              },
+              {
+                src: '/logo/loansagelogo.png',
+                sizes: '96x96',
+                type: 'image/png',
+                purpose: 'any',
+              },
+              {
+                src: '/logo/loansagelogo.png',
+                sizes: '128x128',
+                type: 'image/png',
+                purpose: 'any',
+              },
+              {
+                src: '/logo/loansagelogo.png',
+                sizes: '144x144',
+                type: 'image/png',
+                purpose: 'any',
+              },
+              {
+                src: '/logo/loansagelogo.png',
+                sizes: '152x152',
+                type: 'image/png',
+                purpose: 'any',
+              },
+              {
+                src: '/logo/loansagelogo.png',
+                sizes: '192x192',
+                type: 'image/png',
                 purpose: 'any maskable',
               },
               {
-                src: '/vite.svg',
-                sizes: '192x192',
-                type: 'image/svg+xml',
+                src: '/logo/loansagelogo.png',
+                sizes: '384x384',
+                type: 'image/png',
+                purpose: 'any maskable',
               },
               {
-                src: '/vite.svg',
+                src: '/logo/loansagelogo.png',
                 sizes: '512x512',
-                type: 'image/svg+xml',
+                type: 'image/png',
+                purpose: 'any maskable',
               },
             ],
           },
           workbox: {
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+            additionalManifestEntries: [
+              { url: '/logo/loansagelogo.png', revision: null },
+            ],
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/.*\.firebaseapp\.com\/.*/i,

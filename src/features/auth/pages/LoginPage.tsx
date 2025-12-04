@@ -40,7 +40,12 @@ export function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     try {
-      const { user, session } = await authService.signIn(data);
+      // Zod validation ensures email and password are present
+      const signInData: { email: string; password: string } = {
+        email: data.email as string,
+        password: data.password as string,
+      };
+      const { user, session } = await authService.signIn(signInData);
 
       if (user && session) {
         // Store demo session if in demo mode
@@ -90,8 +95,9 @@ export function LoginPage() {
         }
 
         // Set auth state first (don't wait for profile updates)
-        setUser(user);
-        setSession(session);
+        // Type assertion needed due to Firebase/Supabase type differences
+        setUser(user as any);
+        setSession(session as any);
         setProfile(profile as any);
 
         toast.success('Welcome back!');
@@ -139,41 +145,35 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
           <CardHeader className="space-y-1 text-center pb-6">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring' }}
-              className="mx-auto mb-4 flex items-center justify-center"
+              className="mx-auto mb-6 flex items-center justify-center"
             >
               <img 
                 src="/logo/loansagelogo.png" 
                 alt="LoanSage" 
-                className="max-h-24 h-auto w-auto object-contain"
+                className="max-h-20 h-auto w-auto object-contain"
                 style={{ maxWidth: '200px' }}
                 onError={(e) => {
-                  // Fallback to icon if image fails to load
                   (e.target as HTMLImageElement).style.display = 'none';
-                  const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'flex';
                 }}
               />
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg hidden">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
             </motion.div>
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <CardTitle className="text-2xl font-semibold text-neutral-900">
               Welcome back
             </CardTitle>
-            <CardDescription className="text-base">
+            <CardDescription className="text-sm text-neutral-600">
               Sign in to your account to continue
             </CardDescription>
           </CardHeader>
@@ -185,14 +185,14 @@ export function LoginPage() {
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-semibold text-neutral-900">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                   <Input
                     id="email"
                     type="email"
                     placeholder="you@example.com"
-                    className="pl-11 h-12 border-2 focus:border-blue-500 transition-colors"
+                    className="pl-10 h-11 rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
                     {...register('email')}
                   />
                 </div>
@@ -200,7 +200,7 @@ export function LoginPage() {
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-sm text-red-600 flex items-center gap-1.5"
+                    className="text-sm text-[#EF4444] flex items-center gap-1.5 mt-1"
                   >
                     <AlertCircle className="w-4 h-4" />
                     {errors.email.message}
@@ -214,29 +214,29 @@ export function LoginPage() {
                 transition={{ delay: 0.4 }}
                 className="space-y-2"
               >
-                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <Label htmlFor="password" className="text-sm font-semibold text-neutral-900">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
-                    className="pl-11 pr-11 h-12 border-2 focus:border-blue-500 transition-colors"
+                    className="pl-10 pr-10 h-11 rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
                     {...register('password')}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
                 {errors.password && (
                   <motion.p
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-sm text-red-600 flex items-center gap-1.5"
+                    className="text-sm text-[#EF4444] flex items-center gap-1.5 mt-1"
                   >
                     <AlertCircle className="w-4 h-4" />
                     {errors.password.message}
@@ -244,10 +244,10 @@ export function LoginPage() {
                 )}
               </motion.div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-end">
                 <Link
                   to="/auth/forgot-password"
-                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                  className="text-sm text-[#006BFF] hover:text-[#0052CC] hover:underline font-medium transition-colors"
                 >
                   Forgot password?
                 </Link>
@@ -260,12 +260,12 @@ export function LoginPage() {
               >
                 <Button
                   type="submit"
-                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full h-11 bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
                   disabled={loading}
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Signing in...
                     </>
                   ) : (
@@ -274,11 +274,11 @@ export function LoginPage() {
                 </Button>
               </motion.div>
 
-              <div className="text-center text-sm text-slate-600 pt-2">
+              <div className="text-center text-sm text-neutral-600 pt-2">
                 Don't have an account?{' '}
                 <Link
                   to="/auth/signup"
-                  className="text-blue-600 hover:text-blue-700 hover:underline font-semibold transition-colors"
+                  className="text-[#006BFF] hover:text-[#0052CC] hover:underline font-semibold transition-colors"
                 >
                   Sign up
                 </Link>

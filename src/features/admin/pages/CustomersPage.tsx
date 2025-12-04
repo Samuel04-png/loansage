@@ -8,13 +8,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
-import { Plus, Search, ChevronRight, Loader2, Users, Download, Upload } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { Plus, Search, ChevronRight, Loader2, Users, Download, Upload, MoreVertical } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { exportCustomers } from '../../../lib/data-export';
 import { importCustomersFromCSV } from '../../../lib/data-import';
 import { createCustomer } from '../../../lib/firebase/firestore-helpers';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
 
 export function CustomersPage() {
   const { profile, user } = useAuth();
@@ -41,14 +59,29 @@ export function CustomersPage() {
     cust.nrc?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  const getInitials = (name: string) => {
+    return name
+      ?.split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'C';
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Customers</h2>
-          <p className="text-slate-600">Manage your agency customers</p>
+          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Customers</h2>
+          <p className="text-sm text-neutral-600">Manage your agency customers</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3">
           <Button
             variant="outline"
             onClick={() => {
@@ -59,6 +92,7 @@ export function CustomersPage() {
                 toast.error('No customers to export');
               }
             }}
+            className="rounded-xl border-neutral-200 hover:bg-neutral-50"
           >
             <Download className="mr-2 h-4 w-4" />
             Export
@@ -105,104 +139,148 @@ export function CustomersPage() {
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
+              className="rounded-xl border-neutral-200 hover:bg-neutral-50"
             >
               <Upload className="mr-2 h-4 w-4" />
               {importing ? 'Importing...' : 'Import'}
             </Button>
           </div>
-          <Button onClick={() => setAddCustomerDrawerOpen(true)}>
+          <Button 
+            onClick={() => setAddCustomerDrawerOpen(true)}
+            className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add Customer
           </Button>
         </div>
-      </div>
+      </motion.div>
 
-      <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
-          <div className="relative w-full max-w-md">
-            <Input
-              placeholder="Search by name, ID, or NRC..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+      {/* Search and Table - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4 border-b border-neutral-200/50">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <Input
+                placeholder="Search by name, ID, or NRC..."
+                className="pl-9 rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          ) : filteredCustomers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    <th className="px-6 py-3">Customer</th>
-                    <th className="px-6 py-3">ID</th>
-                    <th className="px-6 py-3">NRC</th>
-                    <th className="px-6 py-3">Risk Score</th>
-                    <th className="px-6 py-3">KYC Status</th>
-                    <th className="px-6 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCustomers.map((cust: any) => (
-                    <tr
+          </CardHeader>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredCustomers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
+                    <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">ID</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">NRC</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Risk Score</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.map((cust: any, index: number) => (
+                    <motion.tr
                       key={cust.id}
-                      className="bg-white border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors cursor-pointer"
                     >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center mr-3">
-                            <span className="text-xs font-bold text-slate-600">
-                              {cust.fullName?.charAt(0) || 'C'}
-                            </span>
-                          </div>
+                      <TableCell>
+                        <Link to={`/admin/customers/${cust.id}`} className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border-2 border-neutral-200">
+                            <AvatarImage src={cust.profilePhotoURL} />
+                            <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                              {getInitials(cust.fullName || 'Customer')}
+                            </AvatarFallback>
+                          </Avatar>
                           <div>
-                            <div className="font-medium text-slate-900">
+                            <div className="font-semibold text-neutral-900">
                               {cust.fullName || 'N/A'}
                             </div>
-                            <div className="text-xs text-slate-500">{cust.email || cust.phone}</div>
+                            <div className="text-xs text-neutral-500">{cust.email || cust.phone}</div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-medium">{cust.id}</td>
-                      <td className="px-6 py-4">{cust.nrc || '-'}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="w-2 h-2 rounded-full mr-2 bg-emerald-500"></div>
-                          <span className="font-medium">-</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {cust.status === 'active' ? (
-                          <Badge variant="success">Active</Badge>
-                        ) : (
-                          <Badge variant="warning">Inactive</Badge>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link to={`/admin/customers/${cust.id}`}>
-                          <Button variant="outline" size="sm">
-                            View Details
-                          </Button>
                         </Link>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="font-medium text-neutral-700">{cust.id}</TableCell>
+                      <TableCell className="text-neutral-600">{cust.nrc || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#22C55E]"></div>
+                          <span className="text-sm font-medium text-neutral-600">-</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {cust.status === 'active' ? (
+                          <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
+                        ) : (
+                          <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Inactive</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </motion.tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              <Users className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No customers found</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </TableBody>
+              </Table>
+              </div>
+            ) : (
+              <div className="text-center py-16 text-neutral-500">
+                <Users className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
+                <p className="text-lg font-medium mb-2">No customers found</p>
+                <p className="text-sm text-neutral-400 mb-6">
+                  {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first customer'}
+                </p>
+                {!searchTerm && (
+                  <Button
+                    onClick={() => setAddCustomerDrawerOpen(true)}
+                    className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Customer
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <AddCustomerDrawer
         open={addCustomerDrawerOpen}
