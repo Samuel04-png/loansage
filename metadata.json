@@ -1,0 +1,8 @@
+{
+  "name": "LoanSage",
+  "description": "Enterprise-grade microfinance SaaS platform with AI-driven underwriting and borrower management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
