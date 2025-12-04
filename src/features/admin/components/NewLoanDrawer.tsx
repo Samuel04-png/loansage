@@ -38,9 +38,10 @@ interface NewLoanDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  preselectedCustomerId?: string;
 }
 
-export function NewLoanDrawer({ open, onOpenChange, onSuccess }: NewLoanDrawerProps) {
+export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustomerId }: NewLoanDrawerProps) {
   const { user, profile } = useAuth();
   const { agency } = useAgency();
   const [step, setStep] = useState(1);
@@ -67,9 +68,20 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess }: NewLoanDrawerPr
     formState: { errors },
     watch,
     reset,
+    setValue,
   } = useForm<LoanFormData>({
     resolver: zodResolver(loanSchema),
+    defaultValues: {
+      customerId: preselectedCustomerId || '',
+    },
   });
+
+  // Update customer selection when preselectedCustomerId changes
+  useEffect(() => {
+    if (preselectedCustomerId && open) {
+      setValue('customerId', preselectedCustomerId);
+    }
+  }, [preselectedCustomerId, open, setValue]);
 
   const selectedCustomerId = watch('customerId');
   const selectedCustomer = customers.find((c: any) => c.id === selectedCustomerId);

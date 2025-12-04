@@ -1,19 +1,23 @@
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs, query as firestoreQuery, where, orderBy } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp, Plus } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { NewLoanDrawer } from '../components/NewLoanDrawer';
+import { useState } from 'react';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
 
   // Fetch customer details
   const { data: customer, isLoading: customerLoading, error: customerError } = useQuery({
@@ -50,38 +54,60 @@ export function CustomerDetailPage() {
       if (!profile?.agency_id || !customerId) return [];
 
       try {
-        const { getCustomerLoans } = await import('../../../lib/firebase/dashboard-helpers');
-        let loansData = await getCustomerLoans(profile.agency_id, customerId);
+        const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+        const allLoans: any[] = [];
+        const loanIds = new Set<string>();
         
-        // Fallback: try alternative field names if no results
-        if (loansData.length === 0) {
-          console.log('No loans found with customerId, trying alternative queries...');
-          const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-          
-          // Try with different field names
-          const queries = [
-            firestoreQuery(loansRef, where('customerId', '==', customerId)),
-            firestoreQuery(loansRef, where('customer_id', '==', customerId)),
-            firestoreQuery(loansRef, where('customer', '==', customerId)),
-          ];
-          
-          for (const q of queries) {
-            try {
-              const snapshot = await getDocs(q);
-              loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-              if (loansData.length > 0) {
-                console.log(`Found ${loansData.length} loans using alternative query`);
-                break;
-              }
-            } catch (err) {
-              console.warn('Query failed:', err);
+        // Query 1: customerId field
+        try {
+          const q1 = firestoreQuery(loansRef, where('customerId', '==', customerId));
+          const snap1 = await getDocs(q1);
+          snap1.docs.forEach(doc => {
+            if (!loanIds.has(doc.id)) {
+              loanIds.add(doc.id);
+              allLoans.push({ id: doc.id, ...doc.data() });
             }
-          }
+          });
+        } catch (err) {
+          console.warn('Query 1 failed:', err);
+        }
+        
+        // Query 2: customer_id field
+        try {
+          const q2 = firestoreQuery(loansRef, where('customer_id', '==', customerId));
+          const snap2 = await getDocs(q2);
+          snap2.docs.forEach(doc => {
+            if (!loanIds.has(doc.id)) {
+              loanIds.add(doc.id);
+              allLoans.push({ id: doc.id, ...doc.data() });
+            }
+          });
+        } catch (err) {
+          console.warn('Query 2 failed:', err);
+        }
+        
+        // Query 3: Get all loans and filter client-side (fallback)
+        if (allLoans.length === 0) {
+          const allLoansSnapshot = await getDocs(loansRef);
+          allLoansSnapshot.docs.forEach(doc => {
+            const loanData = doc.data();
+            if (
+              loanData.customerId === customerId ||
+              loanData.customer_id === customerId ||
+              loanData.customer?.id === customerId ||
+              loanData.customer === customerId
+            ) {
+              if (!loanIds.has(doc.id)) {
+                loanIds.add(doc.id);
+                allLoans.push({ id: doc.id, ...loanData });
+              }
+            }
+          });
         }
         
         // Fetch repayments for each loan
         const loansWithRepayments = await Promise.all(
-          loansData.map(async (loan: any) => {
+          allLoans.map(async (loan: any) => {
             try {
               const repaymentsRef = collection(
                 db,
@@ -92,7 +118,12 @@ export function CustomerDetailPage() {
                 'repayments'
               );
               const repaymentsSnapshot = await getDocs(repaymentsRef);
-              loan.repayments = repaymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              loan.repayments = repaymentsSnapshot.docs.map(doc => ({ 
+                id: doc.id, 
+                ...doc.data(),
+                dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
+                paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
+              }));
             } catch (error) {
               console.warn('Failed to fetch repayments:', error);
               loan.repayments = [];
@@ -101,8 +132,12 @@ export function CustomerDetailPage() {
           })
         );
         
-        console.log(`Customer ${customerId} has ${loansWithRepayments.length} loans`);
-        return loansWithRepayments;
+        // Sort by creation date (newest first)
+        return loansWithRepayments.sort((a: any, b: any) => {
+          const aDate = a.createdAt?.toDate?.() || a.createdAt || new Date(0);
+          const bDate = b.createdAt?.toDate?.() || b.createdAt || new Date(0);
+          return bDate.getTime() - aDate.getTime();
+        });
       } catch (error) {
         console.error('Error fetching customer loans:', error);
         return [];
@@ -211,6 +246,13 @@ export function CustomerDetailPage() {
             <p className="text-slate-600">{customer.email || customer.phone || 'No contact info'}</p>
           </div>
         </div>
+        <Button 
+          onClick={() => setNewLoanDrawerOpen(true)} 
+          className="gap-2 transition-all hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+        >
+          <Plus className="h-4 w-4" />
+          Create Loan
+        </Button>
       </div>
 
       {/* Customer Info Card */}
@@ -446,6 +488,16 @@ export function CustomerDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <NewLoanDrawer
+        open={newLoanDrawerOpen}
+        onOpenChange={setNewLoanDrawerOpen}
+        preselectedCustomerId={customerId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['customer-loans', profile?.agency_id, customerId] });
+          queryClient.invalidateQueries({ queryKey: ['customer', profile?.agency_id, customerId] });
+        }}
+      />
     </div>
   );
 }

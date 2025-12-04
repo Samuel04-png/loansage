@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, query as firestoreQuery, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, FileCheck, UserPlus, Plus, AlertTriangle, TrendingUp, Calendar } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { useLoanAutomation } from '../../../hooks/useLoanAutomation';
@@ -103,32 +103,42 @@ export function AdminDashboard() {
         };
       }).filter((p: any) => p.totalLoans > 0).slice(0, 5);
 
-      // Chart data - last 6 months
+      // Chart data - last 6 months (ensure we always have data)
       const chartDataArray = [];
+      const now = new Date();
+      
       for (let i = 5; i >= 0; i--) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
         const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
         
         const monthLoans = loans.filter((l: any) => {
-          const disbursementDate = l.disbursementDate?.toDate?.() || l.disbursementDate;
-          return disbursementDate && new Date(disbursementDate) >= monthStart && new Date(disbursementDate) <= monthEnd;
+          if (!l.disbursementDate) return false;
+          const disbursementDate = l.disbursementDate?.toDate?.() || new Date(l.disbursementDate);
+          if (isNaN(disbursementDate.getTime())) return false;
+          return disbursementDate >= monthStart && disbursementDate <= monthEnd;
         });
+        
+        const monthAmount = monthLoans.reduce((sum: number, l: any) => 
+          sum + Number(l.amount || 0), 0
+        );
         
         chartDataArray.push({
           name: date.toLocaleString('default', { month: 'short' }),
-          amount: monthLoans.reduce((sum, l: any) => sum + Number(l.amount || 0), 0),
+          amount: monthAmount,
         });
       }
 
-      // Status distribution for pie chart
+      // Status distribution for pie chart (ensure we always have data)
+      const completedLoans = loans.filter((l: any) => l.status === 'completed' || l.status === 'paid');
+      const defaultedLoans = loans.filter((l: any) => l.status === 'defaulted');
+      
       const statusData = [
         { name: 'Active', value: activeLoans.length, color: '#10b981' },
         { name: 'Pending', value: pendingLoans.length, color: '#f59e0b' },
-        { name: 'Completed', value: loans.filter((l: any) => l.status === 'completed' || l.status === 'paid').length, color: '#3b82f6' },
-        { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#ef4444' },
-      ];
+        { name: 'Completed', value: completedLoans.length, color: '#3b82f6' },
+        { name: 'Defaulted', value: defaultedLoans.length, color: '#ef4444' },
+      ].filter(item => item.value > 0); // Only show statuses with loans
 
       return { chartData: chartDataArray, statusData, officerPerformance };
     },
@@ -268,29 +278,35 @@ export function AdminDashboard() {
             <CardTitle>Disbursement Overview (Last 6 Months)</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData?.chartData || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis
-                  stroke="#64748b"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(value) => `K${(value / 1000).toFixed(0)}`}
-                />
-                <Tooltip
-                  cursor={{ fill: '#f1f5f9' }}
-                  contentStyle={{
-                    borderRadius: '8px',
-                    border: 'none',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                  }}
-                  formatter={(value: any) => formatCurrency(value, 'ZMW')}
-                />
-                <Bar dataKey="amount" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartData?.chartData && chartData.chartData.length > 0 && chartData.chartData.some((d: any) => d.amount > 0) ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `K${(value / 1000).toFixed(0)}`}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: 'none',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    }}
+                    formatter={(value: any) => formatCurrency(value, 'ZMW')}
+                  />
+                  <Bar dataKey="amount" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-slate-400">
+                <p>No disbursement data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -299,25 +315,43 @@ export function AdminDashboard() {
             <CardTitle>Loan Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData?.statusData || []}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {(chartData?.statusData || []).map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {chartData?.statusData && chartData.statusData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={chartData.statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {chartData.statusData.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: any, name: string) => [`${value} loans`, name]}
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: 'none',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    }}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36}
+                    formatter={(value: string) => value}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-slate-400">
+                <p>No loan status data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

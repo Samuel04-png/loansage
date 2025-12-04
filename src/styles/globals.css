@@ -6,20 +6,20 @@
 
 @layer base {
   :root {
-    --primary: 200 100% 50%;
-    --secondary: 200 80% 60%;
+    --primary: 38 92% 50%; /* Dark gold/yellow from logo */
+    --secondary: 217 91% 30%; /* Dark blue from logo */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217 91% 30%; /* Dark blue */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --ring: 38 92% 50%; /* Gold ring */
+    --radius: 0.75rem; /* Slightly more rounded */
   }
 
   .dark {
@@ -43,6 +43,45 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Smooth transitions for all interactive elements */
+  button, a, input, select, textarea {
+    @apply transition-all duration-200 ease-in-out;
+  }
+  
+  /* Micro-interactions */
+  button:hover {
+    @apply transform;
+  }
+  
+  button:active {
+    @apply scale-95;
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+  
+  /* Smooth fade-in for content */
+  .fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  
+  /* Button pulse effect */
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+    }
+  }
+  
+  .pulse-glow {
+    animation: pulse-glow 2s infinite;
   }
 }
 

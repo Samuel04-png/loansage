@@ -138,13 +138,13 @@ service cloud.firestore {
         match /repayments/{repaymentId} {
           allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isAccountant());
           allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
-          allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin()) && belongsToAgency(agencyId);
           allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
           
           // Payment history subcollection
           match /paymentHistory/{paymentId} {
             allow read: if isAuthenticated() && belongsToAgency(agencyId);
-            allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+            allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin()) && belongsToAgency(agencyId);
             allow update: if false; // Payment history should never be updated
             allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
           }
