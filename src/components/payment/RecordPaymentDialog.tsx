@@ -123,7 +123,7 @@ export function RecordPaymentDialog({
         // Ignore audit log errors
       });
 
-      // Update loan status if all repayments are paid
+      // Update loan status - only mark completed when total payments >= total loan amount (principal + interest)
       const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
       const { getDoc } = await import('firebase/firestore');
       const loanDoc = await getDoc(loanRef);
@@ -135,15 +135,34 @@ export function RecordPaymentDialog({
         const repaymentsSnapshot = await getDocs(repaymentsRef);
         const allRepayments = repaymentsSnapshot.docs.map(doc => doc.data());
         
-        const allPaid = allRepayments.every((r: any) => 
+        // Calculate total amount due (principal + interest) and total paid
+        const totalLoanAmount = Number(loanData.amount || 0);
+        const interestRate = Number(loanData.interestRate || 0) / 100;
+        const totalInterest = totalLoanAmount * interestRate;
+        const totalAmountOwed = totalLoanAmount + totalInterest;
+        
+        const totalPaid = allRepayments.reduce((sum: number, r: any) => 
+          sum + Number(r.amountPaid || 0), 0
+        );
+        
+        // Only mark as completed if total paid >= total owed
+        const isFullyPaid = totalPaid >= totalAmountOwed;
+        
+        // Also check if all individual repayments are paid
+        const allRepaymentsPaid = allRepayments.every((r: any) => 
           Number(r.amountPaid || 0) >= Number(r.amountDue || 0)
         );
 
-        if (allPaid && loanData.status !== 'completed') {
+        if (isFullyPaid && allRepaymentsPaid && loanData.status !== 'completed') {
           await updateDoc(loanRef, {
             status: 'completed',
+            completedAt: serverTimestamp(),
+            totalPaid: totalPaid,
+            totalInterestEarned: totalInterest,
             updatedAt: serverTimestamp(),
           });
+          
+          toast.success('Loan marked as completed! All payments received.');
         }
       }
 

@@ -14,7 +14,8 @@ import { RecordPaymentDialog } from '../../../components/payment/RecordPaymentDi
 import { useState } from 'react';
 import { exportRepayments } from '../../../lib/data-export';
 import toast from 'react-hot-toast';
-import { Plus } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign } from 'lucide-react';
+import { calculateLoanFinancials, calculateLoanProfit } from '../../../lib/firebase/loan-calculations';
 
 export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
@@ -168,7 +169,16 @@ export function LoanDetailPage() {
 
   const totalPaid = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
   const totalDue = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountDue || 0), 0) || 0;
-  const outstanding = Number(loan.amount || 0) - totalPaid;
+  
+  // Calculate financials
+  const principal = Number(loan.amount || 0);
+  const interestRate = Number(loan.interestRate || 0);
+  const durationMonths = Number(loan.durationMonths || 0);
+  
+  const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
+  const profitData = calculateLoanProfit(principal, interestRate, totalPaid);
+  
+  const outstanding = financials.totalAmount - totalPaid;
   const overdueRepayments = loan.repayments?.filter((r: any) => {
     if (r.status === 'paid') return false;
     try {
@@ -257,7 +267,64 @@ export function LoanDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-hover">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary-600" />
+              Financial Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Principal</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {formatCurrency(principal, 'ZMW')}
+                </p>
+              </div>
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Total Interest</p>
+                <p className="text-lg font-bold text-blue-700">
+                  {formatCurrency(financials.totalInterest, 'ZMW')}
+                </p>
+              </div>
+              <div className="p-4 bg-emerald-50 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Total Amount Owed</p>
+                <p className="text-lg font-bold text-emerald-700">
+                  {formatCurrency(financials.totalAmount, 'ZMW')}
+                </p>
+              </div>
+              <div className="p-4 bg-amber-50 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Total Paid</p>
+                <p className="text-lg font-bold text-amber-700">
+                  {formatCurrency(totalPaid, 'ZMW')}
+                </p>
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-semibold text-slate-700">Profit Earned</p>
+                <p className={`text-xl font-bold ${profitData.isProfitable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {formatCurrency(profitData.profit, 'ZMW')}
+                </p>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-slate-500">Profit Margin</p>
+                <p className={`font-semibold ${profitData.isProfitable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {profitData.profitMargin.toFixed(2)}%
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Remaining Balance</p>
+                <p className="font-semibold text-slate-700">
+                  {formatCurrency(profitData.remainingBalance, 'ZMW')}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="card-hover">
           <CardHeader>
             <CardTitle>Related Information</CardTitle>
           </CardHeader>
