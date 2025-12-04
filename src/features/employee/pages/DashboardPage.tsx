@@ -5,9 +5,12 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
+import { Skeleton } from '../../../components/ui/skeleton';
 import { FileText, Users, Clock, CheckCircle2, AlertCircle, TrendingUp, Calendar } from 'lucide-react';
-import { formatDateSafe } from '../../../lib/utils';;
+import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
 export function EmployeeDashboard() {
   const { profile, user } = useAuth();
@@ -97,177 +100,193 @@ export function EmployeeDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome back!</h2>
-        <p className="text-slate-600">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h2 className="text-2xl font-bold text-neutral-900 mb-2">Welcome back!</h2>
+        <p className="text-neutral-600">
           Here's an overview of your work today.
         </p>
+      </motion.div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: 'My Loans', value: stats?.totalLoans || 0, subtext: `${stats?.activeLoans || 0} active`, icon: FileText, color: 'text-[#006BFF]' },
+          { label: 'Portfolio Value', value: formatCurrency(stats?.totalPortfolioValue || 0, 'ZMW'), icon: TrendingUp, color: 'text-[#22C55E]' },
+          { label: 'Pending Approvals', value: stats?.pendingApprovals || 0, icon: Clock, color: 'text-[#FACC15]' },
+          { label: 'Overdue Loans', value: stats?.overdueCount || 0, icon: AlertCircle, color: 'text-[#EF4444]' },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + index * 0.05 }}
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
+                    <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
+                    {stat.subtext && (
+                      <p className="text-xs text-neutral-500 mt-1">{stat.subtext}</p>
+                    )}
+                  </div>
+                  <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">My Loans</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {stats?.totalLoans || 0}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {stats?.activeLoans || 0} active
-                </p>
-              </div>
-              <FileText className="h-8 w-8 text-primary-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Portfolio Value</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {formatCurrency(stats?.totalPortfolioValue || 0, 'ZMW')}
-                </p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Pending Approvals</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {stats?.pendingApprovals || 0}
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-amber-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">My Customers</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {stats?.totalCustomers || 0}
-                </p>
-              </div>
-              <Users className="h-8 w-8 text-emerald-600" />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Additional Stats */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {[
+          { label: 'My Customers', value: stats?.totalCustomers || 0, icon: Users, color: 'text-[#006BFF]' },
+          { label: 'Approved Loans', value: stats?.approvedLoans || 0, icon: CheckCircle2, color: 'text-[#22C55E]' },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + index * 0.05 }}
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
+                    <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
+                  </div>
+                  <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
+                    <stat.icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Overdue Loans</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {stats?.overdueCount || 0}
-                </p>
-                {stats?.overdueCount > 0 && (
-                  <p className="text-xs text-red-600 mt-1">Action needed</p>
-                )}
-              </div>
-              {stats?.overdueCount > 0 ? (
-                <AlertCircle className="h-8 w-8 text-red-600" />
-              ) : (
-                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Approved Loans</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {stats?.approvedLoans || 0}
-                </p>
-              </div>
-              <CheckCircle2 className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <Link to="/employee/loans/create">
-              <button className="w-full p-4 border rounded-lg hover:bg-slate-50 text-left transition-colors">
-                <FileText className="w-6 h-6 text-primary-600 mb-2" />
-                <p className="font-semibold">Create New Loan</p>
-                <p className="text-sm text-slate-500">Start a loan application</p>
-              </button>
-            </Link>
-            <Link to="/employee/loans/pending">
-              <button className="w-full p-4 border rounded-lg hover:bg-slate-50 text-left transition-colors">
-                <Clock className="w-6 h-6 text-primary-600 mb-2" />
-                <p className="font-semibold">Pending Approvals</p>
-                <p className="text-sm text-slate-500">{stats?.pendingApprovals || 0} loans pending</p>
-              </button>
-            </Link>
-            <Link to="/employee/overdue">
-              <button className="w-full p-4 border rounded-lg hover:bg-slate-50 text-left transition-colors">
-                <AlertCircle className="w-6 h-6 text-primary-600 mb-2" />
-                <p className="font-semibold">Overdue Loans</p>
-                <p className="text-sm text-slate-500">{stats?.overdueCount || 0} need attention</p>
-              </button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-
-      {stats?.recentLoans && stats.recentLoans.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Loans</CardTitle>
+      {/* Quick Actions - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-neutral-900">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {stats.recentLoans.map((loan: any) => (
-                <Link
-                  key={loan.id}
-                  to={`/employee/loans/${loan.id}`}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors"
+            <div className="grid md:grid-cols-3 gap-4">
+              <Link to="/employee/loans/create">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full p-6 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 text-left transition-all duration-300 cursor-pointer"
                 >
-                  <div>
-                    <p className="font-semibold">Loan #{loan.id.substring(0, 8)}</p>
-                    <p className="text-sm text-slate-500">
-                      {formatCurrency(Number(loan.amount || 0), 'ZMW')} • {loan.loanType || 'Personal Loan'} • {loan.createdAt ? formatDateSafe(loan.createdAt) : '-'}
-                    </p>
-                  </div>
-                  <Badge variant={loan.status === 'active' ? 'success' : loan.status === 'pending' ? 'warning' : 'outline'}>
-                    {loan.status}
-                  </Badge>
-                </Link>
-              ))}
+                  <FileText className="w-6 h-6 text-[#006BFF] mb-3" />
+                  <p className="font-semibold text-neutral-900 mb-1">Create New Loan</p>
+                  <p className="text-sm text-neutral-600">Start a loan application</p>
+                </motion.div>
+              </Link>
+              <Link to="/employee/loans/pending">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full p-6 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 text-left transition-all duration-300 cursor-pointer"
+                >
+                  <Clock className="w-6 h-6 text-[#FACC15] mb-3" />
+                  <p className="font-semibold text-neutral-900 mb-1">Pending Approvals</p>
+                  <p className="text-sm text-neutral-600">{stats?.pendingApprovals || 0} loans pending</p>
+                </motion.div>
+              </Link>
+              <Link to="/employee/overdue">
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full p-6 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 text-left transition-all duration-300 cursor-pointer"
+                >
+                  <AlertCircle className="w-6 h-6 text-[#EF4444] mb-3" />
+                  <p className="font-semibold text-neutral-900 mb-1">Overdue Loans</p>
+                  <p className="text-sm text-neutral-600">{stats?.overdueCount || 0} need attention</p>
+                </motion.div>
+              </Link>
             </div>
           </CardContent>
         </Card>
+      </motion.div>
+
+      {/* Recent Loans - Reference Style */}
+      {stats?.recentLoans && stats.recentLoans.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Recent Loans</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats.recentLoans.map((loan: any, index: number) => (
+                  <motion.div
+                    key={loan.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + index * 0.05 }}
+                  >
+                    <Link
+                      to={`/employee/loans/${loan.id}`}
+                      className="flex items-center justify-between p-4 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 transition-all duration-300"
+                    >
+                      <div>
+                        <p className="font-semibold text-neutral-900 mb-1">Loan #{loan.id.substring(0, 8)}</p>
+                        <p className="text-sm text-neutral-600">
+                          {formatCurrency(Number(loan.amount || 0), 'ZMW')} • {loan.loanType || 'Personal Loan'} • {loan.createdAt ? formatDateSafe(loan.createdAt) : '-'}
+                        </p>
+                      </div>
+                      <Badge 
+                        className={
+                          loan.status === 'active' 
+                            ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20"
+                            : loan.status === 'pending'
+                            ? "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20"
+                            : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                        }
+                      >
+                        {loan.status}
+                      </Badge>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
     </div>
   );

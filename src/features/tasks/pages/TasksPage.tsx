@@ -23,12 +23,15 @@ export function TasksPage() {
     queryFn: async () => {
       if (!profile?.id) return null;
 
-      const { data } = await supabase
+      const query = supabase
         .from('employees')
         .select('id')
         .eq('user_id', profile.id)
-        .single();
+        .single() as any;
 
+      const { data, error } = await query;
+
+      if (error) throw error;
       return data;
     },
     enabled: !!profile?.id,
@@ -43,7 +46,7 @@ export function TasksPage() {
         .from('tasks')
         .select('*, assigned_by:employees!tasks_assigned_by_id(user_id, users(full_name)), related_loan:loans(loan_number, amount)')
         .eq('assigned_to', employee.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any;
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
@@ -63,10 +66,12 @@ export function TasksPage() {
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => {
-      const { error } = await supabase
+      const query = supabase
         .from('tasks')
         .update({ status })
-        .eq('id', taskId);
+        .eq('id', taskId) as any;
+
+      const { error } = await query;
 
       if (error) throw error;
     },

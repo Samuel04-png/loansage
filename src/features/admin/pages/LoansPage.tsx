@@ -7,13 +7,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
-import { Plus, Search, MoreVertical, FileText, Loader2, Edit, Download, Upload } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
+import { Skeleton } from '../../../components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
+import { Plus, Search, MoreVertical, FileText, Loader2, Edit, Download, Upload, Eye } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
 import { exportLoans } from '../../../lib/data-export';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
 export function LoansPage() {
   const { profile } = useAuth();
@@ -75,32 +92,33 @@ export function LoansPage() {
   ) || [];
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="success">Active</Badge>;
-      case 'pending':
-        return <Badge variant="warning">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="default">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-      case 'paid':
-        return <Badge variant="success">Paid</Badge>;
-      case 'defaulted':
-        return <Badge variant="destructive">Defaulted</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      active: { label: 'Active', className: 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20' },
+      pending: { label: 'Pending', className: 'bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20' },
+      approved: { label: 'Approved', className: 'bg-[#006BFF]/10 text-[#006BFF] border-[#006BFF]/20' },
+      rejected: { label: 'Rejected', className: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20' },
+      paid: { label: 'Paid', className: 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20' },
+      defaulted: { label: 'Defaulted', className: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20' },
+    };
+
+    const config = statusConfig[status] || { label: status, className: 'bg-neutral-100 text-neutral-600 border-neutral-200' };
+    return <Badge className={cn('border', config.className)}>{config.label}</Badge>;
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Loan Portfolio</h2>
-          <p className="text-slate-600">Manage all loans in your agency</p>
+          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Loan Portfolio</h2>
+          <p className="text-sm text-neutral-600">Manage all loans in your agency</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3">
           <Button
             variant="outline"
             onClick={() => {
@@ -111,122 +129,166 @@ export function LoansPage() {
                 toast.error('No loans to export');
               }
             }}
+            className="rounded-xl border-neutral-200 hover:bg-neutral-50"
           >
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
-          <Button onClick={() => setNewLoanDrawerOpen(true)}>
+          <Button 
+            onClick={() => setNewLoanDrawerOpen(true)}
+            className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+          >
             <Plus className="mr-2 h-4 w-4" />
             New Loan
           </Button>
         </div>
-      </div>
+      </motion.div>
 
-      <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
-          <div className="flex gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Input
-                placeholder="Search by loan number or customer..."
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+      {/* Search, Filter, and Table - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4 border-b border-neutral-200/50">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <Input
+                  placeholder="Search by loan number or customer..."
+                  className="pl-9 rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select
+                className="flex h-10 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="active">Active</option>
+                <option value="rejected">Rejected</option>
+                <option value="paid">Paid</option>
+                <option value="defaulted">Defaulted</option>
+              </select>
             </div>
-            <select
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="active">Active</option>
-              <option value="rejected">Rejected</option>
-              <option value="paid">Paid</option>
-              <option value="defaulted">Defaulted</option>
-            </select>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
-            </div>
-          ) : filteredLoans.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    <th className="px-6 py-3">Loan Number</th>
-                    <th className="px-6 py-3">Customer</th>
-                    <th className="px-6 py-3">Amount</th>
-                    <th className="px-6 py-3">Type</th>
-                    <th className="px-6 py-3">Duration</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3">Created</th>
-                    <th className="px-6 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLoans.map((loan: any) => (
-                    <tr
+          </CardHeader>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredLoans.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
+                    <TableHead className="font-semibold text-neutral-700">Loan Number</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Amount</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Type</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Duration</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Created</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLoans.map((loan: any, index: number) => (
+                    <motion.tr
                       key={loan.id}
-                      className="bg-white border-b border-slate-100 hover:bg-slate-50"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
                     >
-                      <td className="px-6 py-4 font-medium">{loan.id}</td>
-                      <td className="px-6 py-4">
+                      <TableCell className="font-medium text-neutral-900">{loan.id}</TableCell>
+                      <TableCell>
                         <div>
-                          <div className="font-medium text-slate-900">
+                          <div className="font-semibold text-neutral-900">
                             {loan.customer?.fullName || 'N/A'}
                           </div>
-                          <div className="text-xs text-slate-500">
+                          <div className="text-xs text-neutral-500">
                             {loan.customer?.id}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 font-semibold">
+                      </TableCell>
+                      <TableCell className="font-semibold text-neutral-900">
                         {formatCurrency(Number(loan.amount), 'ZMW')}
-                      </td>
-                      <td className="px-6 py-4 capitalize">{loan.loanType}</td>
-                      <td className="px-6 py-4">{loan.durationMonths} months</td>
-                      <td className="px-6 py-4">{getStatusBadge(loan.status)}</td>
-                      <td className="px-6 py-4 text-slate-500">
+                      </TableCell>
+                      <TableCell className="capitalize text-neutral-700">{loan.loanType || '-'}</TableCell>
+                      <TableCell className="text-neutral-700">{loan.durationMonths || '-'} months</TableCell>
+                      <TableCell>{getStatusBadge(loan.status)}</TableCell>
+                      <TableCell className="text-neutral-600 text-sm">
                         {formatDateSafe(loan.createdAt?.toDate?.() || loan.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedLoan({ id: loan.id, status: loan.status });
-                              setStatusDialogOpen(true);
-                            }}
-                          >
-                            <Edit className="w-3 h-3 mr-1" />
-                            Status
-                          </Button>
-                          <Link to={`/admin/loans/${loan.id}`}>
-                            <Button variant="outline" size="sm">View Details</Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedLoan({ id: loan.id, status: loan.status });
+                                setStatusDialogOpen(true);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Change Status
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </motion.tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No loans found</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </TableBody>
+              </Table>
+              </div>
+            ) : (
+              <div className="text-center py-16 text-neutral-500">
+                <FileText className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
+                <p className="text-lg font-medium mb-2">No loans found</p>
+                <p className="text-sm text-neutral-400 mb-6">
+                  {searchTerm || statusFilter !== 'all' 
+                    ? 'Try adjusting your filters' 
+                    : 'Get started by creating your first loan'}
+                </p>
+                {!searchTerm && statusFilter === 'all' && (
+                  <Button
+                    onClick={() => setNewLoanDrawerOpen(true)}
+                    className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Loan
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <NewLoanDrawer
         open={newLoanDrawerOpen}

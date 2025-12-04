@@ -5,6 +5,7 @@ import { db } from '../../../lib/firebase/config';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
+import { Skeleton } from '../../../components/ui/skeleton';
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, FileCheck, UserPlus, Plus, AlertTriangle, TrendingUp, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { formatCurrency, formatDate } from '../../../lib/utils';
@@ -15,33 +16,99 @@ import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { subscribeToDashboardStats } from '../../../lib/firebase/dashboard-helpers';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
-const StatCard = ({ title, value, change, trend, icon: Icon, onClick }: any) => (
-  <Card className={onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} onClick={onClick}>
-    <CardContent className="p-6">
-      <div className="flex items-center justify-between space-y-0 pb-2">
-        <p className="text-sm font-medium text-slate-500">{title}</p>
-        <Icon className="h-4 w-4 text-slate-400" />
-      </div>
-      <div className="flex items-baseline space-x-2">
-        <div className="text-2xl font-bold text-slate-900">{value}</div>
-        {change && (
-          <span
-            className={`text-xs font-medium flex items-center ${
-              trend === 'up' ? 'text-emerald-600' : 'text-red-600'
-            }`}
-          >
-            {trend === 'up' ? (
-              <ArrowUpRight className="w-3 h-3 mr-1" />
-            ) : (
-              <ArrowDownRight className="w-3 h-3 mr-1" />
-            )}
-            {change}
-          </span>
-        )}
-      </div>
-    </CardContent>
-  </Card>
+// Animated Counter Component
+function AnimatedCounter({ value, className }: { value: number | string; className?: string }) {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    if (typeof value === 'number') {
+      const duration = 1000; // 1 second
+      const steps = 60;
+      const increment = value / steps;
+      const stepDuration = duration / steps;
+      let current = 0;
+      
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= value) {
+          setDisplayValue(value);
+          clearInterval(timer);
+        } else {
+          setDisplayValue(Math.round(current));
+        }
+      }, stepDuration);
+
+      return () => clearInterval(timer);
+    }
+  }, [value]);
+
+  if (typeof value === 'string') {
+    return <span className={className}>{value}</span>;
+  }
+
+  return <span className={className}>{displayValue}</span>;
+}
+
+// StatCard Component - Reference Style with floating effect
+const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }: any) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3 }}
+    whileHover={{ y: -4, scale: 1.01 }}
+    className="h-full"
+  >
+    <Card 
+      className={cn(
+        "h-full cursor-pointer transition-all duration-300 bg-white border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] rounded-2xl overflow-hidden",
+        gradient && "bg-gradient-to-br from-white to-neutral-50/50"
+      )}
+      onClick={onClick}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-medium text-neutral-600">{title}</p>
+          <div className={cn(
+            "p-2 rounded-lg",
+            gradient ? "bg-[#006BFF]/10" : "bg-neutral-100"
+          )}>
+            <Icon className={cn(
+              "h-4 w-4",
+              gradient ? "text-[#006BFF]" : "text-neutral-500"
+            )} />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-baseline gap-2">
+            <AnimatedCounter 
+              value={value} 
+              className="text-3xl font-bold text-neutral-900"
+            />
+          </div>
+          {change && (
+            <div className="flex items-center gap-1">
+              <span
+                className={cn(
+                  "text-xs font-semibold flex items-center gap-1",
+                  trend === 'up' ? 'text-[#22C55E]' : trend === 'down' ? 'text-[#EF4444]' : 'text-neutral-500'
+                )}
+              >
+                {trend === 'up' ? (
+                  <ArrowUpRight className="w-3 h-3" />
+                ) : trend === 'down' ? (
+                  <ArrowDownRight className="w-3 h-3" />
+                ) : null}
+                {change}
+              </span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  </motion.div>
 );
 
 export function AdminDashboard() {
@@ -148,62 +215,81 @@ export function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="rounded-2xl">
+              <CardContent className="p-6">
+                <Skeleton className="h-4 w-24 mb-4" />
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setInviteDrawerOpen(true);
-              }}
-              type="button"
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite Employee
-            </Button>
-            <Button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setAddCustomerDrawerOpen(true);
-              }}
-              variant="outline"
-              type="button"
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Add Customer
-            </Button>
-            <Button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setNewLoanDrawerOpen(true);
-              }}
-              variant="outline"
-              type="button"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New Loan
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-8">
+      {/* Quick Actions - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-semibold text-neutral-900">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInviteDrawerOpen(true);
+                }}
+                type="button"
+                className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Invite Employee
+              </Button>
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setAddCustomerDrawerOpen(true);
+                }}
+                variant="outline"
+                type="button"
+                className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Add Customer
+              </Button>
+              <Button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setNewLoanDrawerOpen(true);
+                }}
+                variant="outline"
+                type="button"
+                className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New Loan
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-      {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Main Stats - Reference Style with floating cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Active Loans"
           value={stats?.totalActiveLoans || 0}
@@ -211,6 +297,7 @@ export function AdminDashboard() {
           trend="up"
           icon={DollarSign}
           onClick={() => window.location.href = '/admin/loans?status=active'}
+          gradient
         />
         <StatCard
           title="Disbursed This Month"
@@ -218,6 +305,7 @@ export function AdminDashboard() {
           change="+8.2%"
           trend="up"
           icon={TrendingUp}
+          gradient
         />
         <StatCard
           title="Repayments Due"
@@ -238,7 +326,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Secondary Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Employees"
           value={stats?.totalEmployees || 0}
@@ -271,124 +359,172 @@ export function AdminDashboard() {
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Disbursement Overview (Last 6 Months)</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-            {chartData?.chartData && chartData.chartData.length > 0 && chartData.chartData.some((d: any) => d.amount > 0) ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `K${(value / 1000).toFixed(0)}`}
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#f1f5f9' }}
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    }}
-                    formatter={(value: any) => formatCurrency(value, 'ZMW')}
-                  />
-                  <Bar dataKey="amount" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-slate-400">
-                <p>No disbursement data available</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Charts - Reference Style */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-7">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="lg:col-span-4"
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Disbursement Overview (Last 6 Months)</CardTitle>
+            </CardHeader>
+            <CardContent className="pl-2">
+              {chartData?.chartData && chartData.chartData.length > 0 && chartData.chartData.some((d: any) => d.amount > 0) ? (
+                <div className="w-full overflow-x-auto">
+                  <ResponsiveContainer width="100%" height={300} minWidth={300}>
+                  <BarChart data={chartData.chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#6B7280" 
+                      fontSize={12} 
+                      tickLine={false} 
+                      axisLine={false}
+                      tick={{ fill: '#6B7280' }}
+                    />
+                    <YAxis
+                      stroke="#6B7280"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => `K${(value / 1000).toFixed(0)}`}
+                      tick={{ fill: '#6B7280' }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#F3F4F6' }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid #E5E7EB',
+                        boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
+                        backgroundColor: 'white',
+                      }}
+                      formatter={(value: any) => formatCurrency(value, 'ZMW')}
+                    />
+                    <Bar 
+                      dataKey="amount" 
+                      fill="url(#colorGradient)" 
+                      radius={[8, 8, 0, 0]}
+                    />
+                    <defs>
+                      <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#006BFF" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#4F46E5" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
+                  </BarChart>
+                </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-neutral-400">
+                  <p>No disbursement data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Loan Status Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {chartData?.statusData && chartData.statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData.statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartData.statusData.map((entry: any, index: number) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: any, name: string) => [`${value} loans`, name]}
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: 'none',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    formatter={(value: string) => value}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-slate-400">
-                <p>No loan status data available</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="lg:col-span-3"
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Loan Status Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chartData?.statusData && chartData.statusData.length > 0 ? (
+                <div className="w-full overflow-x-auto">
+                  <ResponsiveContainer width="100%" height={300} minWidth={300}>
+                  <PieChart>
+                    <Pie
+                      data={chartData.statusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value, percent }) => `${name}: ${value}`}
+                      outerRadius={90}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {chartData.statusData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any, name: string) => [`${value} loans`, name]}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid #E5E7EB',
+                        boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
+                        backgroundColor: 'white',
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value: string) => value}
+                      wrapperStyle={{ fontSize: '12px', color: '#6B7280' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-neutral-400">
+                  <p>No loan status data available</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
-      {/* Officer Performance */}
+      {/* Officer Performance - Reference Style */}
       {chartData?.officerPerformance && chartData.officerPerformance.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Performing Officers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Officer</th>
-                    <th className="px-4 py-3 text-right">Total Loans</th>
-                    <th className="px-4 py-3 text-right">Active Loans</th>
-                    <th className="px-4 py-3 text-right">Total Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {chartData.officerPerformance.map((officer: any, index: number) => (
-                    <tr key={index} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium">{officer.name}</td>
-                      <td className="px-4 py-3 text-right">{officer.totalLoans}</td>
-                      <td className="px-4 py-3 text-right">{officer.activeLoans}</td>
-                      <td className="px-4 py-3 text-right font-semibold">
-                        {formatCurrency(officer.totalAmount, 'ZMW')}
-                      </td>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Top Performing Officers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-neutral-600 uppercase bg-neutral-50/50 border-b border-neutral-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Officer</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total Loans</th>
+                      <th className="px-4 py-3 text-right font-semibold">Active Loans</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  </thead>
+                  <tbody>
+                    {chartData.officerPerformance.map((officer: any, index: number) => (
+                      <tr 
+                        key={index} 
+                        className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-medium text-neutral-900">{officer.name}</td>
+                        <td className="px-4 py-3 text-right text-neutral-700">{officer.totalLoans}</td>
+                        <td className="px-4 py-3 text-right text-neutral-700">{officer.activeLoans}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-neutral-900">
+                          {formatCurrency(officer.totalAmount, 'ZMW')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       {/* Drawers */}

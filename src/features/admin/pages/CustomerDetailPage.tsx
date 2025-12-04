@@ -6,12 +6,24 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
+import { Skeleton } from '../../../components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../../components/ui/table';
 import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp, Plus } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -191,215 +203,266 @@ export function CustomerDetailPage() {
     { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#ef4444' },
   ] : [];
 
+  const getInitials = (name: string) => {
+    return name
+      ?.split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'C';
+  };
+
   if (customerLoading || loansLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
       </div>
     );
   }
 
   if (customerError) {
     return (
-      <div className="text-center py-12">
-        <p className="text-red-500 mb-4">Error loading customer</p>
-        <p className="text-sm text-slate-400 mb-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-16"
+      >
+        <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-[#EF4444]" />
+        <p className="text-lg font-semibold text-neutral-900 mb-2">Error loading customer</p>
+        <p className="text-sm text-neutral-600 mb-6">
           {customerError instanceof Error ? customerError.message : 'Unknown error'}
         </p>
         <Link to="/admin/customers">
-          <Button variant="outline" className="mt-4">
+          <Button variant="outline" className="rounded-xl">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Customers
           </Button>
         </Link>
-      </div>
+      </motion.div>
     );
   }
 
   if (!customer) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-500 mb-4">Customer not found</p>
-        <p className="text-sm text-slate-400 mb-4">Customer ID: {customerId}</p>
-        <p className="text-xs text-slate-400 mb-4">Agency ID: {profile?.agency_id || 'N/A'}</p>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-16"
+      >
+        <FileText className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
+        <p className="text-lg font-semibold text-neutral-900 mb-2">Customer not found</p>
+        <p className="text-sm text-neutral-600 mb-6">Customer ID: {customerId}</p>
         <Link to="/admin/customers">
-          <Button variant="outline" className="mt-4">
+          <Button variant="outline" className="rounded-xl">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Customers
           </Button>
         </Link>
-      </div>
+      </motion.div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+      >
         <div className="flex items-center gap-4">
           <Link to="/admin/customers">
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" className="rounded-xl">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">{customer.fullName || 'Customer'}</h2>
-            <p className="text-slate-600">{customer.email || customer.phone || 'No contact info'}</p>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 border-4 border-neutral-200">
+              <AvatarImage src={customer.profilePhotoURL} />
+              <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-lg font-semibold">
+                {getInitials(customer.fullName || 'Customer')}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-2xl font-bold text-neutral-900 mb-1">{customer.fullName || 'Customer'}</h2>
+              <p className="text-sm text-neutral-600">{customer.email || customer.phone || 'No contact info'}</p>
+            </div>
           </div>
         </div>
         <Button 
           onClick={() => setNewLoanDrawerOpen(true)} 
-          className="gap-2 transition-all hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+          className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 mr-2" />
           Create Loan
         </Button>
-      </div>
+      </motion.div>
 
-      {/* Customer Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-slate-500">Full Name</p>
-                  <p className="font-semibold">{customer.fullName || 'N/A'}</p>
-                </div>
-                {customer.email && (
+      {/* Customer Info Card - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-neutral-900">Customer Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div>
+                <div className="space-y-5">
                   <div>
-                    <p className="text-sm text-slate-500">Email</p>
-                    <p className="font-semibold flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      {customer.email}
-                    </p>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Full Name</p>
+                    <p className="text-base font-semibold text-neutral-900">{customer.fullName || 'N/A'}</p>
                   </div>
-                )}
-                {customer.phone && (
-                  <div>
-                    <p className="text-sm text-slate-500">Phone</p>
-                    <p className="font-semibold flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      {customer.phone}
-                    </p>
-                  </div>
-                )}
-                {customer.nrc && (
-                  <div>
-                    <p className="text-sm text-slate-500">NRC/ID Number</p>
-                    <p className="font-mono text-sm">{customer.nrc}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className="space-y-4">
-                {customer.address && (
-                  <div>
-                    <p className="text-sm text-slate-500">Address</p>
-                    <p className="font-semibold flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      {customer.address}
-                    </p>
-                  </div>
-                )}
-                {customer.employer && (
-                  <div>
-                    <p className="text-sm text-slate-500">Employer</p>
-                    <p className="font-semibold">{customer.employer}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-slate-500">Customer ID</p>
-                  <p className="font-mono text-sm">{customer.id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Registered</p>
-                  <p className="font-semibold flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {formatDateSafe(customer.createdAt)}
-                  </p>
+                  {customer.email && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Email</p>
+                      <p className="text-base font-medium text-neutral-700 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-neutral-400" />
+                        {customer.email}
+                      </p>
+                    </div>
+                  )}
+                  {customer.phone && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Phone</p>
+                      <p className="text-base font-medium text-neutral-700 flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-neutral-400" />
+                        {customer.phone}
+                      </p>
+                    </div>
+                  )}
+                  {customer.nrc && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">NRC/ID Number</p>
+                      <p className="font-mono text-sm text-neutral-900">{customer.nrc}</p>
+                    </div>
+                  )}
                 </div>
               </div>
+              <div>
+                <div className="space-y-5">
+                  {customer.address && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Address</p>
+                      <p className="text-base font-medium text-neutral-700 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-neutral-400" />
+                        {customer.address}
+                      </p>
+                    </div>
+                  )}
+                  {customer.employer && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Employer</p>
+                      <p className="text-base font-semibold text-neutral-900">{customer.employer}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Customer ID</p>
+                    <p className="font-mono text-sm text-neutral-700">{customer.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Registered</p>
+                    <p className="text-base font-medium text-neutral-700 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-neutral-400" />
+                      {formatDateSafe(customer.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
-      {/* Statistics */}
+      {/* Statistics - Reference Style */}
       {stats && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Loans</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.totalLoans}</p>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: 'Total Loans', value: stats.totalLoans, icon: FileText, color: 'text-[#006BFF]' },
+            { label: 'Active Loans', value: stats.activeLoans, icon: TrendingUp, color: 'text-[#22C55E]' },
+            { label: 'Total Borrowed', value: formatCurrency(stats.totalBorrowed, 'ZMW'), icon: DollarSign, color: 'text-[#006BFF]' },
+            { label: 'Outstanding', value: formatCurrency(stats.totalOutstanding, 'ZMW'), icon: AlertTriangle, color: 'text-[#FACC15]' },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.05 }}
+            >
+              <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
+                      <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
+                    </div>
+                    <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
+                      <stat.icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Risk Score</p>
+                    <p className="text-2xl font-bold text-neutral-900">{stats.riskScore}/100</p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {stats.riskScore < 30 ? 'Low Risk' : stats.riskScore < 70 ? 'Medium Risk' : 'High Risk'}
+                    </p>
+                  </div>
+                  <div className={cn(
+                    "p-3 rounded-xl",
+                    stats.riskScore < 30 ? "bg-[#22C55E]/10" : stats.riskScore < 70 ? "bg-[#FACC15]/10" : "bg-[#EF4444]/10"
+                  )}>
+                    {stats.riskScore < 30 ? (
+                      <CheckCircle2 className={cn("h-5 w-5", stats.riskScore < 30 ? "text-[#22C55E]" : "")} />
+                    ) : stats.riskScore < 70 ? (
+                      <Clock className="h-5 w-5 text-[#FACC15]" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-[#EF4444]" />
+                    )}
+                  </div>
                 </div>
-                <FileText className="h-8 w-8 text-primary-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Borrowed</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {formatCurrency(stats.totalBorrowed, 'ZMW')}
-                  </p>
-                </div>
-                <DollarSign className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Outstanding</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {formatCurrency(stats.totalOutstanding, 'ZMW')}
-                  </p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-amber-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Risk Score</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.riskScore}/100</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {stats.riskScore < 30 ? 'Low Risk' : stats.riskScore < 70 ? 'Medium Risk' : 'High Risk'}
-                  </p>
-                </div>
-                {stats.riskScore < 30 ? (
-                  <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-                ) : stats.riskScore < 70 ? (
-                  <Clock className="h-8 w-8 text-amber-600" />
-                ) : (
-                  <AlertTriangle className="h-8 w-8 text-red-600" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
       )}
 
-      {/* Charts */}
+      {/* Charts - Reference Style */}
       {statusData.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Loan Status Distribution</CardTitle>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="grid gap-6 md:grid-cols-2"
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900">Loan Status Distribution</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -410,7 +473,7 @@ export function CustomerDetailPage() {
                     cy="50%"
                     labelLine={false}
                     label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={100}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
                   >
@@ -418,76 +481,94 @@ export function CustomerDetailPage() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: '1px solid #E5E7EB',
+                      boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
+                      backgroundColor: 'white',
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       )}
 
-      {/* Loan History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Loan History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loansLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
-            </div>
-          ) : loans && loans.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Loan ID</th>
-                    <th className="px-4 py-3 text-right">Amount</th>
-                    <th className="px-4 py-3 text-left">Type</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loans.map((loan: any) => (
-                    <tr key={loan.id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono text-xs">{loan.id.substring(0, 8)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">
+      {/* Loan History - Reference Style */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.3 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-neutral-900">Loan History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loansLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-[#006BFF]" />
+              </div>
+            ) : loans && loans.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
+                    <TableHead className="font-semibold text-neutral-700">Loan ID</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Amount</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Type</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Created</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loans.map((loan: any, index: number) => (
+                    <motion.tr
+                      key={loan.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
+                    >
+                      <TableCell className="font-mono text-xs text-neutral-700">{loan.id.substring(0, 8)}</TableCell>
+                      <TableCell className="text-right font-semibold text-neutral-900">
                         {formatCurrency(Number(loan.amount || 0), 'ZMW')}
-                      </td>
-                      <td className="px-4 py-3 capitalize">{loan.loanType || '-'}</td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="capitalize text-neutral-700">{loan.loanType || '-'}</TableCell>
+                      <TableCell>
                         {loan.status === 'active' ? (
-                          <Badge variant="success">Active</Badge>
+                          <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
                         ) : loan.status === 'pending' ? (
-                          <Badge variant="warning">Pending</Badge>
+                          <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Pending</Badge>
                         ) : loan.status === 'defaulted' ? (
-                          <Badge variant="destructive">Defaulted</Badge>
+                          <Badge className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20">Defaulted</Badge>
                         ) : (
-                          <Badge variant="outline">{loan.status}</Badge>
+                          <Badge className="bg-neutral-100 text-neutral-600 border-neutral-200">{loan.status}</Badge>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">
+                      </TableCell>
+                      <TableCell className="text-neutral-600 text-sm">
                         {formatDateSafe(loan.createdAt)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Link to={`/admin/loans/${loan.id}`}>
-                          <Button variant="outline" size="sm">View</Button>
+                          <Button variant="outline" size="sm" className="rounded-lg">View</Button>
                         </Link>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </motion.tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-slate-500">
-              No loans found for this customer
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
+                <p className="text-neutral-600 font-medium">No loans found for this customer</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <NewLoanDrawer
         open={newLoanDrawerOpen}
