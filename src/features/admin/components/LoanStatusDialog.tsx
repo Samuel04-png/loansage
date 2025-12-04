@@ -1,0 +1,143 @@
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/dialog';
+import { Button } from '../../../components/ui/button';
+import { Label } from '../../../components/ui/label';
+import { Textarea } from '../../../components/ui/textarea';
+import { Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
+import { useAuth } from '../../../hooks/useAuth';
+
+interface LoanStatusDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  loanId: string;
+  currentStatus: string;
+  agencyId: string;
+}
+
+export function LoanStatusDialog({ open, onOpenChange, loanId, currentStatus, agencyId }: LoanStatusDialogProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [newStatus, setNewStatus] = useState(currentStatus);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const statusOptions = [
+    { value: 'pending', label: 'Pending', description: 'Awaiting approval' },
+    { value: 'approved', label: 'Approved', description: 'Loan approved, ready for disbursement' },
+    { value: 'active', label: 'Active', description: 'Loan is active and being repaid' },
+    { value: 'completed', label: 'Completed', description: 'Loan fully repaid' },
+    { value: 'defaulted', label: 'Defaulted', description: 'Loan in default' },
+    { value: 'rejected', label: 'Rejected', description: 'Loan application rejected' },
+    { value: 'cancelled', label: 'Cancelled', description: 'Loan cancelled' },
+  ];
+
+  const handleStatusChange = async () => {
+    if (newStatus === currentStatus) {
+      toast('Status is already set to this value', { icon: 'ℹ️' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
+      await updateDoc(loanRef, {
+        status: newStatus,
+        statusNotes: notes || null,
+        statusUpdatedAt: serverTimestamp(),
+        statusUpdatedBy: user?.id || null,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Create audit log
+      createAuditLog(agencyId, {
+        actorId: user?.id || '',
+        action: 'update_loan_status',
+        targetCollection: 'loans',
+        targetId: loanId,
+        metadata: {
+          oldStatus: currentStatus,
+          newStatus,
+          notes,
+        },
+      }).catch(() => {
+        // Ignore audit log errors
+      });
+
+      toast.success('Loan status updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+      queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+      onOpenChange(false);
+      setNotes('');
+    } catch (error: any) {
+      console.error('Error updating loan status:', error);
+      toast.error(error.message || 'Failed to update loan status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change Loan Status</DialogTitle>
+          <DialogDescription>
+            Update the status of this loan. Current status: <strong>{currentStatus}</strong>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="status">New Status *</Label>
+            <select
+              id="status"
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label} - {option.description}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Textarea
+              id="notes"
+              placeholder="Add any notes about this status change..."
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleStatusChange} disabled={loading || newStatus === currentStatus}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              'Update Status'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

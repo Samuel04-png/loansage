@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserAgencyId() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null ? userDoc.data.agency_id : null;
+    }
+    
+    function getUserRole() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      if (userDoc == null) {
+        return null;
+      }
+      // Check both role field and employee role
+      let role = userDoc.data.role;
+      if (role == null) {
+        // Try to get role from employee document
+        let agencyId = userDoc.data.agency_id;
+        if (agencyId != null) {
+          let employeeDoc = get(/databases/$(database)/documents/agencies/$(agencyId)/employees/$(request.auth.uid));
+          if (employeeDoc != null) {
+            role = employeeDoc.data.role;
+          }
+        }
+      }
+      return role;
+    }
+    
+    function isAdmin() {
+      return getUserRole() == 'admin';
+    }
+    
+    function isEmployee() {
+      return getUserRole() == 'employee';
+    }
+    
+    function isCustomer() {
+      return getUserRole() == 'customer';
+    }
+    
+    function isAccountant() {
+      return getUserRole() == 'accountant' || getUserRole() == 'admin';
+    }
+    
+    function isLoanOfficer() {
+      return isAdmin() || isEmployee();
+    }
+    
+    function belongsToAgency(agencyId) {
+      return getUserAgencyId() == agencyId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || getUserAgencyId() != null);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || (isAdmin() && belongsToAgency(resource.data.agency_id)));
+      allow delete: if isAuthenticated() && isAdmin();
+      
+      // User notifications
+      match /notifications/{notificationId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow create: if isAuthenticated();
+        allow update: if isAuthenticated() && request.auth.uid == userId;
+        allow delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+    
+    // Agencies collection
+    match /agencies/{agencyId} {
+      // Allow creator to read immediately
+      allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.createdBy == request.auth.uid));
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (isAdmin() && belongsToAgency(agencyId));
+      allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      
+      // Employees subcollection
+      match /employees/{employeeId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && (isAdmin() || (isEmployee() && resource.data.userId == request.auth.uid)) && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Invitations subcollection
+      match /invitations/{inviteId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && (isAdmin() || resource.data.createdBy == request.auth.uid) && belongsToAgency(agencyId);
+      }
+      
+      // Customers subcollection
+      match /customers/{customerId} {
+        allow read: if isAuthenticated() && (belongsToAgency(agencyId) || resource.data.userId == request.auth.uid);
+        allow create: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && (isLoanOfficer() || resource.data.userId == request.auth.uid) && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        
+        // Customer documents subcollection
+        match /documents/{documentId} {
+          allow read: if isAuthenticated() && belongsToAgency(agencyId);
+          allow create: if isAuthenticated() && (isLoanOfficer() || resource.data.uploadedBy == request.auth.uid) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && (isAdmin() || resource.data.uploadedBy == request.auth.uid) && belongsToAgency(agencyId);
+          allow delete: if isAuthenticated() && (isAdmin() || resource.data.uploadedBy == request.auth.uid) && belongsToAgency(agencyId);
+        }
+      }
+      
+      // Loans subcollection
+      match /loans/{loanId} {
+        allow read: if isAuthenticated() && (belongsToAgency(agencyId) || resource.data.customerId != null);
+        allow create: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        
+        // Loan documents subcollection
+        match /documents/{documentId} {
+          allow read: if isAuthenticated() && belongsToAgency(agencyId);
+          allow create: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+          allow delete: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        }
+        
+        // Loan collateral subcollection
+        match /collateral/{collateralId} {
+          allow read: if isAuthenticated() && belongsToAgency(agencyId);
+          allow create: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+          allow delete: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        }
+        
+        // Loan repayments subcollection
+        match /repayments/{repaymentId} {
+          allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isAccountant());
+          allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+          allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
+          
+          // Payment history subcollection
+          match /paymentHistory/{paymentId} {
+            allow read: if isAuthenticated() && belongsToAgency(agencyId);
+            allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+            allow update: if false; // Payment history should never be updated
+            allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+          }
+        }
+        
+        // Loan transactions subcollection
+        match /transactions/{transactionId} {
+          allow read: if isAuthenticated() && belongsToAgency(agencyId);
+          allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && isAccountant() && belongsToAgency(agencyId);
+          allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        }
+      }
+      
+      // Top-level collateral registry
+      match /collateral/{collateralId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && isLoanOfficer() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Audit logs subcollection
+      match /audit_logs/{logId} {
+        allow read: if isAuthenticated() && (isAdmin() || isEmployee()) && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        allow update: if false; // Audit logs should never be updated
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Reports subcollection (for accountants)
+      match /reports/{reportId} {
+        allow read: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
+      }
+      
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && belongsToAgency(agencyId);
+      }
+    }
+    
+    // AI logs collection (read-only for employees, full access for admins)
+    match /ai_logs/{logId} {
+      allow read: if isAuthenticated() && (isAdmin() || isEmployee());
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // App settings (admin only)
+    match /app_settings/{settingId} {
+      allow read: if isAuthenticated() && isAdmin();
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+  }
+}

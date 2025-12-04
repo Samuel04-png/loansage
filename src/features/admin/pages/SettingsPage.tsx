@@ -1,0 +1,1006 @@
+import { useState, useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, doc, updateDoc, deleteDoc, query as firestoreQuery, where } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
+import { useAgency } from '../../../hooks/useAgency';
+import { useAuth } from '../../../hooks/useAuth';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Badge } from '../../../components/ui/badge';
+import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
+import { uploadAgencyLogo } from '../../../lib/firebase/storage-helpers';
+import { InviteEmployeeDrawer } from '../components/InviteEmployeeDrawer';
+import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
+import { authService } from '../../../lib/supabase/auth';
+import { exportLoans, exportCustomers, exportEmployees } from '../../../lib/data-export';
+import { importCustomersFromCSV, importLoansFromCSV } from '../../../lib/data-import';
+import { createCustomer } from '../../../lib/firebase/firestore-helpers';
+import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
+
+const agencySchema = z.object({
+  name: z.string().min(2, 'Agency name is required'),
+  email: z.string().email('Valid email is required'),
+  phone: z.string().min(10, 'Valid phone number is required'),
+  address: z.string().min(5, 'Address is required'),
+});
+
+const profileSchema = z.object({
+  fullName: z.string().min(2, 'Full name is required'),
+});
+
+const passwordSchema = z.object({
+  currentPassword: z.string().min(6, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
+
+type AgencyFormData = z.infer<typeof agencySchema>;
+type ProfileFormData = z.infer<typeof profileSchema>;
+type PasswordFormData = z.infer<typeof passwordSchema>;
+
+export function SettingsPage() {
+  const { agency, updateAgency, loading: agencyLoading } = useAgency();
+  const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data'>('agency');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
+  const [addCustomerDrawerOpen, setAddCustomerDrawerOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importType, setImportType] = useState<'customers' | 'loans' | null>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Agency form
+  const agencyForm = useForm<AgencyFormData>({
+    resolver: zodResolver(agencySchema),
+    defaultValues: {
+      name: agency?.name || '',
+      email: '',
+      phone: '',
+      address: '',
+    },
+  });
+
+  // Profile form
+  const profileForm = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      fullName: profile?.full_name || '',
+    },
+  });
+
+  // Password form
+  const passwordForm = useForm<PasswordFormData>({
+    resolver: zodResolver(passwordSchema),
+  });
+
+  // Fetch employees
+  const { data: employees = [], refetch: refetchEmployees } = useQuery({
+    queryKey: ['employees', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return [];
+      const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
+      const snapshot = await getDocs(employeesRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    enabled: !!profile?.agency_id && activeTab === 'employees',
+  });
+
+  // Fetch data for export
+  const { data: loans } = useQuery({
+    queryKey: ['all-loans-export', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return [];
+      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+      const snapshot = await getDocs(loansRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    enabled: !!profile?.agency_id && activeTab === 'data',
+  });
+
+  const { data: customers } = useQuery({
+    queryKey: ['all-customers-export', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return [];
+      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+      const snapshot = await getDocs(customersRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    enabled: !!profile?.agency_id && activeTab === 'data',
+  });
+
+  const { data: employeesForExport } = useQuery({
+    queryKey: ['all-employees-export', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return [];
+      const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
+      const snapshot = await getDocs(employeesRef);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    enabled: !!profile?.agency_id && activeTab === 'data',
+  });
+
+  const handleExport = (type: 'loans' | 'customers' | 'employees') => {
+    if (type === 'loans' && loans) {
+      exportLoans(loans);
+      toast.success('Loans exported successfully');
+    } else if (type === 'customers' && customers) {
+      exportCustomers(customers);
+      toast.success('Customers exported successfully');
+    } else if (type === 'employees' && employeesForExport) {
+      exportEmployees(employeesForExport);
+      toast.success('Employees exported successfully');
+    } else {
+      toast.error('No data available to export');
+    }
+  };
+
+  const handleImport = async (type: 'customers' | 'loans') => {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    if (!profile?.agency_id || !user?.id) {
+      toast.error('Agency information not available');
+      return;
+    }
+
+    setImporting(true);
+    setImportType(type);
+    setImportResult(null);
+
+    try {
+      if (type === 'customers') {
+        const result = await importCustomersFromCSV(
+          file,
+          profile.agency_id,
+          user.id,
+          async (agencyId, data) => {
+            await createCustomer(agencyId, data);
+          }
+        );
+        setImportResult(result);
+        
+        if (result.success > 0) {
+          toast.success(`Successfully imported ${result.success} customers`);
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+        }
+        if (result.failed > 0) {
+          toast.error(`Failed to import ${result.failed} customers`);
+        }
+      } else if (type === 'loans') {
+        const { findCustomerByIdentifier } = await import('../../../lib/data-import');
+        const result = await importLoansFromCSV(
+          file,
+          profile.agency_id,
+          user.id,
+          async (agencyId, loanData) => {
+            await createLoanTransaction({
+              agencyId,
+              ...loanData,
+            });
+          },
+          async (agencyId, identifier) => {
+            return await findCustomerByIdentifier(agencyId, identifier);
+          }
+        );
+        setImportResult(result);
+        
+        if (result.success > 0) {
+          toast.success(`Successfully imported ${result.success} loans`);
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+        }
+        if (result.failed > 0) {
+          toast.error(`Failed to import ${result.failed} loans`);
+        }
+      }
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast.error(error.message || 'Failed to import data');
+      setImportResult({ success: 0, failed: 0, errors: [error.message] });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Update forms when data loads
+  useEffect(() => {
+    if (agency) {
+      agencyForm.reset({
+        name: agency.name || '',
+        email: (agency as any).email || '',
+        phone: (agency as any).phone || '',
+        address: (agency as any).address || '',
+      });
+    }
+  }, [agency, agencyForm]);
+
+  useEffect(() => {
+    if (profile) {
+      profileForm.reset({
+        fullName: profile.full_name || '',
+      });
+    }
+  }, [profile, profileForm]);
+
+  // Create or update agency
+  const handleAgencySubmit = async (data: AgencyFormData) => {
+    if (!user?.id || !profile) {
+      toast.error('User information not available');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let logoURL = agency?.logo_url || null;
+
+      if (agency && profile.agency_id) {
+        // Upload logo if provided (for existing agency)
+        if (logoFile) {
+          logoURL = await uploadAgencyLogo(profile.agency_id, logoFile);
+        }
+        // Update existing agency
+        await updateAgencyHelper(profile.agency_id, {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          logoURL: logoURL || undefined,
+        });
+        await updateAgency({
+          name: data.name,
+          logo_url: logoURL,
+        } as any);
+        toast.success('Agency updated successfully!');
+      } else {
+        // Create new agency first (without logo)
+        const newAgency = await createAgency({
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          createdBy: user.id,
+          logoURL: undefined, // Will upload logo after agency is created
+        });
+
+        // Upload logo if provided (after agency is created)
+        // Skip on Spark plan - file uploads not available
+        if (logoFile) {
+          try {
+            const { isSparkPlan } = await import('../../../lib/firebase/config');
+            if (isSparkPlan) {
+              console.info('Skipping logo upload - Spark plan detected');
+              toast('Logo upload skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
+            } else {
+              logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
+              // Update agency with logo URL
+              await updateAgencyHelper(newAgency.id, { logoURL });
+            }
+          } catch (error: any) {
+            console.warn('Failed to upload logo:', error);
+            if (error.message?.includes('Spark') || error.message?.includes('free')) {
+              toast('Logo upload not available on free plan', { icon: 'ℹ️' });
+            } else {
+              toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });
+            }
+            // Continue even if logo upload fails
+          }
+        }
+
+        // Update user profile with agency_id in Firestore (create if doesn't exist)
+        const { updateUserDocument } = await import('../../../lib/firebase/firestore-helpers');
+        await updateUserDocument(user.id, {
+          agency_id: newAgency.id,
+          email: user.email || '',
+          full_name: profile.full_name || user.email?.split('@')[0] || 'Admin',
+          role: profile.role || 'admin',
+          employee_category: profile.employee_category || null,
+        });
+
+        // Also create employee record for the admin
+        const { createEmployee } = await import('../../../lib/firebase/firestore-helpers');
+        await createEmployee(newAgency.id, {
+          userId: user.id,
+          email: user.email || '',
+          name: profile.full_name || user.email?.split('@')[0] || 'Admin',
+          role: 'admin',
+        });
+
+        toast.success('Agency created successfully!');
+        queryClient.invalidateQueries({ queryKey: ['agency'] });
+        queryClient.invalidateQueries({ queryKey: ['profile'] });
+        
+        // Refresh agency data
+        const { useAgencyStore } = await import('../../../stores/agencyStore');
+        useAgencyStore.getState().fetchAgency(newAgency.id);
+      }
+
+      setLogoFile(null);
+    } catch (error: any) {
+      console.error('Error saving agency:', error);
+      toast.error(error.message || 'Failed to save agency');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update profile
+  const handleProfileSubmit = async (data: ProfileFormData) => {
+    if (!profile?.id) {
+      toast.error('Profile not available');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Update profile in Firestore
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const userRef = doc(db, 'users', profile.id);
+      await updateDoc(userRef, { full_name: data.fullName });
+
+      toast.success('Profile updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(error.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update password
+  const handlePasswordSubmit = async (data: PasswordFormData) => {
+    setLoading(true);
+    try {
+      await authService.updatePassword(data.newPassword);
+      passwordForm.reset();
+      toast.success('Password updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      toast.error(error.message || 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Remove employee
+  const handleRemoveEmployee = async (employeeId: string) => {
+    if (!profile?.agency_id) return;
+
+    if (!confirm('Are you sure you want to remove this employee?')) return;
+
+    try {
+      const employeeRef = doc(db, 'agencies', profile.agency_id, 'employees', employeeId);
+      await updateDoc(employeeRef, { status: 'disabled' });
+      toast.success('Employee removed successfully');
+      refetchEmployees();
+    } catch (error: any) {
+      console.error('Error removing employee:', error);
+      toast.error(error.message || 'Failed to remove employee');
+    }
+  };
+
+  if (agencyLoading && !agency) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
+          <p className="text-slate-600">Loading settings...</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
+        <p className="text-slate-600">Manage your agency and account settings</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('agency')}
+          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+            activeTab === 'agency'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Building2 className="w-4 h-4 inline mr-2" />
+          Agency Settings
+        </button>
+        <button
+          onClick={() => setActiveTab('employees')}
+          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+            activeTab === 'employees'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Users className="w-4 h-4 inline mr-2" />
+          Employees
+        </button>
+        <button
+          onClick={() => setActiveTab('account')}
+          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+            activeTab === 'account'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <User className="w-4 h-4 inline mr-2" />
+          Account
+        </button>
+      </div>
+
+      {/* Agency Settings Tab */}
+      {activeTab === 'agency' && (
+        <form onSubmit={agencyForm.handleSubmit(handleAgencySubmit)}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Organization Settings</CardTitle>
+              <CardDescription>
+                {agency ? 'Update your agency information' : 'Create your agency organization'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="name">Agency Name *</Label>
+                <Input
+                  id="name"
+                  {...agencyForm.register('name')}
+                  className={agencyForm.formState.errors.name ? 'border-red-500' : ''}
+                />
+                {agencyForm.formState.errors.name && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {agencyForm.formState.errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="email">Business Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    {...agencyForm.register('email')}
+                    className={agencyForm.formState.errors.email ? 'border-red-500' : ''}
+                  />
+                  {agencyForm.formState.errors.email && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {agencyForm.formState.errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="phone">Business Phone *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    {...agencyForm.register('phone')}
+                    className={agencyForm.formState.errors.phone ? 'border-red-500' : ''}
+                  />
+                  {agencyForm.formState.errors.phone && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {agencyForm.formState.errors.phone.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="address">Address *</Label>
+                <Input
+                  id="address"
+                  {...agencyForm.register('address')}
+                  className={agencyForm.formState.errors.address ? 'border-red-500' : ''}
+                />
+                {agencyForm.formState.errors.address && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {agencyForm.formState.errors.address.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label>Logo</Label>
+                <div className="flex items-center gap-4 mt-2">
+                  {agency?.logo_url && (
+                    <img src={agency.logo_url} alt="Current logo" className="h-16 w-auto" />
+                  )}
+                  <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                    <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                    <span className="text-sm text-slate-500">Upload Logo</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
+                {logoFile && (
+                  <p className="text-sm text-slate-600 mt-2">Selected: {logoFile.name}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      {agency ? 'Update Agency' : 'Create Agency'}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </form>
+      )}
+
+      {/* Employees Tab */}
+      {activeTab === 'employees' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold">Employee Management</h3>
+              <p className="text-sm text-slate-600">Manage your agency employees</p>
+            </div>
+            <Button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setInviteDrawerOpen(true);
+              }}
+              type="button"
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Invite Employee
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              {employees.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+                      <tr>
+                        <th className="px-6 py-3 text-left">Employee</th>
+                        <th className="px-6 py-3 text-left">Role</th>
+                        <th className="px-6 py-3 text-left">Status</th>
+                        <th className="px-6 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.map((emp: any) => (
+                        <tr key={emp.id} className="border-b hover:bg-slate-50">
+                          <td className="px-6 py-4">
+                            <div>
+                              <div className="font-medium">{emp.name || 'N/A'}</div>
+                              <div className="text-xs text-slate-500">{emp.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <Badge variant="outline" className="capitalize">
+                              {emp.role?.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-4">
+                            {emp.status === 'active' ? (
+                              <Badge variant="success">Active</Badge>
+                            ) : (
+                              <Badge variant="destructive">Inactive</Badge>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  // TODO: Implement edit role
+                                  toast('Edit role functionality coming soon', { icon: 'ℹ️' });
+                                }}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveEmployee(emp.id)}
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-slate-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+                  <p>No employees yet</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setInviteDrawerOpen(true);
+                    }}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Invite First Employee
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Management</CardTitle>
+              <CardDescription>Quick access to add customers</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => setAddCustomerDrawerOpen(true)}>
+                <Users className="mr-2 h-4 w-4" />
+                Add Customer
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Account Tab */}
+      {activeTab === 'account' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>Update your personal information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-4">
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" value={user?.email || ''} disabled />
+                  <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
+                </div>
+                <div>
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    {...profileForm.register('fullName')}
+                    className={profileForm.formState.errors.fullName ? 'border-red-500' : ''}
+                  />
+                  {profileForm.formState.errors.fullName && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {profileForm.formState.errors.fullName.message}
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+              <CardDescription>Update your account password</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-4">
+                <div>
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    {...passwordForm.register('currentPassword')}
+                    className={passwordForm.formState.errors.currentPassword ? 'border-red-500' : ''}
+                  />
+                  {passwordForm.formState.errors.currentPassword && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {passwordForm.formState.errors.currentPassword.message}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    {...passwordForm.register('newPassword')}
+                    className={passwordForm.formState.errors.newPassword ? 'border-red-500' : ''}
+                  />
+                  {passwordForm.formState.errors.newPassword && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {passwordForm.formState.errors.newPassword.message}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    {...passwordForm.register('confirmPassword')}
+                    className={passwordForm.formState.errors.confirmPassword ? 'border-red-500' : ''}
+                  />
+                  {passwordForm.formState.errors.confirmPassword && (
+                    <p className="text-sm text-red-600 mt-1">
+                      {passwordForm.formState.errors.confirmPassword.message}
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Update Password
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'data' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Management</CardTitle>
+              <CardDescription>
+                Import and export customer, loan, and employee data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Export Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Export Data</h3>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <FileText className="h-5 w-5 text-primary-600" />
+                        <Badge>{loans?.length || 0} loans</Badge>
+                      </div>
+                      <h4 className="font-semibold mb-1">Loans</h4>
+                      <p className="text-sm text-slate-500 mb-3">Export all loan data to CSV</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExport('loans')}
+                        disabled={!loans || loans.length === 0}
+                        className="w-full"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Loans
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Users className="h-5 w-5 text-primary-600" />
+                        <Badge>{customers?.length || 0} customers</Badge>
+                      </div>
+                      <h4 className="font-semibold mb-1">Customers</h4>
+                      <p className="text-sm text-slate-500 mb-3">Export all customer data to CSV</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExport('customers')}
+                        disabled={!customers || customers.length === 0}
+                        className="w-full"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Customers
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <UserPlus className="h-5 w-5 text-primary-600" />
+                        <Badge>{employeesForExport?.length || 0} employees</Badge>
+                      </div>
+                      <h4 className="font-semibold mb-1">Employees</h4>
+                      <p className="text-sm text-slate-500 mb-3">Export all employee data to CSV</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExport('employees')}
+                        disabled={!employeesForExport || employeesForExport.length === 0}
+                        className="w-full"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Employees
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Import Section */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Import Data</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Import Customers</CardTitle>
+                      <CardDescription>Upload a CSV file to import customers</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleImport('customers');
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={importing && importType === 'customers'}
+                        className="w-full"
+                      >
+                        {importing && importType === 'customers' ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Select CSV File
+                          </>
+                        )}
+                      </Button>
+                      {importResult && importType === 'customers' && (
+                        <div className="text-sm">
+                          <p className="text-green-600">✓ {importResult.success} imported</p>
+                          {importResult.failed > 0 && (
+                            <p className="text-red-600">✗ {importResult.failed} failed</p>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Import Loans</CardTitle>
+                      <CardDescription>Upload a CSV file to import loans</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleImport('loans');
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={importing && importType === 'loans'}
+                        className="w-full"
+                      >
+                        {importing && importType === 'loans' ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Select CSV File
+                          </>
+                        )}
+                      </Button>
+                      {importResult && importType === 'loans' && (
+                        <div className="text-sm">
+                          <p className="text-green-600">✓ {importResult.success} imported</p>
+                          {importResult.failed > 0 && (
+                            <p className="text-red-600">✗ {importResult.failed} failed</p>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Drawers */}
+      <InviteEmployeeDrawer
+        open={inviteDrawerOpen}
+        onOpenChange={setInviteDrawerOpen}
+        onSuccess={() => {
+          refetchEmployees();
+          queryClient.invalidateQueries({ queryKey: ['employees'] });
+        }}
+      />
+
+      <AddCustomerDrawer
+        open={addCustomerDrawerOpen}
+        onOpenChange={setAddCustomerDrawerOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+        }}
+      />
+    </div>
+  );
+}
