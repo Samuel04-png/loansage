@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { isDemoMode, isSparkPlan } from './config';
+import { trackPendingWrite, removePendingWrite } from './offline-helpers';
 
 /**
  * Firestore structure helpers following the specified schema

@@ -152,18 +152,18 @@ export function SignUpPage() {
             {/* Noise texture overlay */}
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSBiYXNlRnJlcXVlbmN5PSIwLjkiIG51bU9jdGF2ZXM9IjQiIHJlc3VsdD0ibm9pc2UiLz48ZmVDb2xvck1hdHJpeCBpbj0ibm9pc2UiIHR5cGU9InNhdHVyYXRlIiB2YWx1ZXM9IjAiLz48L2ZpbHRlcj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbHRlcj0idXJsKCNub2lzZSkiIG9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')] opacity-30 rounded-3xl pointer-events-none"></div>
             
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 sm:p-10">
+            <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
               {/* Logo */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring' }}
-                className="flex justify-center mb-6"
+                className="flex justify-center mb-4"
               >
                 <img 
                   src="/logo/loansagelogo.png" 
                   alt="LoanSage" 
-                  className="h-12 w-auto"
+                  className="h-10 w-auto"
                 />
               </motion.div>
 
@@ -172,18 +172,18 @@ export function SignUpPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="text-center mb-8"
+                className="text-center mb-6"
               >
-                <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                <h1 className="text-2xl font-bold text-slate-900 mb-1">
                   Welcome to LoanSage 🚀
                 </h1>
-                <p className="text-slate-600">
+                <p className="text-sm text-slate-600">
                   Create your account to get started
                 </p>
               </motion.div>
 
               {/* Form */}
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {/* Full Name */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -191,15 +191,15 @@ export function SignUpPage() {
                   transition={{ delay: 0.4 }}
                   className="space-y-2"
                 >
-                  <Label htmlFor="fullName" className="text-sm font-semibold text-slate-700">
+                  <Label htmlFor="fullName" className="text-xs font-semibold text-slate-700">
                     Full Name
                   </Label>
                   <div className="relative group">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
                     <Input
                       id="fullName"
                       placeholder="John Doe"
-                      className="pl-11 h-12 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                      className="pl-10 h-10 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all text-sm"
                       {...register('fullName')}
                     />
                   </div>
@@ -207,9 +207,9 @@ export function SignUpPage() {
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="text-sm text-red-600 flex items-center gap-1.5"
+                      className="text-xs text-red-600 flex items-center gap-1"
                     >
-                      <AlertCircle className="w-4 h-4" />
+                      <AlertCircle className="w-3 h-3" />
                       {errors.fullName.message}
                     </motion.p>
                   )}
@@ -222,18 +222,18 @@ export function SignUpPage() {
                   transition={{ delay: 0.45 }}
                   className="space-y-2"
                 >
-                  <Label htmlFor="email" className="text-sm font-semibold text-slate-700">
+                  <Label htmlFor="email" className="text-xs font-semibold text-slate-700">
                     Email
                   </Label>
                   <div className="relative group">
-                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 transition-all ${
+                    <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-all ${
                       errors.email ? 'text-red-500 animate-pulse' : 'text-slate-400 group-focus-within:text-primary-600'
                     }`} />
                     <Input
                       id="email"
                       type="email"
                       placeholder="you@example.com"
-                      className={`pl-11 h-12 rounded-xl border-2 transition-all ${
+                      className={`pl-10 h-10 rounded-xl border-2 transition-all text-sm ${
                         errors.email 
                           ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20' 
                           : 'border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -245,9 +245,9 @@ export function SignUpPage() {
                     <motion.p
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className="text-sm text-red-600 flex items-center gap-1.5"
+                      className="text-xs text-red-600 flex items-center gap-1"
                     >
-                      <AlertCircle className="w-4 h-4" />
+                      <AlertCircle className="w-3 h-3" />
                       {errors.email.message}
                     </motion.p>
                   )}
@@ -258,18 +258,18 @@ export function SignUpPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="space-y-2"
+                  className="space-y-1.5"
                 >
-                  <Label htmlFor="password" className="text-sm font-semibold text-slate-700">
+                  <Label htmlFor="password" className="text-xs font-semibold text-slate-700">
                     Password
                   </Label>
                   <div className="relative group">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
-                      className="pl-11 pr-11 h-12 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                      className="pl-10 pr-10 h-10 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all text-sm"
                       {...register('password')}
                     />
                     <button
@@ -277,16 +277,16 @@ export function SignUpPage() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   {errors.password && (
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="text-sm text-red-600 flex items-center gap-1.5"
+                      className="text-xs text-red-600 flex items-center gap-1"
                     >
-                      <AlertCircle className="w-4 h-4" />
+                      <AlertCircle className="w-3 h-3" />
                       {errors.password.message}
                     </motion.p>
                   )}
@@ -297,18 +297,18 @@ export function SignUpPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.55 }}
-                  className="space-y-2"
+                  className="space-y-1.5"
                 >
-                  <Label htmlFor="confirmPassword" className="text-sm font-semibold text-slate-700">
+                  <Label htmlFor="confirmPassword" className="text-xs font-semibold text-slate-700">
                     Confirm Password
                   </Label>
                   <div className="relative group">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
                     <Input
                       id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
                       placeholder="••••••••"
-                      className="pl-11 pr-11 h-12 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                      className="pl-10 pr-10 h-10 rounded-xl border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all text-sm"
                       {...register('confirmPassword')}
                     />
                     <button
@@ -316,16 +316,16 @@ export function SignUpPage() {
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   {errors.confirmPassword && (
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="text-sm text-red-600 flex items-center gap-1.5"
+                      className="text-xs text-red-600 flex items-center gap-1"
                     >
-                      <AlertCircle className="w-4 h-4" />
+                      <AlertCircle className="w-3 h-3" />
                       {errors.confirmPassword.message}
                     </motion.p>
                   )}
@@ -339,11 +339,11 @@ export function SignUpPage() {
                   className="space-y-2"
                 >
                   <Label className="text-sm font-semibold text-slate-700">I want to</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <motion.label
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`relative flex flex-col cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 ${
+                      className={`relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition-all duration-200 ${
                         selectedRole === 'admin'
                           ? 'border-primary-500 bg-primary-50 shadow-md'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
@@ -355,30 +355,25 @@ export function SignUpPage() {
                         className="sr-only"
                         {...register('role')}
                       />
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg transition-colors ${
-                          selectedRole === 'admin' ? 'bg-primary-600' : 'bg-slate-200'
+                      <div className={`p-1.5 rounded-lg transition-colors mr-2 ${
+                        selectedRole === 'admin' ? 'bg-primary-600' : 'bg-slate-200'
+                      }`}>
+                        <Building2 className={`w-4 h-4 ${
+                          selectedRole === 'admin' ? 'text-white' : 'text-slate-600'
+                        }`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className={`font-semibold text-xs ${
+                          selectedRole === 'admin' ? 'text-primary-900' : 'text-slate-900'
                         }`}>
-                          <Building2 className={`w-5 h-5 ${
-                            selectedRole === 'admin' ? 'text-white' : 'text-slate-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className={`font-semibold text-sm ${
-                            selectedRole === 'admin' ? 'text-primary-900' : 'text-slate-900'
-                          }`}>
-                            Create Agency
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            Start my own
-                          </div>
+                          Create Agency
                         </div>
                       </div>
                     </motion.label>
                     <motion.label
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`relative flex flex-col cursor-pointer rounded-xl border-2 p-4 transition-all duration-200 ${
+                      className={`relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition-all duration-200 ${
                         selectedRole === 'employee'
                           ? 'border-primary-500 bg-primary-50 shadow-md'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
@@ -390,23 +385,18 @@ export function SignUpPage() {
                         className="sr-only"
                         {...register('role')}
                       />
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg transition-colors ${
-                          selectedRole === 'employee' ? 'bg-primary-600' : 'bg-slate-200'
+                      <div className={`p-1.5 rounded-lg transition-colors mr-2 ${
+                        selectedRole === 'employee' ? 'bg-primary-600' : 'bg-slate-200'
+                      }`}>
+                        <Users className={`w-4 h-4 ${
+                          selectedRole === 'employee' ? 'text-white' : 'text-slate-600'
+                        }`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className={`font-semibold text-xs ${
+                          selectedRole === 'employee' ? 'text-primary-900' : 'text-slate-900'
                         }`}>
-                          <Users className={`w-5 h-5 ${
-                            selectedRole === 'employee' ? 'text-white' : 'text-slate-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className={`font-semibold text-sm ${
-                            selectedRole === 'employee' ? 'text-primary-900' : 'text-slate-900'
-                          }`}>
-                            Join as Employee
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            I have an invite
-                          </div>
+                          Join Employee
                         </div>
                       </div>
                     </motion.label>
@@ -428,22 +418,22 @@ export function SignUpPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.65 }}
-                  className="flex items-start gap-3"
+                  className="flex items-start gap-2"
                 >
                   <Checkbox
                     id="agreeToTerms"
-                    className="mt-1"
+                    className="mt-0.5"
                     checked={agreeToTerms}
                     onChange={(e) => setValue('agreeToTerms', e.target.checked, { shouldValidate: true })}
                   />
-                  <Label htmlFor="agreeToTerms" className="text-sm text-slate-600 leading-relaxed cursor-pointer flex-1">
+                  <Label htmlFor="agreeToTerms" className="text-xs text-slate-600 leading-tight cursor-pointer flex-1">
                     I agree to the{' '}
                     <Link to="/terms" className="text-primary-600 hover:text-primary-700 font-semibold">
-                      Terms of Service
+                      Terms
                     </Link>
-                    {' '}and{' '}
+                    {' '}&{' '}
                     <Link to="/privacy" className="text-primary-600 hover:text-primary-700 font-semibold">
-                      Privacy Policy
+                      Privacy
                     </Link>
                   </Label>
                 </motion.div>
@@ -466,7 +456,7 @@ export function SignUpPage() {
                 >
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+                    className="w-full h-11 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
                     disabled={loading}
                   >
                     {loading ? (
@@ -485,13 +475,13 @@ export function SignUpPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.8 }}
-                  className="relative my-6"
+                  className="relative my-4"
                 >
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-slate-200"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-4 text-slate-500">Or continue with</span>
+                    <span className="bg-white px-3 text-slate-500">Or continue with</span>
                   </div>
                 </motion.div>
 
@@ -509,7 +499,7 @@ export function SignUpPage() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 1 }}
-                  className="text-center text-sm text-slate-600 pt-4"
+                  className="text-center text-xs text-slate-600 pt-2"
                 >
                   Already have an account?{' '}
                   <Link
