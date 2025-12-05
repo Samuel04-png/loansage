@@ -32,7 +32,7 @@ export function SocialLoginButtons() {
             type="button"
             variant="outline"
             onClick={() => handleSocialLogin(social.provider)}
-            className={`w-full h-11 rounded-xl border-2 transition-all duration-200 ${social.color}`}
+            className={`w-full h-10 rounded-xl border-2 transition-all duration-200 text-sm ${social.color}`}
           >
             <social.icon className="mr-3 h-5 w-5" />
             Continue with {social.name}

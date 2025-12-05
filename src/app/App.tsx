@@ -6,7 +6,8 @@ import { ThemeProvider } from '../components/providers/ThemeProvider';
 import { ProtectedRoute } from '../components/guards/ProtectedRoute';
 import { RoleGuard } from '../components/guards/RoleGuard';
 import { PWAInstallPrompt } from '../components/PWAInstallPrompt';
-import { OfflineIndicator } from '../components/OfflineIndicator';
+import { OfflineIndicator } from '../components/offline/OfflineIndicator';
+import { useOfflineToast } from '../hooks/useOfflineToast';
 
 // Auth pages
 import { LoginPage } from '../features/auth/pages/LoginPage';
@@ -79,20 +80,13 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Watermark } from '../components/Watermark';
 
 
-function App() {
+function AppContent() {
+  useOfflineToast();
+  
   return (
-    <ErrorBoundary>
-      <QueryProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <BrowserRouter
-              future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true,
-              }}
-            >
-              <DemoModeBanner />
-              <Routes>
+    <>
+      <DemoModeBanner />
+      <Routes>
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/about" element={<AboutPage />} />
@@ -205,8 +199,25 @@ function App() {
               </Routes>
               <Toaster position="top-right" />
               <PWAInstallPrompt />
-              <OfflineIndicator />
-              <Watermark />
+      <OfflineIndicator />
+      <Watermark />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <QueryProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <BrowserRouter
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <AppContent />
             </BrowserRouter>
           </ThemeProvider>
         </AuthProvider>
