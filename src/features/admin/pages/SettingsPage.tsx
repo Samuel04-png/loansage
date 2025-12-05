@@ -260,18 +260,29 @@ export function SettingsPage() {
         if (logoFile) {
           logoURL = await uploadAgencyLogo(profile.agency_id, logoFile);
         }
-        // Update existing agency
-        await updateAgencyHelper(profile.agency_id, {
+        // Update existing agency - only include logoURL if it has a value
+        const updateData: any = {
           name: data.name,
           email: data.email,
           phone: data.phone,
           address: data.address,
-          logoURL: logoURL || undefined,
-        });
+        };
+        if (logoURL) {
+          updateData.logoURL = logoURL;
+        }
+        await updateAgencyHelper(profile.agency_id, updateData);
         await updateAgency({
           name: data.name,
           logo_url: logoURL,
         } as any);
+        
+        // Invalidate queries to refresh agency list in dropdown
+        queryClient.invalidateQueries({ queryKey: ['user-agencies'] });
+        queryClient.invalidateQueries({ queryKey: ['agency'] });
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('agency-updated'));
+        
         toast.success('Agency updated successfully!');
       } else {
         // Create new agency first (without logo)
