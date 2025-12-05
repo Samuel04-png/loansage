@@ -14,6 +14,112 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { isDemoMode, isSparkPlan } from './config';
+
+/**
+ * Get all agencies that a user has access to
+ * Returns agencies where user is a member (via agency_id) or creator
+ */
+export async function getUserAgencies(userId: string): Promise<Array<{
+  id: string;
+  name: string;
+  memberCount: number;
+  isActive: boolean;
+  createdBy?: string;
+}>> {
+  if (isDemoMode) {
+    return [
+      { id: 'demo-agency-id', name: 'Demo Agency', memberCount: 5, isActive: true },
+    ];
+  }
+
+  try {
+    const agencies: Array<{
+      id: string;
+      name: string;
+      memberCount: number;
+      isActive: boolean;
+      createdBy?: string;
+    }> = [];
+
+    // Get user document to find their current agency_id
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    const userAgencyId = userSnap.data()?.agency_id;
+
+    // Get all agencies where user is a member (via employees collection) or creator
+    const agenciesRef = collection(db, 'agencies');
+    const agenciesSnapshot = await getDocs(agenciesRef);
+
+    for (const agencyDoc of agenciesSnapshot.docs) {
+      const agencyData = agencyDoc.data();
+      const agencyId = agencyDoc.id;
+
+      // Check if user created this agency (most common case for admins)
+      const isCreator = agencyData.createdBy === userId;
+      
+      // Check if this is the user's current agency
+      const isCurrentAgency = agencyId === userAgencyId;
+      
+      // Check if user is an employee of this agency
+      let isMember = false;
+      try {
+        const employeesRef = collection(db, 'agencies', agencyId, 'employees');
+        const employeeQuery = query(employeesRef, where('userId', '==', userId));
+        const employeeSnapshot = await getDocs(employeeQuery);
+        isMember = !employeeSnapshot.empty;
+      } catch (error) {
+        // If employees collection doesn't exist or query fails, continue
+        console.warn(`Could not check employees for agency ${agencyId}:`, error);
+      }
+
+      // Include agency if user is creator OR member OR if it's their current agency
+      if (isCreator || isMember || isCurrentAgency) {
+        // Get employee count for this agency
+        const allEmployeesRef = collection(db, 'agencies', agencyId, 'employees');
+        const allEmployeesSnapshot = await getDocs(allEmployeesRef);
+        const memberCount = allEmployeesSnapshot.size;
+
+        agencies.push({
+          id: agencyId,
+          name: agencyData.name || 'Unnamed Agency',
+          memberCount,
+          isActive: agencyId === userAgencyId,
+          createdBy: agencyData.createdBy,
+        });
+      }
+    }
+
+    // Sort: active agency first, then by name
+    return agencies.sort((a, b) => {
+      if (a.isActive) return -1;
+      if (b.isActive) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  } catch (error) {
+    console.error('Error fetching user agencies:', error);
+    return [];
+  }
+}
+
+/**
+ * Switch user's active agency
+ */
+export async function switchAgency(userId: string, agencyId: string): Promise<void> {
+  if (isDemoMode) {
+    return;
+  }
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      agency_id: agencyId,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error switching agency:', error);
+    throw error;
+  }
+}
 import { trackPendingWrite, removePendingWrite } from './offline-helpers';
 
 /**
@@ -64,11 +170,19 @@ export async function createAgency(data: {
 }
 
 export async function updateAgency(agencyId: string, updates: any) {
+  // Filter out undefined values - Firestore doesn't allow undefined
+  const cleanUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([_, value]) => value !== undefined)
+  );
+  
+  if (Object.keys(cleanUpdates).length === 0) {
+    return; // Nothing to update
+  }
   if (isDemoMode) return;
 
   const agencyRef = doc(db, 'agencies', agencyId);
   await updateDoc(agencyRef, {
-    ...updates,
+    ...cleanUpdates,
     updatedAt: serverTimestamp(),
   });
 }

@@ -63,6 +63,10 @@ import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Dialog, DialogContent, DialogHeader } from '../../../components/ui/dialog';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { switchAgency } from '../../../lib/firebase/firestore-helpers';
+import { AddAgencyDialog } from './AddAgencyDialog';
 
 export function AdminLayout() {
   const location = useLocation();
@@ -70,8 +74,14 @@ export function AdminLayout() {
   const { profile, signOut } = useAuth();
   const { agency } = useAgency();
   const { logoUrl, agencyName } = useWhitelabel();
+  const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [updateNotificationDismissed, setUpdateNotificationDismissed] = useState(() => {
+    return localStorage.getItem('update-notification-dismissed') === 'true';
+  });
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [addAgencyDialogOpen, setAddAgencyDialogOpen] = useState(false);
   
   // Persist sidebar collapsed state in localStorage
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -158,13 +168,42 @@ export function AdminLayout() {
       .slice(0, 2);
   };
 
-  // Mock workspaces for account switcher
-  const workspaces = [
-    { id: '1', name: agencyName || 'LoanSage', icon: Building2, active: true },
-    { id: '2', name: 'Vortex Innovations', icon: Sparkles, active: false },
-    { id: '3', name: 'Proxima Ventures', icon: Star, active: false },
-    { id: '4', name: 'Nexora Labs', icon: Settings, active: false },
-  ];
+  // Fetch user agencies for account switcher
+  const { data: userAgencies = [], isLoading: agenciesLoading, refetch: refetchAgencies } = useQuery({
+    queryKey: ['user-agencies', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      const { getUserAgencies } = await import('../../../lib/firebase/firestore-helpers');
+      return getUserAgencies(profile.id);
+    },
+    enabled: !!profile?.id,
+  });
+
+  // Refresh agencies list when agency is updated (listen for storage event or use effect)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      refetchAgencies();
+    };
+    
+    // Listen for custom event when agency is updated
+    window.addEventListener('agency-updated', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('agency-updated', handleStorageChange);
+    };
+  }, [refetchAgencies]);
+
+  // Map agencies to workspace format with icons
+  const workspaces = useMemo(() => {
+    const icons = [Building2, Sparkles, Star, Settings, Gift, CreditCard];
+    return userAgencies.map((agency, index) => ({
+      id: agency.id,
+      name: agency.name,
+      icon: icons[index % icons.length],
+      active: agency.isActive,
+      memberCount: agency.memberCount,
+    }));
+  }, [userAgencies]);
 
   // Memoized NavItem component to prevent re-renders
   const NavItem = memo(({ item, collapsed, currentPath }: { item: any; collapsed: boolean; currentPath: string }) => {
@@ -258,7 +297,7 @@ export function AdminLayout() {
 
     const hasToggle = title === 'Records' || title === 'Management' || title === 'System';
 
-    return (
+  return (
       <div className="mb-4">
         {hasToggle ? (
           <button
@@ -276,8 +315,8 @@ export function AdminLayout() {
         ) : (
           <div className="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
             {title}
-          </div>
-        )}
+            </div>
+          )}
         {(!hasToggle || isExpanded) && (
           <div className="space-y-1">
             {items.map((item) => (
@@ -285,7 +324,7 @@ export function AdminLayout() {
             ))}
           </div>
         )}
-      </div>
+        </div>
     );
   });
   NavSection.displayName = 'NavSection';
@@ -322,36 +361,74 @@ export function AdminLayout() {
                       <Button variant="ghost" size="icon" className="h-6 w-6">
                         <RefreshCw className="w-3 h-3" />
                       </Button>
-                    </div>
+          </div>
                     <div className="py-1">
-                      {workspaces.map((workspace) => (
-                        <DropdownMenuItem
-                          key={workspace.id}
-                          className={cn(
-                            'flex items-center px-3 py-2 cursor-pointer',
-                            workspace.active && 'bg-neutral-50'
-                          )}
-                        >
-                          <div className="w-6 h-6 rounded bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center mr-3 flex-shrink-0">
-                            <workspace.icon className="w-3.5 h-3.5 text-white" />
-                          </div>
-                          <span className="flex-1 text-sm text-neutral-900">{workspace.name}</span>
-                          {workspace.active && (
-                            <Check className="w-4 h-4 text-[#006BFF] ml-2" />
-                          )}
-                        </DropdownMenuItem>
-                      ))}
+                      {agenciesLoading ? (
+                        <div className="px-3 py-2 text-sm text-neutral-500">Loading...</div>
+                      ) : workspaces.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-neutral-500">No agencies found</div>
+                      ) : (
+                        workspaces.map((workspace) => (
+                          <DropdownMenuItem
+                            key={workspace.id}
+                            className={cn(
+                              'flex items-center px-3 py-2 cursor-pointer',
+                              workspace.active && 'bg-neutral-50'
+                            )}
+                            onClick={async () => {
+                              if (!workspace.active && profile?.id) {
+                                try {
+                                  await switchAgency(profile.id, workspace.id);
+                                  // Update user profile in auth store
+                                  const { useAuthStore } = await import('../../../stores/authStore');
+                                  const { setProfile } = useAuthStore.getState();
+                                  setProfile({ ...profile, agency_id: workspace.id });
+                                  // Refresh agency data
+                                  const { useAgencyStore } = await import('../../../stores/agencyStore');
+                                  const { fetchAgency } = useAgencyStore.getState();
+                                  await fetchAgency(workspace.id);
+                                  // Invalidate all queries to refresh data
+                                  queryClient.invalidateQueries();
+                                  toast.success(`Switched to ${workspace.name}`);
+                                  setShowAccountSwitcher(false);
+                                  // Reload page to ensure all data updates
+                                  window.location.reload();
+                                } catch (error: any) {
+                                  toast.error(error.message || 'Failed to switch agency');
+                                }
+                              }
+                            }}
+                          >
+                            <div className="w-6 h-6 rounded bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center mr-3 flex-shrink-0">
+                              <workspace.icon className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm text-neutral-900 block truncate">{workspace.name}</span>
+                              <span className="text-xs text-neutral-500">{workspace.memberCount || 0} members</span>
+                            </div>
+                            {workspace.active && (
+                              <Check className="w-4 h-4 text-[#006BFF] ml-2 flex-shrink-0" />
+                            )}
+                          </DropdownMenuItem>
+                        ))
+                      )}
                     </div>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="px-3 py-2 cursor-pointer">
+                    <DropdownMenuItem 
+                      className="px-3 py-2 cursor-pointer"
+                      onClick={() => {
+                        setShowAccountSwitcher(false);
+                        setAddAgencyDialogOpen(true);
+                      }}
+                    >
                       <Plus className="w-4 h-4 mr-3 text-neutral-400" />
-                      <span className="text-sm text-neutral-600">New account</span>
+                      <span className="text-sm text-neutral-600">Add agency</span>
                       <span className="ml-auto text-xs text-neutral-400">⌘A</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className="ml-2 text-xs text-neutral-500">
-                  {agency?.membersCount || 21} members
+                  {workspaces.find(w => w.active)?.memberCount || agency?.membersCount || 0} members
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 ml-2 text-neutral-400 flex-shrink-0" />
               </div>
@@ -420,23 +497,28 @@ export function AdminLayout() {
               <div className="space-y-1">
                 {[...primaryNav, ...recordsNav, ...managementNav, ...systemNav].map((item) => (
                   <NavItem key={item.id} item={item} collapsed={true} currentPath={location.pathname} />
-                ))}
-              </div>
+          ))}
+        </div>
             )}
           </div>
 
           {/* Bottom Section */}
           <div className="p-4 border-t border-neutral-200/50 space-y-3">
             {/* New Version Banner */}
-            {!sidebarCollapsed && (
+            {!sidebarCollapsed && !updateNotificationDismissed && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
                 className="bg-white border border-neutral-200 rounded-lg p-3 shadow-sm relative"
               >
                 <button
-                  onClick={() => {}}
+                  onClick={() => {
+                    setUpdateNotificationDismissed(true);
+                    localStorage.setItem('update-notification-dismissed', 'true');
+                  }}
                   className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 rounded transition-colors"
+                  aria-label="Dismiss update notification"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -449,8 +531,11 @@ export function AdminLayout() {
                     <p className="text-xs text-neutral-600 mb-2">
                       An improved version of LoanSage is available. Please restart now to upgrade.
                     </p>
-                    <button className="text-xs font-medium text-[#006BFF] hover:text-[#0052CC] transition-colors">
-                      Update →
+                    <button 
+                      onClick={() => setUpdateModalOpen(true)}
+                      className="text-xs font-medium text-[#006BFF] hover:text-[#0052CC] transition-colors"
+                    >
+                      View Update →
                     </button>
                   </div>
                 </div>
@@ -474,7 +559,7 @@ export function AdminLayout() {
                           {profile?.full_name || 'Admin User'}
                         </p>
                         <p className="text-xs text-neutral-500 truncate">{profile?.email}</p>
-                      </div>
+            </div>
                       <ChevronDown className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 transition-colors flex-shrink-0" />
                     </>
                   )}
@@ -491,12 +576,12 @@ export function AdminLayout() {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-neutral-900 truncate">
-                        {profile?.full_name || 'Admin User'}
-                      </p>
+                {profile?.full_name || 'Admin User'}
+              </p>
                       <p className="text-xs text-neutral-500">Online</p>
                     </div>
-                  </div>
-                </div>
+            </div>
+          </div>
                 <div className="py-1">
                   <DropdownMenuItem className="px-3 py-2 cursor-pointer">
                     <Palette className="w-4 h-4 mr-3 text-neutral-400" />
@@ -547,7 +632,7 @@ export function AdminLayout() {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={handleSignOut}
+            onClick={handleSignOut}
                   className="px-3 py-2 cursor-pointer text-red-600 focus:text-red-600"
                 >
                   <LogOut className="w-4 h-4 mr-3" />
@@ -555,7 +640,7 @@ export function AdminLayout() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+        </div>
 
           {/* Collapse Toggle */}
           <button
@@ -569,7 +654,7 @@ export function AdminLayout() {
               )}
             />
           </button>
-        </aside>
+      </aside>
 
         {/* Mobile Sidebar */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -609,7 +694,7 @@ export function AdminLayout() {
                   <Link
                     key={item.id}
                     to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
+          onClick={() => setMobileMenuOpen(false)}
                     className={cn(
                       'flex items-center w-full px-3 py-2 rounded-lg transition-all',
                       activePath === item.id
@@ -631,7 +716,7 @@ export function AdminLayout() {
                     key={item.id}
                     to={item.path}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={cn(
+        className={cn(
                       'flex items-center w-full px-3 py-2 rounded-lg transition-all',
                       activePath === item.id
                         ? 'bg-white text-[#006BFF] font-medium shadow-sm'
@@ -646,34 +731,34 @@ export function AdminLayout() {
               <div className="pt-2 mt-2 border-t border-neutral-200">
                 <div className="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
                   System
-                </div>
+        </div>
                 {systemNav.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={cn(
+            <Link
+              key={item.id}
+              to={item.path}
+              onClick={() => setMobileMenuOpen(false)}
+              className={cn(
                       'flex items-center w-full px-3 py-2 rounded-lg transition-all',
-                      activePath === item.id
+                activePath === item.id
                         ? 'bg-white text-[#006BFF] font-medium shadow-sm'
                         : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                    )}
-                  >
+              )}
+            >
                     <item.icon className="w-4 h-4 mr-3" />
                     <span className="text-sm">{item.label}</span>
-                  </Link>
-                ))}
-              </div>
+            </Link>
+          ))}
+        </div>
             </div>
           </SheetContent>
         </Sheet>
 
-        {/* Main Content */}
+      {/* Main Content */}
         <main className={cn(
           'flex-1 flex flex-col min-h-0 overflow-hidden transition-[margin-left] duration-300 ease-in-out',
           sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
         )}>
-          {/* Header */}
+        {/* Header */}
           <header
             className={cn(
               'h-16 bg-white border-b border-neutral-200/50 flex items-center justify-between px-4 sm:px-8 z-20 sticky top-0 transition-all duration-300',
@@ -689,25 +774,25 @@ export function AdminLayout() {
                 </SheetTrigger>
               </Sheet>
               <h1 className="text-xl font-semibold text-neutral-900 capitalize">
-                {activePath.replace('-', ' ')}
-              </h1>
-            </div>
+              {activePath.replace('-', ' ')}
+            </h1>
+          </div>
 
             <div className="flex items-center gap-3 sm:gap-6">
-              <div className="relative hidden sm:block">
+            <div className="relative hidden sm:block">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Global search..."
+              <input
+                type="text"
+                placeholder="Global search..."
                   className="h-9 w-64 rounded-lg border border-neutral-200 bg-white pl-9 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
-                />
-              </div>
+              />
+            </div>
               <NotificationDropdown />
               <Link
                 to="/admin/settings"
                 className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors rounded-lg hover:bg-neutral-50"
               >
-                <Settings className="w-5 h-5" />
+              <Settings className="w-5 h-5" />
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -741,17 +826,168 @@ export function AdminLayout() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          </header>
+          </div>
+        </header>
 
           {/* Scrollable Content Area */}
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
             <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
-              <Outlet />
+            <Outlet />
+          </div>
+        </div>
+      </main>
+    </div>
+
+      {/* Update Details Modal */}
+      <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-lg flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">What's New in LoanSage</h2>
+                <p className="text-sm text-slate-600">Version 2.0.0 - Latest Updates</p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Major Features */}
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#006BFF]" />
+                Major Features
+              </h3>
+              <div className="space-y-3">
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <h4 className="font-semibold text-slate-900 mb-1">🌐 Offline Functionality</h4>
+                  <p className="text-sm text-slate-600">
+                    Work seamlessly even without internet! All your changes are saved locally and automatically synced when you're back online. No data loss, ever.
+                  </p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                  <h4 className="font-semibold text-slate-900 mb-1">🎨 Enhanced UI/UX</h4>
+                  <p className="text-sm text-slate-600">
+                    Beautiful, modern authentication pages with smooth animations, glassmorphism effects, and a completely redesigned landing page with pricing plans.
+                  </p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg border border-green-100">
+                  <h4 className="font-semibold text-slate-900 mb-1">🤖 AI-Powered Features</h4>
+                  <p className="text-sm text-slate-600">
+                    DeepSeek AI integration for intelligent risk assessment, collateral valuation, and smart loan recommendations.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Improvements */}
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <Check className="w-5 h-5 text-emerald-600" />
+                Improvements
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed dashboard statistics and real-time data updates</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Improved customer loan history display</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Enhanced mobile responsiveness across all pages</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Better error handling and date formatting</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Optimized Firestore queries for faster loading</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Updated security rules for better access control</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Bug Fixes */}
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-600" />
+                Bug Fixes
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed "Invalid time value" date errors</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Resolved Firestore permission issues</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed undefined field errors in loan creation</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Corrected dashboard chart data display</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4 border-t border-slate-200">
+              <Button
+                onClick={() => {
+                  // Trigger PWA update if available
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistration().then((registration) => {
+                      if (registration?.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        window.location.reload();
+                      } else {
+                        window.location.reload();
+                      }
+                    });
+                  } else {
+                    window.location.reload();
+                  }
+                }}
+                className="flex-1 bg-gradient-to-r from-[#006BFF] to-[#4F46E5] hover:from-[#0052CC] hover:to-[#4338CA] text-white"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Update Now
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setUpdateModalOpen(false)}
+                className="flex-1"
+              >
+                Later
+              </Button>
             </div>
           </div>
-        </main>
-      </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Agency Dialog */}
+      <AddAgencyDialog 
+        open={addAgencyDialogOpen} 
+        onOpenChange={(open) => {
+          setAddAgencyDialogOpen(open);
+          // Refresh agencies list when dialog closes (in case agency was created)
+          if (!open) {
+            queryClient.invalidateQueries({ queryKey: ['user-agencies'] });
+          }
+        }} 
+      />
     </TooltipProvider>
   );
 }

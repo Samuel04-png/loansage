@@ -79,8 +79,14 @@ export const useAgencyStore = create<AgencyState>((set, get) => ({
       }
 
       const agencyRef = doc(db, 'agencies', agency.id);
+      
+      // Filter out undefined values - Firestore doesn't allow undefined
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       await updateDoc(agencyRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: new Date(),
       });
       
