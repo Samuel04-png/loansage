@@ -336,21 +336,203 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section className="py-32 bg-gradient-to-br from-slate-50 via-white to-slate-50 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-primary-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
+              Choose the perfect plan for your microfinance institution. All plans include a 14-day free trial.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[
+              {
+                name: 'Starter',
+                price: '$49',
+                period: '/month',
+                description: 'Perfect for small microfinance institutions',
+                features: [
+                  'Up to 100 active loans',
+                  'Basic AI risk assessment',
+                  'Multi-tenant support',
+                  'Email support',
+                  'Standard reports',
+                  'Mobile app access',
+                ],
+                cta: 'Start Free Trial',
+                popular: false,
+                color: 'from-slate-500 to-slate-600',
+              },
+              {
+                name: 'Professional',
+                price: '$149',
+                period: '/month',
+                description: 'Ideal for growing institutions',
+                features: [
+                  'Up to 1,000 active loans',
+                  'Advanced AI risk assessment',
+                  'White-labeling',
+                  'Priority support',
+                  'Advanced analytics',
+                  'Custom integrations',
+                  'Dedicated account manager',
+                ],
+                cta: 'Start Free Trial',
+                popular: true,
+                color: 'from-primary-600 to-primary-700',
+              },
+              {
+                name: 'Enterprise',
+                price: 'Custom',
+                period: '',
+                description: 'For large institutions with custom needs',
+                features: [
+                  'Unlimited loans',
+                  'Full AI suite',
+                  'Custom white-labeling',
+                  '24/7 support',
+                  'Custom reports & dashboards',
+                  'API access',
+                  'On-premise deployment option',
+                  'SLA guarantee',
+                ],
+                cta: 'Contact Sales',
+                popular: false,
+                color: 'from-purple-600 to-purple-700',
+              },
+            ].map((plan, index) => (
+              <motion.div
+                key={plan.name}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1, duration: 0.5 }}
+                whileHover={{ y: -8, scale: 1.02 }}
+                className={`relative rounded-3xl border-2 p-8 bg-white shadow-xl transition-all duration-300 ${
+                  plan.popular
+                    ? 'border-primary-300 shadow-2xl scale-105 md:scale-110'
+                    : 'border-slate-200 hover:border-primary-200'
+                }`}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span className="bg-gradient-to-r from-primary-600 to-primary-700 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">{plan.name}</h3>
+                  <p className="text-slate-600 text-sm mb-6">{plan.description}</p>
+                  <div className="flex items-baseline justify-center gap-2">
+                    <span className={`text-5xl font-extrabold bg-gradient-to-r ${plan.color} bg-clip-text text-transparent`}>
+                      {plan.price}
+                    </span>
+                    {plan.period && (
+                      <span className="text-slate-600 text-lg">{plan.period}</span>
+                    )}
+                  </div>
+                </div>
+                <ul className="space-y-4 mb-8">
+                  {plan.features.map((feature, featureIndex) => (
+                    <motion.li
+                      key={featureIndex}
+                      initial={{ opacity: 0, x: -10 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 + featureIndex * 0.05 }}
+                      className="flex items-start gap-3"
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-slate-700">{feature}</span>
+                    </motion.li>
+                  ))}
+                </ul>
+                <Link to={plan.price === 'Custom' ? '/contact' : '/auth/signup'} className="block">
+                  <Button
+                    className={`w-full h-12 rounded-xl font-semibold transition-all duration-300 ${
+                      plan.popular
+                        ? 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border-2 border-slate-200'
+                    }`}
+                  >
+                    {plan.cta}
+                  </Button>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.4 }}
+            className="text-center mt-12"
+          >
+            <p className="text-slate-600 mb-4">
+              All plans include a 14-day free trial. No credit card required.
+            </p>
+            <Link to="/contact" className="text-primary-600 hover:text-primary-700 font-semibold">
+              Need a custom plan? Contact us →
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-r from-primary-600 to-primary-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold text-white mb-4">
+      <section className="py-24 bg-gradient-to-r from-primary-600 to-primary-700 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-white/10 rounded-full mix-blend-overlay filter blur-3xl"></div>
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-white/10 rounded-full mix-blend-overlay filter blur-3xl"></div>
+        </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-5xl font-bold text-white mb-4"
+          >
             Ready to transform your loan management?
-          </h2>
-          <p className="text-xl text-primary-100 mb-8">
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-xl text-primary-100 mb-8"
+          >
             Join leading microfinance institutions using LoanSage
-          </p>
-          <Link to="/auth/signup">
-            <Button size="lg" variant="secondary" className="text-lg px-8">
-              Get Started Free
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
-          </Link>
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 }}
+          >
+            <Link to="/auth/signup">
+              <Button size="lg" variant="secondary" className="text-lg px-10 py-6 rounded-xl shadow-2xl hover:shadow-3xl transition-all hover:scale-105">
+                Get Started Free
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </Link>
+          </motion.div>
         </div>
       </section>
 

@@ -340,3 +340,60 @@ html {
   animation-delay: 4s;
 }
 
+/* Glassmorphism effect for auth cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+}
+
+/* Input focus glow animation */
+@keyframes inputGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 107, 255, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(0, 107, 255, 0.1);
+  }
+}
+
+.input-focus-glow:focus {
+  animation: inputGlow 2s ease-in-out infinite;
+}
+
+/* Floating animation for illustrations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Success checkmark explosion */
+@keyframes checkmarkExplode {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.checkmark-explode {
+  animation: checkmarkExplode 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
