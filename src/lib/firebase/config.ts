@@ -3,20 +3,36 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
+// Get environment variables with fallbacks
+const getEnvVar = (key: string, defaultValue: string = ''): string => {
+  // Try import.meta.env first (Vite)
+  const value = import.meta.env[key];
+  if (value && value !== 'undefined' && value !== 'null') {
+    return value;
+  }
+  // Fallback to window.__ENV__ for build-time injection
+  if (typeof window !== 'undefined' && (window as any).__ENV__) {
+    return (window as any).__ENV__[key] || defaultValue;
+  }
+  return defaultValue;
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY', ''),
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN', ''),
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID', ''),
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET', ''),
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID', ''),
+  appId: getEnvVar('VITE_FIREBASE_APP_ID', ''),
 };
 
 // Check if we're in demo mode (no Firebase credentials)
 export const isDemoMode = !firebaseConfig.apiKey || 
   !firebaseConfig.projectId ||
   firebaseConfig.apiKey.includes('your-api-key') ||
-  firebaseConfig.projectId.includes('your-project');
+  firebaseConfig.projectId.includes('your-project') ||
+  firebaseConfig.apiKey === '' ||
+  firebaseConfig.projectId === '';
 
 // Spark plan mode - free tier limitations
 // Set to true if you're on Spark (free) plan to disable features that require Blaze plan
@@ -44,7 +60,40 @@ if (isDemoMode) {
 // Initialize Firebase (only if not already initialized)
 let app: FirebaseApp;
 if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
+  // Only initialize if we have valid credentials
+  if (!isDemoMode && firebaseConfig.apiKey && firebaseConfig.projectId) {
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (error: any) {
+      console.error('Failed to initialize Firebase:', error);
+      // Create a dummy app to prevent crashes
+      throw new Error('Firebase initialization failed. Please check your environment variables.');
+    }
+  } else {
+    // In demo mode, we still need to initialize with dummy config to prevent crashes
+    // But we'll show warnings
+    console.warn('⚠️ Firebase not configured - running in demo mode');
+    try {
+      app = initializeApp({
+        apiKey: 'demo-api-key',
+        authDomain: 'demo.firebaseapp.com',
+        projectId: 'demo-project',
+        storageBucket: 'demo.appspot.com',
+        messagingSenderId: '123456789',
+        appId: '1:123456789:web:demo',
+      });
+    } catch (error) {
+      // If even dummy init fails, get existing app
+      app = getApps()[0] || initializeApp({
+        apiKey: 'demo',
+        authDomain: 'demo.firebaseapp.com',
+        projectId: 'demo',
+        storageBucket: 'demo.appspot.com',
+        messagingSenderId: '123',
+        appId: '1:123:web:demo',
+      });
+    }
+  }
 } else {
   app = getApps()[0];
 }
