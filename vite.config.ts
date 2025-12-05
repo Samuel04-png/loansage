@@ -5,7 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    // For GitHub Pages, use repository name as base path
+    // Change 'loansage' to your repository name if different
+    const base = process.env.GITHUB_PAGES === 'true' ? '/loansage/' : '/';
     return {
+      base,
       server: {
         port: 3000,
         host: '0.0.0.0',
