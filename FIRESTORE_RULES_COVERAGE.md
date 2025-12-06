@@ -16,8 +16,14 @@ This document confirms that all Firestore collections used in the LoanSage appli
 2. **`agencies/{agencyId}`** ✅
    - **Read**: Agency members or agency creator can read
    - **Create**: Any authenticated user can create an agency
-   - **Update**: Admins of the agency or the creator can update
+   - **Update**: Admins of the agency or the creator can update (includes `settings.loanSettings` for loan calculation configuration)
    - **Delete**: Admins of the agency or the creator can delete
+   - **Settings Field**: The `settings` field (including `settings.loanSettings`) can be updated by admins to configure:
+     - Default interest rates
+     - Late fee settings (grace period, rates, max fees)
+     - Loan amount limits (min/max)
+     - Default loan duration
+     - Interest calculation method
 
 3. **`ai_logs/{logId}`** ✅
    - **Read**: Admins and employees can read

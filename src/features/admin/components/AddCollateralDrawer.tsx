@@ -113,21 +113,16 @@ export function AddCollateralDrawer({
     try {
       const photoURLs: string[] = [];
 
-      // Upload photos (skip on Spark plan)
+      // Upload photos
       for (const file of photoFiles) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (isSparkPlan) {
-            console.info('Skipping photo upload - Spark plan');
-          } else {
-            const photoURL = await uploadCollateralPhoto(
-              profile.agency_id,
-              selectedLoanId || 'standalone',
-              'temp',
-              file
-            );
-            photoURLs.push(photoURL);
-          }
+          const photoURL = await uploadCollateralPhoto(
+            profile.agency_id,
+            selectedLoanId || 'standalone',
+            'temp',
+            file
+          );
+          photoURLs.push(photoURL);
         } catch (error: any) {
           console.warn('Failed to upload photo:', error);
         }

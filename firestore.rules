@@ -73,8 +73,10 @@ service cloud.firestore {
       // Allow creator to read immediately
       allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.createdBy == request.auth.uid));
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isAdmin() && belongsToAgency(agencyId)) || (resource != null && resource.data.createdBy == request.auth.uid);
-      allow delete: if isAuthenticated() && (isAdmin() && belongsToAgency(agencyId)) || (resource != null && resource.data.createdBy == request.auth.uid);
+      // Allow admins to update agency settings (including loanSettings) and other agency data
+      // Also allow agency creator to update their own agency
+      allow update: if isAuthenticated() && ((isAdmin() && belongsToAgency(agencyId)) || (resource != null && resource.data.createdBy == request.auth.uid));
+      allow delete: if isAuthenticated() && ((isAdmin() && belongsToAgency(agencyId)) || (resource != null && resource.data.createdBy == request.auth.uid));
       
       // Employees subcollection
       match /employees/{employeeId} {

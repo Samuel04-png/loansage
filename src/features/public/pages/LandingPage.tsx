@@ -496,15 +496,22 @@ export function LandingPage() {
               </div>
               
               <div className="text-center mb-10">
+                <div className="mb-4">
+                  <span className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg animate-pulse">
+                    <Sparkles className="w-4 h-4" />
+                    December Special: Free Trial for 1 Month!
+                  </span>
+                </div>
                 <h3 className="text-3xl font-bold text-slate-900 mb-3">Agency Full Access</h3>
                 <p className="text-slate-600 text-lg mb-8">Everything you need to manage your microfinance operations</p>
                 <div className="flex items-baseline justify-center gap-3 mb-4">
                   <span className="text-6xl font-extrabold bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent">
-                    $20
+                    $35
                   </span>
                   <span className="text-2xl text-slate-600">/month</span>
                 </div>
-                <p className="text-sm text-slate-500">Billed monthly • Cancel anytime</p>
+                <p className="text-sm text-slate-500 mb-2">Billed monthly • Cancel anytime</p>
+                <p className="text-sm font-semibold text-green-600">🎉 Start with a FREE month in December - No credit card required!</p>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6 mb-10">

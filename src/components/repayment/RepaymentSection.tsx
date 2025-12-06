@@ -133,10 +133,30 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
   const durationMonths = Number(loan.durationMonths || 0);
   const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
 
-  // Calculate totals
-  const totalPaid = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
+  // Calculate totals - use loan's calculated values if available, otherwise calculate
+  const totalPaid = loan.totalPaid !== undefined 
+    ? Number(loan.totalPaid || 0)
+    : loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
   const totalPayable = financials.totalAmount;
-  const remainingBalance = Math.max(0, totalPayable - totalPaid);
+  const remainingBalance = loan.remainingBalance !== undefined
+    ? Number(loan.remainingBalance || 0)
+    : Math.max(0, totalPayable - totalPaid);
+  
+  // Get upcoming due date from loan or calculate from repayments
+  const upcomingDueDate = loan.upcomingDueDate?.toDate?.() || loan.upcomingDueDate || 
+    (loan.repayments?.length > 0 
+      ? loan.repayments
+          .filter((r: any) => {
+            const amountDue = Number(r.amountDue || 0);
+            const amountPaid = Number(r.amountPaid || 0);
+            return amountPaid < amountDue && r.status !== 'paid';
+          })
+          .sort((a: any, b: any) => {
+            const dateA = a.dueDate?.toDate?.() || a.dueDate || new Date(0);
+            const dateB = b.dueDate?.toDate?.() || b.dueDate || new Date(0);
+            return dateA.getTime() - dateB.getTime();
+          })[0]?.dueDate?.toDate?.() || null
+      : null);
 
   // Determine loan status
   const getLoanStatus = () => {
@@ -291,6 +311,23 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
                 </p>
               </div>
             </div>
+            
+            {/* Upcoming Due Date */}
+            {upcomingDueDate && (
+              <div className="mt-4 pt-4 border-t border-neutral-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                      Next Payment Due
+                    </p>
+                    <p className="text-sm font-semibold text-neutral-900">
+                      {formatDateSafe(upcomingDueDate)}
+                    </p>
+                  </div>
+                  <Clock className="w-5 h-5 text-[#006BFF]" />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

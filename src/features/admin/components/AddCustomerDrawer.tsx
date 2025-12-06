@@ -114,62 +114,45 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
       // Upload profile photo if provided
       if (photoFile) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (!isSparkPlan) {
-            const { uploadFile } = await import('../../../lib/firebase/storage-helpers');
-            const photoURL = await uploadFile(
-              `agencies/${profile.agency_id}/customers/${customer.id}/profile-photo-${Date.now()}.${photoFile.name.split('.').pop()}`,
-              photoFile
-            );
-            // Update customer with photo URL
-            const { doc, updateDoc } = await import('firebase/firestore');
-            const { db } = await import('../../../lib/firebase/config');
-            const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customer.id);
-            await updateDoc(customerRef, { profilePhotoURL: photoURL });
-          }
+          const { uploadFile } = await import('../../../lib/firebase/storage-helpers');
+          const photoURL = await uploadFile(
+            `agencies/${profile.agency_id}/customers/${customer.id}/profile-photo-${Date.now()}.${photoFile.name.split('.').pop()}`,
+            photoFile
+          );
+          // Update customer with photo URL
+          const { doc, updateDoc } = await import('firebase/firestore');
+          const { db } = await import('../../../lib/firebase/config');
+          const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customer.id);
+          await updateDoc(customerRef, { profilePhotoURL: photoURL });
         } catch (error: any) {
           console.warn('Failed to upload profile photo:', error);
         }
       }
 
-      // Upload ID documents if provided (skip on Spark plan)
+      // Upload ID documents if provided
       if (idFiles.front) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (!isSparkPlan) {
-            const fileURL = await uploadDoc(profile.agency_id, customer.id, idFiles.front, 'id-front');
-            await uploadCustomerDocument(profile.agency_id, customer.id, {
-              type: 'id-front',
-              fileURL,
-              uploadedBy: user.id,
-            });
-          } else {
-            toast('File uploads skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
-          }
+          const fileURL = await uploadDoc(profile.agency_id, customer.id, idFiles.front, 'id-front');
+          await uploadCustomerDocument(profile.agency_id, customer.id, {
+            type: 'id-front',
+            fileURL,
+            uploadedBy: user.id,
+          });
         } catch (error: any) {
           console.warn('Failed to upload ID front:', error);
-          if (error.message?.includes('Spark') || error.message?.includes('free')) {
-            toast('File uploads not available on free plan', { icon: 'ℹ️' });
-          }
         }
       }
 
       if (idFiles.back) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (!isSparkPlan) {
-            const fileURL = await uploadDoc(profile.agency_id, customer.id, idFiles.back, 'id-back');
-            await uploadCustomerDocument(profile.agency_id, customer.id, {
-              type: 'id-back',
-              fileURL,
-              uploadedBy: user.id,
-            });
-          }
+          const fileURL = await uploadDoc(profile.agency_id, customer.id, idFiles.back, 'id-back');
+          await uploadCustomerDocument(profile.agency_id, customer.id, {
+            type: 'id-back',
+            fileURL,
+            uploadedBy: user.id,
+          });
         } catch (error: any) {
           console.warn('Failed to upload ID back:', error);
-          if (error.message?.includes('Spark') || error.message?.includes('free')) {
-            // Already shown message for front, skip
-          }
         }
       }
 

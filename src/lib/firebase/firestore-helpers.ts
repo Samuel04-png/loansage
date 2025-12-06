@@ -13,7 +13,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from './config';
-import { isDemoMode, isSparkPlan } from './config';
+import { isDemoMode } from './config';
 
 /**
  * Get all agencies that a user has access to

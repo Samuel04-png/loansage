@@ -343,25 +343,14 @@ export function SettingsPage() {
         });
 
         // Upload logo if provided (after agency is created)
-        // Skip on Spark plan - file uploads not available
         if (logoFile) {
           try {
-            const { isSparkPlan } = await import('../../../lib/firebase/config');
-            if (isSparkPlan) {
-              console.info('Skipping logo upload - Spark plan detected');
-              toast('Logo upload skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
-            } else {
-              logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
-              // Update agency with logo URL
-              await updateAgencyHelper(newAgency.id, { logoURL });
-            }
+            logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
+            // Update agency with logo URL
+            await updateAgencyHelper(newAgency.id, { logoURL });
           } catch (error: any) {
             console.warn('Failed to upload logo:', error);
-            if (error.message?.includes('Spark') || error.message?.includes('free')) {
-              toast('Logo upload not available on free plan', { icon: 'ℹ️' });
-            } else {
-              toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });
-            }
+            toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });
             // Continue even if logo upload fails
           }
         }

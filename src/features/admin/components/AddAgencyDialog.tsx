@@ -80,15 +80,9 @@ export function AddAgencyDialog({ open, onOpenChange }: AddAgencyDialogProps) {
       // Upload logo if provided
       if (logoFile) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (isSparkPlan) {
-            console.info('Skipping logo upload - Spark plan detected');
-            toast('Logo upload skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
-          } else {
-            const logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
-            const { updateAgency } = await import('../../../lib/firebase/firestore-helpers');
-            await updateAgency(newAgency.id, { logoURL });
-          }
+          const logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
+          const { updateAgency } = await import('../../../lib/firebase/firestore-helpers');
+          await updateAgency(newAgency.id, { logoURL });
         } catch (error: any) {
           console.warn('Failed to upload logo:', error);
           toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });

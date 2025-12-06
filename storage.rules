@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function - check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Agency logos - authenticated users can access
+    match /agencies/{agencyId}/logo/{fileName} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
+    // Customer documents - authenticated users can access
+    // Note: Application-level checks should verify agency membership
+    match /agencies/{agencyId}/customers/{customerId}/{allPaths=**} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
+    // Loan documents - authenticated users can access
+    match /agencies/{agencyId}/loans/{loanId}/{allPaths=**} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
+    // Collateral files - authenticated users can access
+    match /agencies/{agencyId}/collateral/{collateralId}/{allPaths=**} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
+    // User profile photos - users can only access their own
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
