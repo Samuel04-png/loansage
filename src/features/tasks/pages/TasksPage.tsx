@@ -84,10 +84,18 @@ export function TasksPage() {
     },
   });
 
-  const filteredTasks = tasks?.filter((task: any) =>
-    task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredTasks = tasks?.filter((task: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      task.title?.toLowerCase().includes(search) ||
+      task.description?.toLowerCase().includes(search) ||
+      task.id?.toLowerCase().includes(search) ||
+      task.status?.toLowerCase().includes(search) ||
+      task.priority?.toLowerCase().includes(search) ||
+      task.assignee?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {

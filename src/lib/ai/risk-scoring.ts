@@ -4,12 +4,16 @@
  */
 
 interface RiskFactors {
+  // Required inputs
+  nrc?: string;
+  phoneNumber?: string;
   customerHistory?: {
     totalLoans: number;
     completedLoans: number;
     defaultedLoans: number;
     averageLoanAmount: number;
     averageRepaymentTime: number;
+    repaymentSpeed?: number; // Average days to complete repayment vs scheduled
   };
   loanDetails?: {
     amount: number;
@@ -19,7 +23,9 @@ interface RiskFactors {
   };
   customerProfile?: {
     monthlyIncome?: number;
+    monthlyExpenses?: number; // NEW: Monthly expenses
     employmentStatus?: string;
+    employmentStability?: number; // Years at current job
     kycStatus?: string;
     age?: number;
   };
@@ -27,6 +33,20 @@ interface RiskFactors {
     value: number;
     type: string;
     verificationStatus?: string;
+    ltvRatio?: number; // Loan-to-value ratio
+  };
+  // NEW: Additional risk factors
+  fraudIndicators?: {
+    multipleAccountsSameNRC?: boolean;
+    suspiciousPhonePatterns?: boolean;
+    inconsistentInformation?: boolean;
+    flaggedTransactions?: number;
+  };
+  previousDefaults?: number; // Number of previous defaults
+  borrowerBehaviorPatterns?: {
+    averagePaymentDelay?: number; // Days
+    paymentConsistency?: number; // 0-1 score
+    communicationResponsiveness?: number; // 0-1 score
   };
 }
 
@@ -39,6 +59,10 @@ interface RiskScore {
   };
   recommendation: 'approve' | 'review' | 'reject';
   confidence: number; // 0-1
+  suggestedLoanAmount?: number; // NEW: Suggested safe loan amount
+  riskExplanation?: string; // NEW: Key flags explanation
+  repaymentProbability?: number; // NEW: 0-1 predicted repayment probability
+  defaultProbability?: number; // NEW: 0-1 predicted default probability
 }
 
 /**
@@ -57,6 +81,7 @@ Customer History:
 - Defaulted Loans: ${factors.customerHistory?.defaultedLoans || 0}
 - Average Loan Amount: ${factors.customerHistory?.averageLoanAmount || 0} ZMW
 - Average Repayment Time: ${factors.customerHistory?.averageRepaymentTime || 0} months
+- Repayment Speed: ${factors.customerHistory?.repaymentSpeed || 'Not provided'} days vs scheduled
 
 Loan Details:
 - Amount: ${factors.loanDetails?.amount || 0} ZMW
@@ -65,15 +90,28 @@ Loan Details:
 - Loan Type: ${factors.loanDetails?.loanType || 'Not specified'}
 
 Customer Profile:
+- NRC: ${factors.nrc || 'Not provided'}
+- Phone: ${factors.phoneNumber || 'Not provided'}
 - Monthly Income: ${factors.customerProfile?.monthlyIncome || 'Not provided'} ZMW
+- Monthly Expenses: ${factors.customerProfile?.monthlyExpenses || 'Not provided'} ZMW
 - Employment Status: ${factors.customerProfile?.employmentStatus || 'Not provided'}
+- Employment Stability: ${factors.customerProfile?.employmentStability || 'Not provided'} years
 - KYC Status: ${factors.customerProfile?.kycStatus || 'Not provided'}
 - Age: ${factors.customerProfile?.age || 'Not provided'}
 
 Collateral:
 - Value: ${factors.collateral?.value || 0} ZMW
 - Type: ${factors.collateral?.type || 'Not provided'}
+- LTV Ratio: ${factors.collateral?.ltvRatio || 'Not calculated'}%
 - Verification Status: ${factors.collateral?.verificationStatus || 'Not provided'}
+
+Risk Indicators:
+- Previous Defaults: ${factors.previousDefaults || 0}
+- Fraud Indicators: ${factors.fraudIndicators ? JSON.stringify(factors.fraudIndicators) : 'None'}
+- Multiple Accounts Same NRC: ${factors.fraudIndicators?.multipleAccountsSameNRC ? 'Yes' : 'No'}
+- Borrower Behavior:
+  - Average Payment Delay: ${factors.borrowerBehaviorPatterns?.averagePaymentDelay || 'N/A'} days
+  - Payment Consistency: ${factors.borrowerBehaviorPatterns?.paymentConsistency ? (factors.borrowerBehaviorPatterns.paymentConsistency * 100).toFixed(0) + '%' : 'N/A'}
 
 Please provide a JSON response with the following structure:
 {
@@ -84,7 +122,11 @@ Please provide a JSON response with the following structure:
     "negative": [<array of negative risk factors>]
   },
   "recommendation": "approve" | "review" | "reject",
-  "confidence": <number 0-1>
+  "confidence": <number 0-1>,
+  "suggestedLoanAmount": <number in ZMW - safe loan amount based on income and risk>,
+  "riskExplanation": "<brief explanation of key risk flags>",
+  "repaymentProbability": <number 0-1 - probability of full repayment>,
+  "defaultProbability": <number 0-1 - probability of default>
 }
 
 Consider:
@@ -117,6 +159,10 @@ Return ONLY valid JSON, no additional text.`;
         factors: { positive: [], negative: [] },
         recommendation: 'review',
         confidence: 0.5,
+        suggestedLoanAmount: factors.loanDetails?.amount || 0,
+        riskExplanation: 'Standard risk assessment',
+        repaymentProbability: 0.7,
+        defaultProbability: 0.3,
       });
 
       // Validate and use AI result if it looks reasonable
@@ -211,15 +257,21 @@ function calculateCustomerRiskScoreRuleBased(factors: RiskFactors): RiskScore {
     }
   }
 
-  // Customer profile (20% weight)
+  // Customer profile (25% weight)
   if (factors.customerProfile) {
-    const { monthlyIncome, employmentStatus, kycStatus, age } = factors.customerProfile;
+    const { monthlyIncome, monthlyExpenses, employmentStatus, employmentStability, kycStatus, age } = factors.customerProfile;
 
     if (monthlyIncome) {
+      // Calculate disposable income
+      const disposableIncome = monthlyIncome - (monthlyExpenses || 0);
+      
       if (factors.loanDetails) {
-        const monthlyPayment = (factors.loanDetails.amount * (factors.loanDetails.interestRate / 100 / 12)) / 
-          (1 - Math.pow(1 + factors.loanDetails.interestRate / 100 / 12, -factors.loanDetails.durationMonths));
+        const monthlyRate = factors.loanDetails.interestRate / 100 / 12;
+        const monthlyPayment = factors.loanDetails.amount * (monthlyRate * Math.pow(1 + monthlyRate, factors.loanDetails.durationMonths)) / 
+          (Math.pow(1 + monthlyRate, factors.loanDetails.durationMonths) - 1);
+        
         const debtToIncome = monthlyPayment / monthlyIncome;
+        const paymentToDisposable = disposableIncome > 0 ? monthlyPayment / disposableIncome : 1;
         
         if (debtToIncome > 0.4) {
           score += 15;
@@ -228,6 +280,44 @@ function calculateCustomerRiskScoreRuleBased(factors: RiskFactors): RiskScore {
           score -= 8;
           positiveFactors.push('Low debt-to-income ratio');
         }
+
+        // Check if payment exceeds disposable income
+        if (paymentToDisposable > 0.8) {
+          score += 20;
+          negativeFactors.push('Loan payment exceeds available disposable income');
+        } else if (paymentToDisposable < 0.3) {
+          score -= 10;
+          positiveFactors.push('Comfortable payment-to-disposable income ratio');
+        }
+
+        // Income stability check - should be at least 3x monthly payment
+        if (monthlyIncome < monthlyPayment * 3) {
+          score += 10;
+          negativeFactors.push('Income ratio below 3x monthly payment (recommended minimum)');
+        }
+      }
+
+      // Expenses analysis
+      if (monthlyExpenses) {
+        const expenseRatio = monthlyExpenses / monthlyIncome;
+        if (expenseRatio > 0.8) {
+          score += 10;
+          negativeFactors.push('High expense-to-income ratio');
+        } else if (expenseRatio < 0.5) {
+          score -= 5;
+          positiveFactors.push('Low expense-to-income ratio');
+        }
+      }
+    }
+
+    // Employment stability (years at job)
+    if (employmentStability) {
+      if (employmentStability >= 3) {
+        score -= 8;
+        positiveFactors.push(`Stable employment (${employmentStability} years)`);
+      } else if (employmentStability < 1) {
+        score += 10;
+        negativeFactors.push(`Unstable employment (${employmentStability} years)`);
       }
     }
 
@@ -256,19 +346,116 @@ function calculateCustomerRiskScoreRuleBased(factors: RiskFactors): RiskScore {
     }
   }
 
+  // Fraud indicators (15% weight)
+  if (factors.fraudIndicators) {
+    const fraudCount = [
+      factors.fraudIndicators.multipleAccountsSameNRC,
+      factors.fraudIndicators.suspiciousPhonePatterns,
+      factors.fraudIndicators.inconsistentInformation,
+    ].filter(Boolean).length;
+
+    if (fraudCount > 0) {
+      score += fraudCount * 15;
+      negativeFactors.push(`${fraudCount} fraud indicator(s) detected`);
+    }
+
+    if (factors.fraudIndicators.flaggedTransactions && factors.fraudIndicators.flaggedTransactions > 0) {
+      score += factors.fraudIndicators.flaggedTransactions * 5;
+      negativeFactors.push(`${factors.fraudIndicators.flaggedTransactions} flagged transaction(s)`);
+    }
+  }
+
+  // Previous defaults (10% weight)
+  if (factors.previousDefaults !== undefined) {
+    if (factors.previousDefaults === 0) {
+      score -= 5;
+      positiveFactors.push('No previous defaults');
+    } else if (factors.previousDefaults === 1) {
+      score += 10;
+      negativeFactors.push('1 previous default');
+    } else if (factors.previousDefaults >= 2) {
+      score += 25;
+      negativeFactors.push(`${factors.previousDefaults}+ previous defaults - high risk`);
+    }
+  }
+
+  // Borrower behavior patterns (10% weight)
+  if (factors.borrowerBehaviorPatterns) {
+    const { averagePaymentDelay, paymentConsistency, communicationResponsiveness } = factors.borrowerBehaviorPatterns;
+
+    if (averagePaymentDelay) {
+      if (averagePaymentDelay <= 0) {
+        score -= 5;
+        positiveFactors.push('On-time or early payments');
+      } else if (averagePaymentDelay <= 7) {
+        score += 3;
+        negativeFactors.push(`Slight payment delays (avg ${averagePaymentDelay} days)`);
+      } else if (averagePaymentDelay <= 14) {
+        score += 10;
+        negativeFactors.push(`Moderate payment delays (avg ${averagePaymentDelay} days)`);
+      } else {
+        score += 20;
+        negativeFactors.push(`Severe payment delays (avg ${averagePaymentDelay} days)`);
+      }
+    }
+
+    if (paymentConsistency !== undefined) {
+      if (paymentConsistency >= 0.9) {
+        score -= 5;
+        positiveFactors.push('Highly consistent payment history');
+      } else if (paymentConsistency < 0.7) {
+        score += 10;
+        negativeFactors.push('Inconsistent payment history');
+      }
+    }
+
+    if (communicationResponsiveness !== undefined && communicationResponsiveness < 0.5) {
+      score += 5;
+      negativeFactors.push('Poor communication responsiveness');
+    }
+  }
+
+  // Repayment speed
+  if (factors.customerHistory?.repaymentSpeed !== undefined) {
+    const repaymentSpeed = factors.customerHistory.repaymentSpeed;
+    if (repaymentSpeed <= 0) {
+      score -= 5;
+      positiveFactors.push('Early or on-time repayments');
+    } else if (repaymentSpeed <= 7) {
+      score += 2;
+      negativeFactors.push(`Slight repayment delays`);
+    } else {
+      score += 8;
+      negativeFactors.push(`Slow repayment speed (${repaymentSpeed} days behind)`);
+    }
+  }
+
   // Collateral (10% weight)
   if (factors.collateral) {
-    const { value, verificationStatus } = factors.collateral;
+    const { value, verificationStatus, ltvRatio } = factors.collateral;
     
     if (factors.loanDetails) {
       const collateralRatio = value / factors.loanDetails.amount;
       
-      if (collateralRatio > 1.5) {
+      // Use provided LTV or calculate
+      const effectiveLTV = ltvRatio !== undefined ? (ltvRatio / 100) : (factors.loanDetails.amount / value);
+      
+      // For collateralized loans, LTV should be <= 80%
+      if (effectiveLTV <= 0.65) {
         score -= 12;
-        positiveFactors.push('Strong collateral coverage');
-      } else if (collateralRatio > 1.0) {
+        positiveFactors.push(`Strong collateral coverage (LTV: ${(effectiveLTV * 100).toFixed(1)}%)`);
+      } else if (effectiveLTV <= 0.80) {
         score -= 6;
-        positiveFactors.push('Adequate collateral coverage');
+        positiveFactors.push(`Adequate collateral coverage (LTV: ${(effectiveLTV * 100).toFixed(1)}%)`);
+      } else if (effectiveLTV > 0.80) {
+        score += 15;
+        negativeFactors.push(`High LTV ratio (${(effectiveLTV * 100).toFixed(1)}% - exceeds 80% limit)`);
+      }
+
+      // Also check collateral ratio
+      if (collateralRatio > 1.5) {
+        score -= 5;
+        positiveFactors.push('Strong collateral coverage');
       } else if (collateralRatio < 0.8) {
         score += 8;
         negativeFactors.push('Insufficient collateral coverage');
@@ -315,7 +502,25 @@ function calculateCustomerRiskScoreRuleBased(factors: RiskFactors): RiskScore {
     factors.loanDetails ? 1 : 0,
     factors.customerProfile ? 1 : 0,
     factors.collateral ? 1 : 0,
+    factors.fraudIndicators ? 0.5 : 0,
+    factors.borrowerBehaviorPatterns ? 0.5 : 0,
   ].reduce((a, b) => a + b, 0) / 4;
+
+  // Calculate suggested loan amount based on income and risk
+  let suggestedLoanAmount = factors.loanDetails?.amount || 0;
+  if (factors.customerProfile?.monthlyIncome && factors.loanDetails) {
+    // Maximum safe amount: 3x monthly income for low risk, 2x for medium, 1.5x for high
+    const incomeMultiplier = level === 'low' ? 3 : level === 'medium' ? 2 : 1.5;
+    const maxSafeAmount = factors.customerProfile.monthlyIncome * incomeMultiplier;
+    suggestedLoanAmount = Math.min(suggestedLoanAmount, maxSafeAmount);
+  }
+
+  // Generate risk explanation
+  const riskExplanation = generateRiskExplanation(level, negativeFactors, score);
+
+  // Calculate repayment and default probabilities
+  const repaymentProbability = Math.max(0, Math.min(1, 1 - (score / 100) * 0.9));
+  const defaultProbability = Math.min(0.95, (score / 100) * 0.85);
 
   return {
     score: Math.round(score),
@@ -326,7 +531,33 @@ function calculateCustomerRiskScoreRuleBased(factors: RiskFactors): RiskScore {
     },
     recommendation,
     confidence: dataCompleteness,
+    suggestedLoanAmount: Math.round(suggestedLoanAmount),
+    riskExplanation,
+    repaymentProbability: Math.round(repaymentProbability * 100) / 100,
+    defaultProbability: Math.round(defaultProbability * 100) / 100,
   };
+}
+
+/**
+ * Generate risk explanation from key flags
+ */
+function generateRiskExplanation(
+  level: 'low' | 'medium' | 'high' | 'critical',
+  negativeFactors: string[],
+  score: number
+): string {
+  if (level === 'low') {
+    return 'Low risk profile. Borrower demonstrates strong creditworthiness with minimal risk factors.';
+  } else if (level === 'medium') {
+    const topFlags = negativeFactors.slice(0, 2).join(', ');
+    return `Moderate risk profile. Key considerations: ${topFlags || 'Standard risk assessment'}.`;
+  } else if (level === 'high') {
+    const topFlags = negativeFactors.slice(0, 3).join(', ');
+    return `High risk detected. Critical flags: ${topFlags || 'Multiple risk factors present'}. Requires careful review.`;
+  } else {
+    const topFlags = negativeFactors.slice(0, 4).join(', ');
+    return `CRITICAL RISK: ${topFlags || 'Severe risk factors identified'}. Not recommended for approval without significant safeguards.`;
+  }
 }
 
 /**

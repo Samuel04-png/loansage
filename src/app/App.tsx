@@ -41,6 +41,7 @@ import { CustomerDetailPage } from '../features/admin/pages/CustomerDetailPage';
 import { DataManagementPage } from '../features/admin/pages/DataManagementPage';
 import { CollateralDetailPage } from '../features/admin/pages/CollateralDetailPage';
 import { LoanDetailPage } from '../features/admin/pages/LoanDetailPage';
+import { LoanAnalysisPage } from '../features/admin/pages/LoanAnalysisPage';
 import { CollateralsPage } from '../features/admin/pages/CollateralsPage';
 
 // Employee pages
@@ -126,6 +127,7 @@ function AppContent() {
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="loans" element={<LoansPage />} />
                 <Route path="loans/:loanId" element={<LoanDetailPage />} />
+                <Route path="loans/:loanId/analysis" element={<LoanAnalysisPage />} />
                 <Route path="loans/:loanId/collateral/:collateralId" element={<CollateralDetailPage />} />
                 <Route path="collateral/:collateralId" element={<CollateralDetailPage />} />
                 <Route path="collaterals" element={<CollateralsPage />} />

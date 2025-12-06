@@ -55,11 +55,19 @@ export function ActivityLogsPage() {
     }
   };
 
-  const filteredLogs = logs?.filter((log: any) =>
-    log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.entity_type?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredLogs = logs?.filter((log: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      log.action?.toLowerCase().includes(search) ||
+      log.user?.full_name?.toLowerCase().includes(search) ||
+      log.user?.name?.toLowerCase().includes(search) ||
+      log.entity_type?.toLowerCase().includes(search) ||
+      log.targetId?.toLowerCase().includes(search) ||
+      log.targetCollection?.toLowerCase().includes(search) ||
+      log.metadata?.toString().toLowerCase().includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

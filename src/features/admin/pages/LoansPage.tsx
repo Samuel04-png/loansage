@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
-import { Plus, Search, MoreVertical, FileText, Loader2, Edit, Download, Upload, Eye } from 'lucide-react';
+import { Plus, Search, MoreVertical, FileText, Loader2, Edit, Download, Upload, Eye, DollarSign, TrendingUp, Percent, BarChart3 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
@@ -31,6 +31,7 @@ import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import { calculateLoanFinancials, calculateLoanProfit } from '../../../lib/firebase/loan-calculations';
 
 export function LoansPage() {
   const { profile } = useAuth();
@@ -55,9 +56,10 @@ export function LoansPage() {
       const snapshot = await getDocs(q);
       const loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Fetch customer data for each loan
-      const loansWithCustomers = await Promise.all(
+      // Fetch customer data, repayments, and collateral for each loan
+      const loansWithDetails = await Promise.all(
         loansData.map(async (loan: any) => {
+          // Fetch customer
           if (loan.customerId) {
             try {
               const { doc, getDoc } = await import('firebase/firestore');
@@ -66,7 +68,6 @@ export function LoansPage() {
               if (customerDoc.exists()) {
                 loan.customer = { id: customerDoc.id, ...customerDoc.data() };
               } else {
-                // Customer not found - set to null so we can show N/A
                 loan.customer = null;
               }
             } catch (error) {
@@ -76,20 +77,105 @@ export function LoansPage() {
           } else {
             loan.customer = null;
           }
+
+          // Fetch repayments to calculate total paid
+          try {
+            const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loan.id, 'repayments');
+            const repaymentsSnapshot = await getDocs(repaymentsRef);
+            loan.repayments = repaymentsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            
+            // Calculate total paid
+            const totalPaid = loan.repayments.reduce((sum: number, r: any) => 
+              sum + Number(r.amountPaid || 0), 0);
+            loan.totalPaid = totalPaid;
+          } catch (error) {
+            console.warn('Failed to fetch repayments:', error);
+            loan.repayments = [];
+            loan.totalPaid = 0;
+          }
+
+          // Fetch collateral to get market price
+          try {
+            const collateralRef = collection(db, 'agencies', profile.agency_id, 'loans', loan.id, 'collateral');
+            const collateralSnapshot = await getDocs(collateralRef);
+            loan.collateral = collateralSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            
+            // Calculate total collateral value (market price)
+            const totalCollateralValue = loan.collateral.reduce((sum: number, c: any) => 
+              sum + Number(c.estimatedValue || c.value || 0), 0);
+            loan.totalCollateralValue = totalCollateralValue;
+          } catch (error) {
+            console.warn('Failed to fetch collateral:', error);
+            loan.collateral = [];
+            loan.totalCollateralValue = 0;
+          }
+
+          // Calculate financial metrics
+          const principal = Number(loan.amount || 0);
+          const interestRate = Number(loan.interestRate || 0);
+          const durationMonths = Number(loan.durationMonths || 0);
+          
+          if (principal > 0 && interestRate > 0 && durationMonths > 0) {
+            const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
+            loan.financials = financials;
+            
+            // Calculate profit based on actual payments
+            const totalInterest = financials.totalInterest;
+            const totalAmountOwed = financials.totalAmount;
+            const profitEarned = loan.totalPaid - principal;
+            const remainingBalance = Math.max(0, totalAmountOwed - loan.totalPaid);
+            
+            loan.profitData = {
+              profit: Math.max(0, profitEarned),
+              profitMargin: principal > 0 ? (profitEarned / principal) * 100 : 0,
+              remainingBalance,
+              isProfitable: profitEarned > 0,
+            };
+            loan.remainingBalance = remainingBalance;
+            loan.expectedProfit = totalInterest;
+            loan.paymentProgress = totalAmountOwed > 0 ? (loan.totalPaid / totalAmountOwed) * 100 : 0;
+          } else {
+            loan.financials = null;
+            loan.profitData = {
+              profit: 0,
+              profitMargin: 0,
+              remainingBalance: principal,
+              isProfitable: false,
+            };
+            loan.remainingBalance = principal;
+            loan.expectedProfit = 0;
+            loan.paymentProgress = 0;
+          }
+
           return loan;
         })
       );
 
-      return loansWithCustomers;
+      return loansWithDetails;
     },
     enabled: !!profile?.agency_id,
   });
 
-  const filteredLoans = loans?.filter((loan: any) =>
-    loan.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    loan.customer?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    loan.customer?.id?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredLoans = loans?.filter((loan: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      loan.id?.toLowerCase().includes(search) ||
+      loan.loanNumber?.toLowerCase().includes(search) ||
+      loan.customer?.fullName?.toLowerCase().includes(search) ||
+      loan.customer?.name?.toLowerCase().includes(search) ||
+      loan.customer?.id?.toLowerCase().includes(search) ||
+      loan.customerId?.toLowerCase().includes(search) ||
+      loan.loanType?.toLowerCase().includes(search) ||
+      String(loan.amount || '').includes(search)
+    );
+  }) || [];
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
@@ -144,6 +230,121 @@ export function LoansPage() {
         </div>
       </motion.div>
 
+      {/* Portfolio Summary Cards */}
+      {loans && loans.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                    Total Portfolio
+                  </p>
+                  <p className="text-xl font-bold text-neutral-900">
+                    {formatCurrency(
+                      loans.reduce((sum: number, l: any) => sum + Number(l.amount || 0), 0),
+                      'ZMW'
+                    )}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {loans.length} active loans
+                  </p>
+                </div>
+                <div className="p-3 bg-[#006BFF]/10 rounded-lg">
+                  <DollarSign className="w-6 h-6 text-[#006BFF]" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                    Total Collected
+                  </p>
+                  <p className="text-xl font-bold text-[#22C55E]">
+                    {formatCurrency(
+                      loans.reduce((sum: number, l: any) => sum + (l.totalPaid || 0), 0),
+                      'ZMW'
+                    )}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {loans.reduce((sum: number, l: any) => {
+                      const progress = l.paymentProgress || 0;
+                      return sum + (progress >= 100 ? 1 : 0);
+                    }, 0)} fully paid
+                  </p>
+                </div>
+                <div className="p-3 bg-[#22C55E]/10 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-[#22C55E]" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                    Expected Profit
+                  </p>
+                  <p className="text-xl font-bold text-[#8B5CF6]">
+                    {formatCurrency(
+                      loans.reduce((sum: number, l: any) => sum + (l.expectedProfit || 0), 0),
+                      'ZMW'
+                    )}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {formatCurrency(
+                      loans.reduce((sum: number, l: any) => sum + (l.profitData?.profit || 0), 0),
+                      'ZMW'
+                    )} earned
+                  </p>
+                </div>
+                <div className="p-3 bg-[#8B5CF6]/10 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-[#8B5CF6]" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
+                    Outstanding Balance
+                  </p>
+                  <p className="text-xl font-bold text-[#EF4444]">
+                    {formatCurrency(
+                      loans.reduce((sum: number, l: any) => sum + (l.remainingBalance || 0), 0),
+                      'ZMW'
+                    )}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {loans.reduce((sum: number, l: any) => {
+                      const balance = l.remainingBalance || 0;
+                      return sum + (balance > 0 ? 1 : 0);
+                    }, 0)} with balance
+                  </p>
+                </div>
+                <div className="p-3 bg-[#EF4444]/10 rounded-lg">
+                  <Percent className="w-6 h-6 text-[#EF4444]" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Search, Filter, and Table - Reference Style */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -195,74 +396,175 @@ export function LoansPage() {
                 <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Loan Number</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Loan Details</TableHead>
                     <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Amount</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Type</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Duration</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Loan Amount</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Total Payable</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Paid</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Remaining</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Expected Profit</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 text-right">Market Price</TableHead>
+                    <TableHead className="font-semibold text-neutral-700">Progress</TableHead>
                     <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Created</TableHead>
                     <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLoans.map((loan: any, index: number) => (
-                    <motion.tr
-                      key={loan.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
-                    >
-                      <TableCell className="font-medium text-neutral-900">{loan.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-semibold text-neutral-900">
-                            {loan.customer?.fullName || 'N/A'}
+                  {filteredLoans.map((loan: any, index: number) => {
+                    const principal = Number(loan.amount || 0);
+                    const interestRate = Number(loan.interestRate || 0);
+                    const totalPaid = loan.totalPaid || 0;
+                    const totalPayable = loan.financials?.totalAmount || principal;
+                    const remainingBalance = loan.remainingBalance || totalPayable;
+                    const expectedProfit = loan.expectedProfit || 0;
+                    const marketPrice = loan.totalCollateralValue || 0;
+                    const paymentProgress = loan.paymentProgress || 0;
+                    const profitEarned = loan.profitData?.profit || 0;
+
+                    return (
+                      <motion.tr
+                        key={loan.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
+                      >
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-medium text-neutral-900 text-sm">
+                              {loan.id.substring(0, 12)}...
+                            </div>
+                            <div className="text-xs text-neutral-500 capitalize">
+                              {loan.loanType || 'N/A'}
+                            </div>
+                            <div className="text-xs text-neutral-500">
+                              {loan.durationMonths || '-'} months @ {interestRate}%
+                            </div>
+                            <div className="text-xs text-neutral-400">
+                              {formatDateSafe(loan.createdAt?.toDate?.() || loan.createdAt)}
+                            </div>
                           </div>
-                          <div className="text-xs text-neutral-500">
-                            {loan.customer?.id}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-semibold text-neutral-900 text-sm">
+                              {loan.customer?.fullName || 'N/A'}
+                            </div>
+                            <div className="text-xs text-neutral-500">
+                              {loan.customer?.id || 'No customer'}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-semibold text-neutral-900">
-                        {formatCurrency(Number(loan.amount), 'ZMW')}
-                      </TableCell>
-                      <TableCell className="capitalize text-neutral-700">{loan.loanType || '-'}</TableCell>
-                      <TableCell className="text-neutral-700">{loan.durationMonths || '-'} months</TableCell>
-                      <TableCell>{getStatusBadge(loan.status)}</TableCell>
-                      <TableCell className="text-neutral-600 text-sm">
-                        {formatDateSafe(loan.createdAt?.toDate?.() || loan.createdAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedLoan({ id: loan.id, status: loan.status });
-                                setStatusDialogOpen(true);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Change Status
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </motion.tr>
-                  ))}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-bold text-neutral-900">
+                            {formatCurrency(principal, 'ZMW')}
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            Principal
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-semibold text-[#22C55E]">
+                            {formatCurrency(totalPayable, 'ZMW')}
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            {formatCurrency(loan.financials?.totalInterest || 0, 'ZMW')} interest
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-semibold text-[#FACC15]">
+                            {formatCurrency(totalPaid, 'ZMW')}
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            {paymentProgress.toFixed(1)}% paid
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-semibold text-[#EF4444]">
+                            {formatCurrency(remainingBalance, 'ZMW')}
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1">
+                            Outstanding
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-[#006BFF]">
+                              {formatCurrency(expectedProfit, 'ZMW')}
+                            </div>
+                            <div className="text-xs text-[#22C55E]">
+                              Earned: {formatCurrency(profitEarned, 'ZMW')}
+                            </div>
+                            <div className="text-xs text-neutral-500">
+                              Margin: {loan.financials?.profitMargin?.toFixed(1) || '0'}%
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {marketPrice > 0 ? (
+                            <div>
+                              <div className="font-semibold text-[#8B5CF6]">
+                                {formatCurrency(marketPrice, 'ZMW')}
+                              </div>
+                              <div className="text-xs text-neutral-500 mt-1">
+                                {loan.collateral?.length || 0} item(s)
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-neutral-400 text-sm">No collateral</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="w-24 bg-neutral-200 rounded-full h-2">
+                              <div
+                                className={cn(
+                                  "h-2 rounded-full transition-all",
+                                  paymentProgress >= 100 
+                                    ? "bg-[#22C55E]" 
+                                    : paymentProgress >= 50 
+                                    ? "bg-[#FACC15]" 
+                                    : "bg-[#EF4444]"
+                                )}
+                                style={{ width: `${Math.min(100, paymentProgress)}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-neutral-600">
+                              {paymentProgress.toFixed(1)}% complete
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(loan.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedLoan({ id: loan.id, status: loan.status });
+                                  setStatusDialogOpen(true);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Change Status
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </motion.tr>
+                    );
+                  })}
                 </TableBody>
               </Table>
               </div>

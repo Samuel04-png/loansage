@@ -66,10 +66,20 @@ export function CollectionsPage() {
     return days > 0 ? days : 0;
   };
 
-  const filteredRepayments = repayments?.filter((r: any) =>
-    r.loans?.loan_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.loans?.customers?.users?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredRepayments = repayments?.filter((r: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      r.loans?.loan_number?.toLowerCase().includes(search) ||
+      r.loans?.loanNumber?.toLowerCase().includes(search) ||
+      r.loans?.id?.toLowerCase().includes(search) ||
+      r.loans?.customers?.users?.full_name?.toLowerCase().includes(search) ||
+      r.loans?.customer?.fullName?.toLowerCase().includes(search) ||
+      r.loanId?.toLowerCase().includes(search) ||
+      r.id?.toLowerCase().includes(search) ||
+      String(r.amount || '').includes(search)
+    );
+  }) || [];
 
   const overdueRepayments = filteredRepayments.filter((r: any) => getDaysOverdue(r.due_date) > 0);
   const upcomingRepayments = filteredRepayments.filter((r: any) => getDaysOverdue(r.due_date) === 0);

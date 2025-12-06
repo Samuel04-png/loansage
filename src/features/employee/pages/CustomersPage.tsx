@@ -48,11 +48,23 @@ export function EmployeeCustomersPage() {
     enabled: !!employee?.id && !!profile?.agency_id,
   });
 
-  const filteredCustomers = customers?.filter((cust: any) =>
-    cust.users?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cust.customer_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cust.nrc_number?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredCustomers = customers?.filter((cust: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      cust.users?.full_name?.toLowerCase().includes(search) ||
+      cust.fullName?.toLowerCase().includes(search) ||
+      cust.name?.toLowerCase().includes(search) ||
+      cust.customer_id?.toLowerCase().includes(search) ||
+      cust.customerId?.toLowerCase().includes(search) ||
+      cust.id?.toLowerCase().includes(search) ||
+      cust.nrc_number?.toLowerCase().includes(search) ||
+      cust.nrc?.toLowerCase().includes(search) ||
+      cust.nrcNumber?.toLowerCase().includes(search) ||
+      cust.email?.toLowerCase().includes(search) ||
+      cust.phone?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

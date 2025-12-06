@@ -15,13 +15,12 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
-import { ArrowLeft, DollarSign, Calendar, FileText, User, AlertTriangle, CheckCircle2, Clock, TrendingUp, Download } from 'lucide-react';
+import { ArrowLeft, DollarSign, Calendar, FileText, User, AlertTriangle, CheckCircle2, Clock, TrendingUp, BarChart3 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
-import { RecordPaymentDialog } from '../../../components/payment/RecordPaymentDialog';
+import { RepaymentSection } from '../../../components/repayment/RepaymentSection';
 import { useState } from 'react';
-import { exportRepayments } from '../../../lib/data-export';
 import toast from 'react-hot-toast';
 import { calculateLoanFinancials, calculateLoanProfit } from '../../../lib/firebase/loan-calculations';
 import { motion } from 'framer-motion';
@@ -31,8 +30,6 @@ export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
   const { profile } = useAuth();
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [selectedRepayment, setSelectedRepayment] = useState<any>(null);
 
   // Fetch loan details
   const { data: loan, isLoading, error: loanError } = useQuery({
@@ -246,6 +243,12 @@ export function LoanDetailPage() {
         </div>
         <div className="flex gap-3">
           {getStatusBadge(loan.status || 'pending')}
+          <Link to={`/admin/loans/${loanId}/analysis`}>
+            <Button variant="default" className="rounded-xl">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              View Analysis
+            </Button>
+          </Link>
           <Button
             variant="outline"
             onClick={() => setStatusDialogOpen(true)}
@@ -462,173 +465,19 @@ export function LoanDetailPage() {
         </motion.div>
       )}
 
-      {/* Repayment Schedule - Reference Style */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-          <CardHeader className="flex items-center justify-between pb-4">
-            <CardTitle className="text-lg font-semibold text-neutral-900">Repayment Schedule</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (loan.repayments && loan.repayments.length > 0) {
-                  exportRepayments(loan.repayments);
-                  toast.success('Repayments exported successfully');
-                } else {
-                  toast.error('No repayments to export');
-                }
-              }}
-              className="rounded-xl"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {loan.repayments && loan.repayments.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Due Date</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Amount Due</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Amount Paid</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Paid Date</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loan.repayments.map((repayment: any, index: number) => {
-                    let dueDate: Date;
-                    try {
-                      dueDate = repayment.dueDate?.toDate 
-                        ? repayment.dueDate.toDate() 
-                        : repayment.dueDate instanceof Date 
-                        ? repayment.dueDate 
-                        : repayment.dueDate 
-                        ? new Date(repayment.dueDate) 
-                        : new Date();
-                    } catch (error) {
-                      console.warn('Error parsing due date:', error);
-                      dueDate = new Date();
-                    }
-                    
-                    const isOverdue = repayment.status === 'pending' && !isNaN(dueDate.getTime()) && dueDate < new Date();
-                    
-                    let paidAtDate: Date | null = null;
-                    if (repayment.paidAt) {
-                      try {
-                        paidAtDate = repayment.paidAt?.toDate 
-                          ? repayment.paidAt.toDate() 
-                          : repayment.paidAt instanceof Date 
-                          ? repayment.paidAt 
-                          : new Date(repayment.paidAt);
-                        if (isNaN(paidAtDate.getTime())) paidAtDate = null;
-                      } catch (error) {
-                        console.warn('Error parsing paid date:', error);
-                        paidAtDate = null;
-                      }
-                    }
-                    
-                    return (
-                      <motion.tr
-                        key={repayment.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + index * 0.03 }}
-                        className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {formatDateSafe(dueDate)}
-                            {isOverdue && (
-                              <Badge className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20">Overdue</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-neutral-900">
-                          {formatCurrency(Number(repayment.amountDue || 0), 'ZMW')}
-                        </TableCell>
-                        <TableCell className="text-right text-neutral-700">
-                          {formatCurrency(Number(repayment.amountPaid || 0), 'ZMW')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            {repayment.status === 'paid' ? (
-                              <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Paid</Badge>
-                            ) : repayment.status === 'overdue' ? (
-                              <Badge className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20">Overdue</Badge>
-                            ) : (
-                              <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Pending</Badge>
-                            )}
-                            {repayment.lateFee && (
-                              <span className="text-xs text-[#EF4444]">
-                                Late Fee: {formatCurrency(Number(repayment.lateFee || 0), 'ZMW')}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-neutral-600 text-sm">
-                          {formatDateSafe(paidAtDate)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {repayment.status !== 'paid' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRepayment(repayment);
-                                setPaymentDialogOpen(true);
-                              }}
-                              className="rounded-lg"
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Record Payment
-                            </Button>
-                          )}
-                        </TableCell>
-                      </motion.tr>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center py-12">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
-                <p className="text-neutral-600 font-medium">No repayment schedule found</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      {/* Repayment Section */}
+      {loan.id && profile?.agency_id && (
+        <RepaymentSection loan={loan} agencyId={profile.agency_id} />
+      )}
 
       {loan.id && (
-        <>
-          <LoanStatusDialog
-            open={statusDialogOpen}
-            onOpenChange={setStatusDialogOpen}
-            loanId={loan.id}
-            currentStatus={loan.status || 'pending'}
-            agencyId={profile?.agency_id || ''}
-          />
-          {selectedRepayment && (
-            <RecordPaymentDialog
-              open={paymentDialogOpen}
-              onOpenChange={(open) => {
-                setPaymentDialogOpen(open);
-                if (!open) setSelectedRepayment(null);
-              }}
-              loanId={loan.id}
-              repaymentId={selectedRepayment.id}
-              repayment={selectedRepayment}
-              agencyId={profile?.agency_id || ''}
-            />
-          )}
-        </>
+        <LoanStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={setStatusDialogOpen}
+          loanId={loan.id}
+          currentStatus={loan.status || 'pending'}
+          agencyId={profile?.agency_id || ''}
+        />
       )}
     </div>
   );
