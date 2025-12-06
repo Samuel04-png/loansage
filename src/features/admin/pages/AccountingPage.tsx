@@ -575,7 +575,14 @@ export function AccountingPage() {
                 {repayments
                   ?.filter((r: any) => {
                     if (!searchTerm) return true;
-                    return r.loanId?.toLowerCase().includes(searchTerm.toLowerCase());
+                    const search = searchTerm.toLowerCase();
+                    return (
+                      r.loanId?.toLowerCase().includes(search) ||
+                      r.id?.toLowerCase().includes(search) ||
+                      r.type?.toLowerCase().includes(search) ||
+                      r.description?.toLowerCase().includes(search) ||
+                      String(r.amount || '').includes(search)
+                    );
                   })
                   .sort((a: any, b: any) => {
                     const aDate = a.paidAt || a.dueDate;

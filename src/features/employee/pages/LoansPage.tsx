@@ -75,10 +75,20 @@ export function EmployeeLoansPage() {
     }
   };
 
-  const filteredLoans = loans?.filter((loan: any) =>
-    loan.loan_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    loan.customers?.users?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredLoans = loans?.filter((loan: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      loan.loan_number?.toLowerCase().includes(search) ||
+      loan.loanNumber?.toLowerCase().includes(search) ||
+      loan.id?.toLowerCase().includes(search) ||
+      loan.customers?.users?.full_name?.toLowerCase().includes(search) ||
+      loan.customer?.fullName?.toLowerCase().includes(search) ||
+      loan.customer?.name?.toLowerCase().includes(search) ||
+      loan.loanType?.toLowerCase().includes(search) ||
+      String(loan.amount || '').includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

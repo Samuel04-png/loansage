@@ -6,6 +6,9 @@ export interface LoanValidationResult {
   valid: boolean;
   errors: string[];
   warnings: string[];
+  maximumSafeLoanAmount?: number; // NEW: Maximum safe loan amount
+  eligibilityReasoning?: string; // NEW: Detailed reasoning
+  riskFlags?: string[]; // NEW: Risk flags identified
 }
 
 interface LoanEligibilityCheck {
@@ -13,7 +16,11 @@ interface LoanEligibilityCheck {
   agencyId: string;
   requestedAmount: number;
   customerSalary?: number;
+  monthlyExpenses?: number; // NEW
   existingLoans?: any[];
+  pastDefaults?: number; // NEW: Number of past defaults
+  collateralValue?: number; // NEW: Collateral value if any
+  riskScore?: number; // NEW: Risk score (0-100)
 }
 
 /**
@@ -98,11 +105,124 @@ export async function validateLoanEligibility(
     warnings.push('Collateral may be required for loans exceeding 100,000 ZMW');
   }
 
+  // Rule 6: Check past defaults (should not have 2+ defaults)
+  if (check.pastDefaults !== undefined && check.pastDefaults >= 2) {
+    errors.push(`Borrower has ${check.pastDefaults} previous defaults. Not eligible for new loans.`);
+  } else if (check.pastDefaults === 1) {
+    warnings.push('Borrower has 1 previous default. Review required.');
+  }
+
+  // Rule 7: Check for active unpaid loans
+  if (check.existingLoans && check.existingLoans.length > 0) {
+    const unpaidLoans = check.existingLoans.filter((loan: any) => {
+      return loan.status === 'active' && loan.amount && loan.amount > 0;
+    });
+    if (unpaidLoans.length > 0) {
+      errors.push('Borrower has active unpaid loans. Must clear existing loans first.');
+    }
+  }
+
+  // Calculate maximum safe loan amount
+  let maximumSafeLoanAmount = MAX_LOAN_AMOUNT;
+  if (check.customerSalary) {
+    const disposableIncome = check.customerSalary - (check.monthlyExpenses || 0);
+    // Maximum safe amount: 3x monthly income, but payment shouldn't exceed 40% of disposable income
+    const maxByIncome = check.customerSalary * 3;
+    const maxPaymentCapacity = disposableIncome * 0.4;
+    // Reverse calculate from payment capacity (assuming 15% interest, 24 months)
+    const interestRate = 0.15;
+    const monthlyRate = interestRate / 12;
+    const termMonths = 24;
+    const maxByPayment = maxPaymentCapacity * ((1 - Math.pow(1 + monthlyRate, -termMonths)) / monthlyRate);
+    maximumSafeLoanAmount = Math.min(maxByIncome, maxByPayment, MAX_LOAN_AMOUNT);
+  }
+
+  // Adjust based on risk score if provided
+  if (check.riskScore !== undefined) {
+    if (check.riskScore >= 70) {
+      maximumSafeLoanAmount = Math.min(maximumSafeLoanAmount, check.requestedAmount * 0.5);
+    } else if (check.riskScore >= 50) {
+      maximumSafeLoanAmount = Math.min(maximumSafeLoanAmount, check.requestedAmount * 0.7);
+    }
+  }
+
+  // Check LTV ratio if collateral provided
+  if (check.collateralValue) {
+    const ltvRatio = (check.requestedAmount / check.collateralValue) * 100;
+    if (ltvRatio > 80) {
+      errors.push(`Loan-to-Value ratio (${ltvRatio.toFixed(1)}%) exceeds 80% limit for collateralized loans`);
+    } else if (ltvRatio > 65) {
+      warnings.push(`LTV ratio (${ltvRatio.toFixed(1)}%) is high. Consider reducing loan amount or increasing collateral.`);
+    }
+  } else if (check.requestedAmount > COLLATERAL_THRESHOLD) {
+    // For unsecured loans over threshold, LTV should be <= 65% of income
+    const incomeLTV = check.customerSalary ? (check.requestedAmount / (check.customerSalary * 12)) * 100 : 100;
+    if (incomeLTV > 65) {
+      warnings.push('Large unsecured loan. Consider requiring collateral.');
+    }
+  }
+
+  // Generate eligibility reasoning
+  const riskFlags: string[] = [];
+  if (check.pastDefaults && check.pastDefaults > 0) {
+    riskFlags.push(`${check.pastDefaults} previous default(s)`);
+  }
+  if (check.riskScore !== undefined && check.riskScore >= 50) {
+    riskFlags.push(`High risk score (${check.riskScore})`);
+  }
+  if (check.existingLoans && check.existingLoans.length > 0) {
+    riskFlags.push(`${check.existingLoans.length} existing loan(s)`);
+  }
+
+  const eligibilityReasoning = generateEligibilityReasoning(
+    check,
+    maximumSafeLoanAmount,
+    riskFlags,
+    errors.length === 0 && check.requestedAmount <= maximumSafeLoanAmount
+  );
+
   return {
     valid: errors.length === 0,
     errors,
     warnings,
+    maximumSafeLoanAmount: Math.round(maximumSafeLoanAmount),
+    eligibilityReasoning,
+    riskFlags,
   };
+}
+
+/**
+ * Generate detailed eligibility reasoning
+ */
+function generateEligibilityReasoning(
+  check: LoanEligibilityCheck,
+  maxAmount: number,
+  riskFlags: string[],
+  eligible: boolean
+): string {
+  if (!eligible) {
+    return `Loan application NOT ELIGIBLE. Requested amount (${check.requestedAmount.toLocaleString()} ZMW) exceeds maximum safe amount (${maxAmount.toLocaleString()} ZMW) or violates eligibility rules.`;
+  }
+
+  let reasoning = `Eligible for loan up to ${maxAmount.toLocaleString()} ZMW. `;
+  
+  if (check.customerSalary) {
+    const incomeRatio = (check.requestedAmount / check.customerSalary) * 100;
+    reasoning += `Requested amount represents ${incomeRatio.toFixed(1)}% of monthly income. `;
+  }
+
+  if (check.collateralValue) {
+    const ltvRatio = (check.requestedAmount / check.collateralValue) * 100;
+    reasoning += `LTV ratio: ${ltvRatio.toFixed(1)}% (within 80% limit). `;
+  }
+
+  if (riskFlags.length > 0) {
+    reasoning += `Risk flags: ${riskFlags.join(', ')}. `;
+  }
+
+  reasoning += 'Loan meets eligibility criteria.';
+
+  return reasoning;
 }
 
 /**

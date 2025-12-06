@@ -119,10 +119,18 @@ export function PaymentsPage() {
   const totalPending = repayments?.filter((r: any) => r.status === 'pending').reduce((sum: number, r: any) => sum + Number(r.amountDue || 0), 0) || 0;
   const totalPaid = repayments?.filter((r: any) => r.status === 'paid').reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
 
-  const filteredRepayments = repayments?.filter((r: any) =>
-    r.loanNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.loanId?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredRepayments = repayments?.filter((r: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      r.loanNumber?.toLowerCase().includes(search) ||
+      r.loanId?.toLowerCase().includes(search) ||
+      r.id?.toLowerCase().includes(search) ||
+      r.status?.toLowerCase().includes(search) ||
+      String(r.amount || '').includes(search) ||
+      String(r.amountPaid || '').includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

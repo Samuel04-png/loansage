@@ -133,10 +133,18 @@ export function SupportTicketsPage() {
     }
   };
 
-  const filteredTickets = tickets?.filter((ticket: any) =>
-    ticket.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ticket.description.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredTickets = tickets?.filter((ticket: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      ticket.subject?.toLowerCase().includes(search) ||
+      ticket.description?.toLowerCase().includes(search) ||
+      ticket.id?.toLowerCase().includes(search) ||
+      ticket.status?.toLowerCase().includes(search) ||
+      ticket.priority?.toLowerCase().includes(search) ||
+      ticket.category?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

@@ -18,8 +18,14 @@ interface CollateralPricingInput {
 }
 
 interface PricingResult {
-  estimatedMarketValue: number;
-  estimatedSalePrice: number;
+  estimatedMarketValue: number; // Fair Market Value
+  estimatedSalePrice: number; // Quick Sale Value
+  auctionPrice: number; // Auction price estimate
+  collateralValueRange: {
+    min: number;
+    max: number;
+    average: number;
+  };
   confidence: 'high' | 'medium' | 'low';
   factors: {
     positive: string[];
@@ -27,6 +33,8 @@ interface PricingResult {
   };
   marketAnalysis: string;
   recommendedAction: 'sell' | 'hold' | 'auction';
+  loanCoverageRatio?: number; // Collateral value / Requested loan amount
+  trendIndicator?: 'up' | 'down' | 'stable'; // Market trend
 }
 
 // Zambian market price ranges (in ZMW) - updated estimates
@@ -89,15 +97,22 @@ Collateral Details:
 
 Please provide a JSON response with the following structure:
 {
-  "estimatedMarketValue": <number in ZMW>,
-  "estimatedSalePrice": <number in ZMW - quick sale price>,
+  "estimatedMarketValue": <number in ZMW - fair market value>,
+  "estimatedSalePrice": <number in ZMW - quick sale value (65% of market)>,
+  "auctionPrice": <number in ZMW - auction price (45% of market)>,
+  "collateralValueRange": {
+    "min": <number - conservative estimate>,
+    "max": <number - optimistic estimate>,
+    "average": <number - fair market value>
+  },
   "confidence": "high" | "medium" | "low",
   "factors": {
     "positive": [<array of positive factors>],
     "negative": [<array of negative factors>]
   },
   "marketAnalysis": "<detailed analysis of Zambian market conditions for this item>",
-  "recommendedAction": "sell" | "hold" | "auction"
+  "recommendedAction": "sell" | "hold" | "auction",
+  "trendIndicator": "up" | "down" | "stable"
 }
 
 Consider:
@@ -127,10 +142,13 @@ Return ONLY valid JSON, no additional text.`;
       const aiResult = parseAIResponse<PricingResult>(response, {
         estimatedMarketValue: 0,
         estimatedSalePrice: 0,
+        auctionPrice: 0,
+        collateralValueRange: { min: 0, max: 0, average: 0 },
         confidence: 'low',
         factors: { positive: [], negative: [] },
         marketAnalysis: '',
         recommendedAction: 'hold',
+        trendIndicator: 'stable',
       });
 
       // Validate and use AI result if it looks reasonable
@@ -207,8 +225,25 @@ Return ONLY valid JSON, no additional text.`;
     factors.positive.push('High market demand');
   }
 
-  // Calculate estimated sale price (typically 80-90% of market value for quick sale)
-  const estimatedSalePrice = basePrice * 0.85;
+  // Calculate different pricing scenarios
+  // Quick Sale Value: 65% of market average (fast liquidation)
+  const quickSaleValue = basePrice * 0.65;
+  
+  // Auction Price: 45% of market average (forced sale scenario)
+  const auctionPrice = basePrice * 0.45;
+  
+  // Fair Market Value: base price (normal market conditions)
+  const fairMarketValue = basePrice;
+  
+  // Calculate value range (high, mid, low)
+  const valueRange = {
+    min: basePrice * 0.50, // Conservative estimate
+    max: basePrice * 1.15, // Optimistic estimate (with premium factors)
+    average: basePrice,
+  };
+  
+  // Estimated sale price for quick sale
+  const estimatedSalePrice = quickSaleValue;
 
   // Determine confidence level
   let confidence: 'high' | 'medium' | 'low' = 'medium';
@@ -231,13 +266,26 @@ Return ONLY valid JSON, no additional text.`;
     recommendedAction = 'auction';
   }
 
+  // Determine trend indicator (simplified - would need historical data for real trends)
+  const trendIndicator: 'up' | 'down' | 'stable' = 
+    basePrice > estimatedValue * 1.1 ? 'up' : 
+    basePrice < estimatedValue * 0.9 ? 'down' : 
+    'stable';
+
   return {
-    estimatedMarketValue: Math.round(basePrice),
+    estimatedMarketValue: Math.round(fairMarketValue),
     estimatedSalePrice: Math.round(estimatedSalePrice),
+    auctionPrice: Math.round(auctionPrice),
+    collateralValueRange: {
+      min: Math.round(valueRange.min),
+      max: Math.round(valueRange.max),
+      average: Math.round(valueRange.average),
+    },
     confidence,
     factors,
     marketAnalysis,
     recommendedAction,
+    trendIndicator,
   };
 }
 
@@ -255,6 +303,17 @@ function generateMarketAnalysis(
   } else {
     return analysis + `may require additional marketing or price adjustments due to its ${condition} condition. Consider professional appraisal for accurate valuation.`;
   }
+}
+
+/**
+ * Calculate loan coverage ratio (collateral value / loan amount)
+ */
+export function calculateLoanCoverageRatio(
+  collateralValue: number,
+  loanAmount: number
+): number {
+  if (loanAmount === 0) return 0;
+  return Math.round((collateralValue / loanAmount) * 100) / 100;
 }
 
 /**

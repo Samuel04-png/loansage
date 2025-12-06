@@ -52,11 +52,17 @@ export function EmployeesPage() {
     enabled: !!profile?.agency_id,
   });
 
-  const filteredEmployees = employees?.filter((emp: any) =>
-    emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.role?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredEmployees = employees?.filter((emp: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      emp.name?.toLowerCase().includes(search) ||
+      emp.email?.toLowerCase().includes(search) ||
+      emp.role?.toLowerCase().includes(search) ||
+      emp.id?.toLowerCase().includes(search) ||
+      emp.userId?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   const getInitials = (name: string) => {
     return name

@@ -117,9 +117,18 @@ export function FileManagerPage() {
     return <Badge variant={colors[type] as any} className="capitalize">{type}</Badge>;
   };
 
-  const filteredDocuments = documents?.filter((doc: any) =>
-    doc.file_name.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredDocuments = documents?.filter((doc: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      doc.file_name?.toLowerCase().includes(search) ||
+      doc.fileName?.toLowerCase().includes(search) ||
+      doc.id?.toLowerCase().includes(search) ||
+      doc.type?.toLowerCase().includes(search) ||
+      doc.category?.toLowerCase().includes(search) ||
+      doc.description?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

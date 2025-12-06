@@ -15,7 +15,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { cn } from '../../../lib/utils';
-import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database, Calculator, Percent, Calendar, DollarSign } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
@@ -48,15 +48,32 @@ const passwordSchema = z.object({
   path: ['confirmPassword'],
 });
 
+const loanSettingsSchema = z.object({
+  defaultInterestRate: z.number().min(0).max(100, 'Interest rate must be between 0 and 100%'),
+  gracePeriodDays: z.number().min(0).max(30, 'Grace period must be between 0 and 30 days'),
+  lateFeeRate: z.number().min(0).max(10, 'Late fee rate must be between 0 and 10%'),
+  maxLateFeeRate: z.number().min(0).max(50, 'Max late fee rate must be between 0 and 50%'),
+  minLoanAmount: z.number().min(0, 'Minimum loan amount must be positive'),
+  maxLoanAmount: z.number().min(0, 'Maximum loan amount must be positive'),
+  defaultLoanDuration: z.number().min(1).max(60, 'Default duration must be between 1 and 60 months'),
+  interestCalculationMethod: z.enum(['simple', 'compound'], {
+    errorMap: () => ({ message: 'Please select an interest calculation method' }),
+  }),
+}).refine((data) => data.maxLoanAmount >= data.minLoanAmount, {
+  message: 'Maximum loan amount must be greater than or equal to minimum loan amount',
+  path: ['maxLoanAmount'],
+});
+
 type AgencyFormData = z.infer<typeof agencySchema>;
 type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
+type LoanSettingsFormData = z.infer<typeof loanSettingsSchema>;
 
 export function SettingsPage() {
   const { agency, updateAgency, loading: agencyLoading } = useAgency();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data'>('agency');
+  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans'>('agency');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
@@ -88,6 +105,21 @@ export function SettingsPage() {
   // Password form
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
+  });
+
+  // Loan Settings form
+  const loanSettingsForm = useForm<LoanSettingsFormData>({
+    resolver: zodResolver(loanSettingsSchema),
+    defaultValues: {
+      defaultInterestRate: agency?.settings?.loanSettings?.defaultInterestRate || 15,
+      gracePeriodDays: agency?.settings?.loanSettings?.gracePeriodDays || 7,
+      lateFeeRate: agency?.settings?.loanSettings?.lateFeeRate || 2.5,
+      maxLateFeeRate: agency?.settings?.loanSettings?.maxLateFeeRate || 25,
+      minLoanAmount: agency?.settings?.loanSettings?.minLoanAmount || 1000,
+      maxLoanAmount: agency?.settings?.loanSettings?.maxLoanAmount || 1000000,
+      defaultLoanDuration: agency?.settings?.loanSettings?.defaultLoanDuration || 12,
+      interestCalculationMethod: agency?.settings?.loanSettings?.interestCalculationMethod || 'simple',
+    },
   });
 
   // Fetch employees
@@ -244,6 +276,21 @@ export function SettingsPage() {
     }
   }, [profile, profileForm]);
 
+  useEffect(() => {
+    if (agency?.settings?.loanSettings) {
+      loanSettingsForm.reset({
+        defaultInterestRate: agency.settings.loanSettings.defaultInterestRate || 15,
+        gracePeriodDays: agency.settings.loanSettings.gracePeriodDays || 7,
+        lateFeeRate: agency.settings.loanSettings.lateFeeRate || 2.5,
+        maxLateFeeRate: agency.settings.loanSettings.maxLateFeeRate || 25,
+        minLoanAmount: agency.settings.loanSettings.minLoanAmount || 1000,
+        maxLoanAmount: agency.settings.loanSettings.maxLoanAmount || 1000000,
+        defaultLoanDuration: agency.settings.loanSettings.defaultLoanDuration || 12,
+        interestCalculationMethod: agency.settings.loanSettings.interestCalculationMethod || 'simple',
+      });
+    }
+  }, [agency, loanSettingsForm]);
+
   // Create or update agency
   const handleAgencySubmit = async (data: AgencyFormData) => {
     if (!user?.id || !profile) {
@@ -395,6 +442,58 @@ export function SettingsPage() {
     }
   };
 
+  // Update loan settings
+  const handleLoanSettingsSubmit = async (data: LoanSettingsFormData) => {
+    if (!profile?.agency_id) {
+      toast.error('Agency information not available');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const agencyRef = doc(db, 'agencies', profile.agency_id);
+      
+      // Get current settings or create new object
+      const currentSettings = agency?.settings || {};
+      
+      await updateDoc(agencyRef, {
+        settings: {
+          ...currentSettings,
+          loanSettings: {
+            defaultInterestRate: data.defaultInterestRate,
+            gracePeriodDays: data.gracePeriodDays,
+            lateFeeRate: data.lateFeeRate,
+            maxLateFeeRate: data.maxLateFeeRate,
+            minLoanAmount: data.minLoanAmount,
+            maxLoanAmount: data.maxLoanAmount,
+            defaultLoanDuration: data.defaultLoanDuration,
+            interestCalculationMethod: data.interestCalculationMethod,
+            updatedAt: serverTimestamp(),
+          },
+        },
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update local agency state
+      await updateAgency({
+        ...agency,
+        settings: {
+          ...currentSettings,
+          loanSettings: data,
+        },
+      } as any);
+
+      queryClient.invalidateQueries({ queryKey: ['agency'] });
+      toast.success('Loan settings updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating loan settings:', error);
+      toast.error(error.message || 'Failed to update loan settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Remove employee
   const handleRemoveEmployee = async (employeeId: string) => {
     if (!profile?.agency_id) return;
@@ -444,13 +543,20 @@ export function SettingsPage() {
 
       {/* Tabs - Reference Style with ShadCN Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4 rounded-xl bg-neutral-100 p-1">
+        <TabsList className="grid w-full max-w-3xl grid-cols-5 rounded-xl bg-neutral-100 p-1">
           <TabsTrigger 
             value="agency" 
             className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
           >
             <Building2 className="w-4 h-4 mr-2" />
             Agency
+          </TabsTrigger>
+          <TabsTrigger 
+            value="loans"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <Calculator className="w-4 h-4 mr-2" />
+            Loan Settings
           </TabsTrigger>
           <TabsTrigger 
             value="employees"
@@ -600,6 +706,289 @@ export function SettingsPage() {
                         <>
                           <Save className="mr-2 h-4 w-4" />
                           {agency ? 'Update Agency' : 'Create Agency'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </form>
+          </motion.div>
+        </TabsContent>
+
+        {/* Loan Settings Tab */}
+        <TabsContent value="loans" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            <form onSubmit={loanSettingsForm.handleSubmit(handleLoanSettingsSubmit)}>
+              <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-[#006BFF]" />
+                    Loan Calculation Settings
+                  </CardTitle>
+                  <CardDescription className="text-sm text-neutral-600">
+                    Configure default interest rates, late fees, and loan calculation parameters
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Interest Rate Settings */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                      <Percent className="w-4 h-4" />
+                      Interest Rate Settings
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="defaultInterestRate" className="text-sm font-semibold text-neutral-900">
+                          Default Interest Rate (%)
+                        </Label>
+                        <Input
+                          id="defaultInterestRate"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          {...loanSettingsForm.register('defaultInterestRate', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.defaultInterestRate && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.defaultInterestRate && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.defaultInterestRate.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Default interest rate applied to new loans (0-100%)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="interestCalculationMethod" className="text-sm font-semibold text-neutral-900">
+                          Interest Calculation Method
+                        </Label>
+                        <select
+                          id="interestCalculationMethod"
+                          {...loanSettingsForm.register('interestCalculationMethod')}
+                          className={cn(
+                            "flex h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.interestCalculationMethod && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        >
+                          <option value="simple">Simple Interest</option>
+                          <option value="compound">Compound Interest</option>
+                        </select>
+                        {loanSettingsForm.formState.errors.interestCalculationMethod && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.interestCalculationMethod.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Method used to calculate interest on loans
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Late Fee Settings */}
+                  <div className="space-y-4 pt-4 border-t border-neutral-200">
+                    <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      Late Fee Settings
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="gracePeriodDays" className="text-sm font-semibold text-neutral-900">
+                          Grace Period (Days)
+                        </Label>
+                        <Input
+                          id="gracePeriodDays"
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="30"
+                          {...loanSettingsForm.register('gracePeriodDays', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.gracePeriodDays && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.gracePeriodDays && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.gracePeriodDays.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Days before late fees are applied
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="lateFeeRate" className="text-sm font-semibold text-neutral-900">
+                          Late Fee Rate (% per month)
+                        </Label>
+                        <Input
+                          id="lateFeeRate"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="10"
+                          {...loanSettingsForm.register('lateFeeRate', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.lateFeeRate && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.lateFeeRate && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.lateFeeRate.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Percentage charged per month on overdue amount
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="maxLateFeeRate" className="text-sm font-semibold text-neutral-900">
+                          Maximum Late Fee Rate (%)
+                        </Label>
+                        <Input
+                          id="maxLateFeeRate"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="50"
+                          {...loanSettingsForm.register('maxLateFeeRate', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.maxLateFeeRate && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.maxLateFeeRate && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.maxLateFeeRate.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Maximum late fee as percentage of loan amount
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Loan Amount Limits */}
+                  <div className="space-y-4 pt-4 border-t border-neutral-200">
+                    <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                      <DollarSign className="w-4 h-4" />
+                      Loan Amount Limits
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="minLoanAmount" className="text-sm font-semibold text-neutral-900">
+                          Minimum Loan Amount (ZMW)
+                        </Label>
+                        <Input
+                          id="minLoanAmount"
+                          type="number"
+                          step="100"
+                          min="0"
+                          {...loanSettingsForm.register('minLoanAmount', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.minLoanAmount && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.minLoanAmount && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.minLoanAmount.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Minimum amount allowed for new loans
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="maxLoanAmount" className="text-sm font-semibold text-neutral-900">
+                          Maximum Loan Amount (ZMW)
+                        </Label>
+                        <Input
+                          id="maxLoanAmount"
+                          type="number"
+                          step="1000"
+                          min="0"
+                          {...loanSettingsForm.register('maxLoanAmount', { valueAsNumber: true })}
+                          className={cn(
+                            "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                            loanSettingsForm.formState.errors.maxLoanAmount && 'border-[#EF4444] focus:border-[#EF4444]'
+                          )}
+                        />
+                        {loanSettingsForm.formState.errors.maxLoanAmount && (
+                          <p className="text-sm text-[#EF4444] mt-1">
+                            {loanSettingsForm.formState.errors.maxLoanAmount.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          Maximum amount allowed for new loans
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Default Loan Duration */}
+                  <div className="space-y-4 pt-4 border-t border-neutral-200">
+                    <h3 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Default Loan Duration
+                    </h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="defaultLoanDuration" className="text-sm font-semibold text-neutral-900">
+                        Default Loan Duration (Months)
+                      </Label>
+                      <Input
+                        id="defaultLoanDuration"
+                        type="number"
+                        step="1"
+                        min="1"
+                        max="60"
+                        {...loanSettingsForm.register('defaultLoanDuration', { valueAsNumber: true })}
+                        className={cn(
+                          "rounded-xl border-neutral-200 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF]",
+                          loanSettingsForm.formState.errors.defaultLoanDuration && 'border-[#EF4444] focus:border-[#EF4444]'
+                        )}
+                      />
+                      {loanSettingsForm.formState.errors.defaultLoanDuration && (
+                        <p className="text-sm text-[#EF4444] mt-1">
+                          {loanSettingsForm.formState.errors.defaultLoanDuration.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-neutral-500">
+                        Default repayment period for new loans (1-60 months)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-neutral-200">
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Loan Settings
                         </>
                       )}
                     </Button>

@@ -64,10 +64,20 @@ export function OverduePage() {
 
   const totalOverdue = overdueRepayments?.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0) || 0;
 
-  const filteredRepayments = overdueRepayments?.filter((r: any) =>
-    r.loans?.loan_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.loans?.customers?.users?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredRepayments = overdueRepayments?.filter((r: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      r.loans?.loan_number?.toLowerCase().includes(search) ||
+      r.loans?.loanNumber?.toLowerCase().includes(search) ||
+      r.loans?.id?.toLowerCase().includes(search) ||
+      r.loans?.customers?.users?.full_name?.toLowerCase().includes(search) ||
+      r.loans?.customer?.fullName?.toLowerCase().includes(search) ||
+      r.loanId?.toLowerCase().includes(search) ||
+      r.id?.toLowerCase().includes(search) ||
+      String(r.amount || '').includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

@@ -115,10 +115,18 @@ export function CustomerLoansPage() {
     return nextPayment;
   };
 
-  const filteredLoans = loans?.filter((loan: any) =>
-    loan.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    loan.loanType?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredLoans = loans?.filter((loan: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      loan.id?.toLowerCase().includes(search) ||
+      loan.loanNumber?.toLowerCase().includes(search) ||
+      loan.loanType?.toLowerCase().includes(search) ||
+      loan.status?.toLowerCase().includes(search) ||
+      String(loan.amount || '').includes(search) ||
+      String(loan.interestRate || '').includes(search)
+    );
+  }) || [];
 
   return (
     <div className="space-y-6">

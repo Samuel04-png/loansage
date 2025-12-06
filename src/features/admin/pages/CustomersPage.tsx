@@ -53,11 +53,20 @@ export function CustomersPage() {
     enabled: !!profile?.agency_id,
   });
 
-  const filteredCustomers = customers?.filter((cust: any) =>
-    cust.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cust.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cust.nrc?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredCustomers = customers?.filter((cust: any) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      cust.fullName?.toLowerCase().includes(search) ||
+      cust.name?.toLowerCase().includes(search) ||
+      cust.id?.toLowerCase().includes(search) ||
+      cust.customerId?.toLowerCase().includes(search) ||
+      cust.nrc?.toLowerCase().includes(search) ||
+      cust.nrcNumber?.toLowerCase().includes(search) ||
+      cust.email?.toLowerCase().includes(search) ||
+      cust.phone?.toLowerCase().includes(search)
+    );
+  }) || [];
 
   const getInitials = (name: string) => {
     return name
