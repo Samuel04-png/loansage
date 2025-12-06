@@ -9,6 +9,9 @@ import {
   UserCredential,
   sendEmailVerification,
   updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+  OAuthProvider,
 } from 'firebase/auth';
 import { auth, isDemoMode } from './config';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -408,6 +411,160 @@ export const authService = {
     } catch (error: any) {
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
         return null;
+      }
+      throw error;
+    }
+  },
+
+  async signInWithGoogle() {
+    if (isDemoMode) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const mockUser = createMockUser('demo@google.com', 'admin');
+      const mockSession = createMockSession(mockUser);
+      return {
+        user: mockUser,
+        session: mockSession,
+      };
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      // Request additional scopes if needed
+      provider.addScope('profile');
+      provider.addScope('email');
+      
+      const userCredential: UserCredential = await signInWithPopup(auth, provider);
+      
+      // Create or update user document in Firestore
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      const userDocData = {
+        id: userCredential.user.uid,
+        email: userCredential.user.email,
+        full_name: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
+        role: 'admin', // Default role, can be updated later
+        is_active: true,
+        last_login: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        provider: 'google',
+      };
+
+      // Check if user document exists
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        // Update existing user
+        await updateDoc(userDocRef, {
+          last_login: userDocData.last_login,
+          updated_at: userDocData.updated_at,
+          email: userCredential.user.email,
+          full_name: userCredential.user.displayName || userDoc.data()?.full_name,
+        });
+      } else {
+        // Create new user document
+        await setDoc(userDocRef, {
+          ...userDocData,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      const user = await convertFirebaseUser(userCredential.user);
+      const session = await createSession(user);
+
+      return {
+        user,
+        session,
+      };
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      }
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked by your browser. Please allow popups and try again.');
+      }
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        throw new Error('Unable to connect to authentication server. Please check your internet connection.');
+      }
+      throw error;
+    }
+  },
+
+  async signInWithApple() {
+    if (isDemoMode) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const mockUser = createMockUser('demo@apple.com', 'admin');
+      const mockSession = createMockSession(mockUser);
+      return {
+        user: mockUser,
+        session: mockSession,
+      };
+    }
+
+    try {
+      const provider = new OAuthProvider('apple.com');
+      // Request additional scopes
+      provider.addScope('email');
+      provider.addScope('name');
+      
+      const userCredential: UserCredential = await signInWithPopup(auth, provider);
+      
+      // Extract name from additionalUserInfo if available
+      let displayName = userCredential.user.displayName;
+      if (!displayName && (userCredential as any).additionalUserInfo?.profile) {
+        const profile = (userCredential as any).additionalUserInfo.profile;
+        if (profile.name) {
+          displayName = `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim();
+        }
+      }
+      
+      // Create or update user document in Firestore
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      const userDocData = {
+        id: userCredential.user.uid,
+        email: userCredential.user.email,
+        full_name: displayName || userCredential.user.email?.split('@')[0] || 'User',
+        role: 'admin', // Default role, can be updated later
+        is_active: true,
+        last_login: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        provider: 'apple',
+      };
+
+      // Check if user document exists
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        // Update existing user
+        await updateDoc(userDocRef, {
+          last_login: userDocData.last_login,
+          updated_at: userDocData.updated_at,
+          email: userCredential.user.email,
+          full_name: displayName || userDoc.data()?.full_name,
+        });
+      } else {
+        // Create new user document
+        await setDoc(userDocRef, {
+          ...userDocData,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      const user = await convertFirebaseUser(userCredential.user);
+      const session = await createSession(user);
+
+      return {
+        user,
+        session,
+      };
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      }
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked by your browser. Please allow popups and try again.');
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        throw new Error('Apple sign-in is not configured for this domain. Please contact support.');
+      }
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        throw new Error('Unable to connect to authentication server. Please check your internet connection.');
       }
       throw error;
     }
