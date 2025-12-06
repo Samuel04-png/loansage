@@ -2,6 +2,7 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getFunctions, Functions } from 'firebase/functions';
 
 // Get environment variables with fallbacks
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
@@ -35,14 +36,19 @@ export const isDemoMode = !firebaseConfig.apiKey ||
   firebaseConfig.projectId === '';
 
 // Spark plan mode - free tier limitations
-// Set to true if you're on Spark (free) plan to disable features that require Blaze plan
+// NOTE: Project has been upgraded to Blaze plan - all features are now enabled
+// This flag is kept for backward compatibility but defaults to false (Blaze plan)
+// Set to true ONLY if you need to temporarily restrict features for testing
 export const isSparkPlan = import.meta.env.VITE_FIREBASE_SPARK_PLAN === 'true' || 
   import.meta.env.VITE_FIREBASE_SPARK_PLAN === '1' ||
-  false; // Default to false, set VITE_FIREBASE_SPARK_PLAN=true in .env.local if on free tier
+  false; // Default to false (Blaze plan) - all features enabled
 
 if (isSparkPlan) {
-  console.info('ℹ️ Running in SPARK PLAN mode - Some features may be limited');
-  console.info('Features disabled: File uploads, Cloud Functions, some advanced operations');
+  console.warn('⚠️ Running in SPARK PLAN mode - Some features may be limited');
+  console.warn('Features disabled: File uploads, Cloud Functions, some advanced operations');
+  console.warn('Note: Project is on Blaze plan - remove VITE_FIREBASE_SPARK_PLAN from .env to enable all features');
+} else {
+  console.info('✅ Running on BLAZE PLAN - All features enabled (Cloud Storage, Cloud Functions, etc.)');
 }
 
 if (isDemoMode) {
@@ -101,6 +107,7 @@ if (getApps().length === 0) {
 // Initialize services
 export const auth: Auth = getAuth(app);
 export const storage: FirebaseStorage = getStorage(app);
+export const functions: Functions = getFunctions(app);
 
 // Initialize Firestore
 // Note: Persistence must be enabled before any Firestore operations

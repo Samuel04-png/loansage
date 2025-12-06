@@ -1,9 +1,10 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from './config';
-import { isDemoMode, isSparkPlan } from './config';
+import { isDemoMode } from './config';
 
 /**
  * Firebase Storage helpers for file uploads
+ * Now fully enabled on Blaze plan - all file upload features are available
  */
 
 export async function uploadFile(
@@ -14,11 +15,6 @@ export async function uploadFile(
   if (isDemoMode) {
     // Return a mock URL for demo mode
     return `https://demo-storage.example.com/${path}/${file.name}`;
-  }
-
-  if (isSparkPlan) {
-    // Spark plan has limited storage - return a placeholder or throw a helpful error
-    throw new Error('File uploads are not available on the Spark (free) plan. Please upgrade to Blaze plan or skip file uploads.');
   }
 
   try {

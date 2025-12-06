@@ -54,6 +54,7 @@ import { EmployeeCustomersPage } from '../features/employee/pages/CustomersPage'
 import { CollectionsPage } from '../features/employee/pages/CollectionsPage';
 import { OverduePage } from '../features/employee/pages/OverduePage';
 import { PendingApprovalsPage } from '../features/employee/pages/PendingApprovalsPage';
+import { LoanDetailPage as EmployeeLoanDetailPage } from '../features/admin/pages/LoanDetailPage';
 
 // Customer pages
 import { CustomerLayout } from '../features/customer/components/CustomerLayout';
@@ -156,6 +157,7 @@ function AppContent() {
                 <Route path="dashboard" element={<EmployeeDashboard />} />
                 <Route path="customers" element={<EmployeeCustomersPage />} />
                 <Route path="loans" element={<EmployeeLoansPage />} />
+                <Route path="loans/:loanId" element={<EmployeeLoanDetailPage />} />
                 <Route path="loans/create" element={<LoanOriginationPage />} />
                 <Route path="tasks" element={<TasksPage />} />
                 <Route path="calendar" element={<CalendarPage />} />

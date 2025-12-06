@@ -123,29 +123,9 @@ export function RecordPaymentDialog({
         // Ignore audit log errors
       });
 
-      // Update loan status if all repayments are paid
-      const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
-      const { getDoc } = await import('firebase/firestore');
-      const loanDoc = await getDoc(loanRef);
-      
-      if (loanDoc.exists()) {
-        const loanData = loanDoc.data();
-        const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loanId, 'repayments');
-        const { getDocs } = await import('firebase/firestore');
-        const repaymentsSnapshot = await getDocs(repaymentsRef);
-        const allRepayments = repaymentsSnapshot.docs.map(doc => doc.data());
-        
-        const allPaid = allRepayments.every((r: any) => 
-          Number(r.amountPaid || 0) >= Number(r.amountDue || 0)
-        );
-
-        if (allPaid && loanData.status !== 'completed') {
-          await updateDoc(loanRef, {
-            status: 'completed',
-            updatedAt: serverTimestamp(),
-          });
-        }
-      }
+      // Update loan summary (remaining balance, total paid, upcoming due date, status)
+      const { updateLoanAfterPayment } = await import('../../lib/firebase/repayment-helpers');
+      await updateLoanAfterPayment(agencyId, loanId);
 
       toast.success('Payment recorded successfully');
       queryClient.invalidateQueries({ queryKey: ['loan', loanId] });

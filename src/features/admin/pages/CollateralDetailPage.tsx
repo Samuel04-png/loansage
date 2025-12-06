@@ -1,7 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
@@ -11,6 +12,7 @@ import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { estimateCollateralPrice, calculateCollateralProfit } from '../../../lib/ai/collateral-pricing';
+import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
@@ -114,7 +116,24 @@ export function CollateralDetailPage() {
   const loanAmount = loan ? Number(loan.amount || 0) : 0;
   const loanCoverageRatio = loanAmount > 0 ? (collateralValue / loanAmount) * 100 : 0;
   const totalPaid = loanRepayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
-  const remainingBalance = loan ? (Number(loan.amount || 0) + (Number(loan.amount || 0) * Number(loan.interestRate || 0) / 100)) - totalPaid : 0;
+  
+  // Calculate remaining balance using proper amortization calculation
+  let remainingBalance = 0;
+  if (loan) {
+    const principal = Number(loan.amount || 0);
+    const interestRate = Number(loan.interestRate || 0);
+    const durationMonths = Number(loan.durationMonths || 0);
+    
+    if (principal > 0 && interestRate > 0 && durationMonths > 0) {
+      // Use calculateLoanFinancials to get the correct total amount (accounts for loan duration)
+      const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
+      remainingBalance = Math.max(0, financials.totalAmount - totalPaid);
+    } else {
+      // Fallback for loans without proper duration/rate data
+      const totalInterest = principal * (interestRate / 100) * (durationMonths || 12) / 12;
+      remainingBalance = Math.max(0, (principal + totalInterest) - totalPaid);
+    }
+  }
 
   if (isLoading) {
     return (

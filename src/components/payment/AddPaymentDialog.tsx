@@ -42,13 +42,13 @@ export function AddPaymentDialog({
     e.preventDefault();
     
     const paymentAmount = parseFloat(amount);
-    if (!paymentAmount || paymentAmount <= 0) {
-      toast.error('Payment must be greater than 0');
-      return;
-    }
-
-    if (paymentAmount > remainingBalance) {
-      toast.error('Payment cannot be greater than the amount owed.');
+    
+    // Real-time validation using helper function
+    const { validatePaymentAmount } = await import('../../lib/firebase/repayment-helpers');
+    const validation = validatePaymentAmount(paymentAmount, remainingBalance);
+    
+    if (!validation.valid) {
+      toast.error(validation.error || 'Invalid payment amount');
       return;
     }
 
@@ -155,21 +155,9 @@ export function AddPaymentDialog({
         remainingPayment -= paymentForThisRepayment;
       }
 
-      // Check if loan is fully paid
-      const updatedRepaymentsSnapshot = await getDocs(repaymentsRef);
-      const allRepayments = updatedRepaymentsSnapshot.docs.map(doc => doc.data());
-      
-      const allPaid = allRepayments.every((r: any) => 
-        Number(r.amountPaid || 0) >= Number(r.amountDue || 0)
-      );
-
-      if (allPaid) {
-        const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
-        await updateDoc(loanRef, {
-          status: 'completed',
-          updatedAt: serverTimestamp(),
-        });
-      }
+      // Update loan summary (remaining balance, total paid, upcoming due date, status)
+      const { updateLoanAfterPayment } = await import('../../lib/firebase/repayment-helpers');
+      await updateLoanAfterPayment(agencyId, loanId);
 
       // Create audit log
       createAuditLog(agencyId, {

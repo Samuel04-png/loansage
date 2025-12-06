@@ -95,23 +95,13 @@ export function CreateOrganizationPage() {
       // Upload logo if provided (after agency is created)
       if (logoFile) {
         try {
-          const { isSparkPlan } = await import('../../../lib/firebase/config');
-          if (isSparkPlan) {
-            console.info('Skipping logo upload - Spark plan detected');
-            toast('Logo upload skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
-          } else {
-            logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
-            // Update agency with logo URL
-            const { updateAgency } = await import('../../../lib/firebase/firestore-helpers');
-            await updateAgency(newAgency.id, { logoURL });
-          }
+          logoURL = await uploadAgencyLogo(newAgency.id, logoFile);
+          // Update agency with logo URL
+          const { updateAgency } = await import('../../../lib/firebase/firestore-helpers');
+          await updateAgency(newAgency.id, { logoURL });
         } catch (error: any) {
           console.warn('Failed to upload logo:', error);
-          if (error.message?.includes('Spark') || error.message?.includes('free')) {
-            toast('Logo upload not available on free plan', { icon: 'ℹ️' });
-          } else {
-            toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });
-          }
+          toast('Logo upload failed, but agency was created successfully', { icon: '⚠️' });
           // Continue even if logo upload fails
         }
       }

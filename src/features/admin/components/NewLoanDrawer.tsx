@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../../lib/firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../../lib/firebase/config';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerBody, DrawerFooter } from '../../../components/ui/drawer';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -18,6 +19,8 @@ import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
 import { validateLoanEligibility } from '../../../lib/firebase/loan-validation';
 import { uploadLoanDocument as uploadDoc, uploadCollateralPhoto } from '../../../lib/firebase/storage-helpers';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
+import { assessLoanRisk } from '../../../lib/ai/risk-assessment-engine';
+import { RiskAssessmentDisplay } from '../../../components/risk/RiskAssessmentDisplay';
 import toast from 'react-hot-toast';
 
 const loanSchema = z.object({
@@ -48,6 +51,7 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
   const [loading, setLoading] = useState(false);
   const [collateralFiles, setCollateralFiles] = useState<File[]>([]);
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [riskAssessment, setRiskAssessment] = useState<any>(null);
   const totalSteps = 3;
 
   // Fetch customers
@@ -112,24 +116,84 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
 
     setLoading(true);
     try {
-      // Validate loan eligibility
-      const validation = await validateLoanEligibility({
-        customerId: data.customerId,
-        agencyId: profile.agency_id,
-        requestedAmount: parseFloat(data.loanAmount),
-      });
+      // Call Cloud Function for loan validation
+      try {
+        const loanValidation = httpsCallable(functions, 'loanValidation');
+        const validationResult = await loanValidation({
+          agencyId: profile.agency_id,
+          customerId: data.customerId,
+          requestedAmount: parseFloat(data.loanAmount),
+          interestRate: parseFloat(data.interestRate),
+          durationMonths: parseInt(data.durationMonths),
+        });
+        
+        const result = validationResult.data as any;
+        if (!result.valid) {
+          toast.error(result.errors?.join(', ') || 'Loan validation failed');
+          if (result.warnings?.length > 0) {
+            result.warnings.forEach((warning: string) => toast(warning, { icon: '⚠️' }));
+          }
+          setLoading(false);
+          return;
+        }
 
-      if (!validation.valid) {
-        toast.error(validation.errors.join(', '));
+        if (result.warnings?.length > 0) {
+          result.warnings.forEach((warning: string) => toast(warning, { icon: '⚠️' }));
+        }
+      } catch (error: any) {
+        console.warn('Cloud Function validation failed, using local validation:', error);
+        // Fallback to local validation
+        const validation = await validateLoanEligibility({
+          customerId: data.customerId,
+          agencyId: profile.agency_id,
+          requestedAmount: parseFloat(data.loanAmount),
+        });
+
+        if (!validation.valid) {
+          toast.error(validation.errors.join(', '));
+          if (validation.warnings.length > 0) {
+            validation.warnings.forEach(warning => toast(warning, { icon: '⚠️' }));
+          }
+          setLoading(false);
+          return;
+        }
+
         if (validation.warnings.length > 0) {
           validation.warnings.forEach(warning => toast(warning, { icon: '⚠️' }));
         }
-        setLoading(false);
-        return;
       }
 
-      if (validation.warnings.length > 0) {
-        validation.warnings.forEach(warning => toast(warning, { icon: '⚠️' }));
+      // Calculate risk assessment
+      if (selectedCustomer) {
+        try {
+          const riskData = assessLoanRisk({
+            loanAmount: parseFloat(data.loanAmount),
+            interestRate: parseFloat(data.interestRate),
+            durationMonths: parseInt(data.durationMonths),
+            customerProfile: {
+              monthlyIncome: selectedCustomer.monthlyIncome,
+              monthlyExpenses: selectedCustomer.monthlyExpenses,
+              employmentStatus: selectedCustomer.employmentStatus,
+              pastLoans: selectedCustomer.totalLoans || 0,
+              pastDefaults: selectedCustomer.defaultedLoans || 0,
+              creditScore: selectedCustomer.creditScore,
+            },
+            collateralValue: data.collateralValue ? parseFloat(data.collateralValue) : undefined,
+            collateralType: data.collateralType,
+            kycVerified: selectedCustomer.kycStatus === 'verified',
+          });
+          setRiskAssessment(riskData);
+          
+          // Show warning for high risk
+          if (riskData.riskCategory === 'High' || riskData.riskCategory === 'Critical') {
+            toast(`⚠️ High Risk Loan Detected (Score: ${riskData.riskScore}/100)`, { 
+              icon: '⚠️',
+              duration: 5000 
+            });
+          }
+        } catch (error) {
+          console.warn('Risk assessment failed:', error);
+        }
       }
 
       // Create loan using transaction
@@ -155,27 +219,18 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
       if (data.collateralType && data.collateralDescription) {
         const collateralPhotos: string[] = [];
         
-        // Upload collateral photos (skip on Spark plan)
+        // Upload collateral photos
         for (const file of collateralFiles) {
           try {
-            const { isSparkPlan } = await import('../../../lib/firebase/config');
-            if (isSparkPlan) {
-              console.info('Skipping collateral photo upload - Spark plan');
-              // Skip upload but continue
-            } else {
-              const photoURL = await uploadCollateralPhoto(
-                profile.agency_id,
-                loanId,
-                'temp',
-                file
-              );
-              collateralPhotos.push(photoURL);
-            }
+            const photoURL = await uploadCollateralPhoto(
+              profile.agency_id,
+              loanId,
+              'temp',
+              file
+            );
+            collateralPhotos.push(photoURL);
           } catch (error: any) {
             console.warn('Failed to upload collateral photo:', error);
-            if (error.message?.includes('Spark') || error.message?.includes('free')) {
-              // Already handled
-            }
           }
         }
 
@@ -200,26 +255,18 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
         });
       }
 
-      // Upload loan documents (skip on Spark plan)
+      // Upload loan documents
       if (documentFiles.length > 0) {
-        const { isSparkPlan } = await import('../../../lib/firebase/config');
-        if (isSparkPlan) {
-          toast('File uploads skipped - not available on Spark (free) plan', { icon: 'ℹ️' });
-        } else {
-          for (const file of documentFiles) {
-            try {
-              const fileURL = await uploadDoc(profile.agency_id, loanId, file, 'other');
-              await uploadLoanDocument(profile.agency_id, loanId, {
-                type: 'other',
-                fileURL,
-                uploadedBy: user.id,
-              });
-            } catch (error: any) {
-              console.warn('Failed to upload loan document:', error);
-              if (error.message?.includes('Spark') || error.message?.includes('free')) {
-                toast('File uploads not available on free plan', { icon: 'ℹ️' });
-              }
-            }
+        for (const file of documentFiles) {
+          try {
+            const fileURL = await uploadDoc(profile.agency_id, loanId, file, 'other');
+            await uploadLoanDocument(profile.agency_id, loanId, {
+              type: 'other',
+              fileURL,
+              uploadedBy: user.id,
+            });
+          } catch (error: any) {
+            console.warn('Failed to upload loan document:', error);
           }
         }
       }
@@ -384,6 +431,13 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
                     <p className="text-sm text-red-600 mt-1">{errors.disbursementDate.message}</p>
                   )}
                 </div>
+
+                {/* Risk Assessment Display */}
+                {riskAssessment && selectedCustomer && (
+                  <div className="mt-6">
+                    <RiskAssessmentDisplay riskData={riskAssessment} showDetails={true} />
+                  </div>
+                )}
               </div>
             )}
 
