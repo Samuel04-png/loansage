@@ -300,7 +300,7 @@ export function AdminLayout() {
       );
     }
 
-    const hasToggle = title === 'Records' || title === 'Management' || title === 'System';
+    const hasToggle = title === 'Records' || title === 'Loan Management' || title === 'System';
 
   return (
       <div className="mb-4">
