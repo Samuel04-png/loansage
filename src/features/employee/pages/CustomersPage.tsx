@@ -1,49 +1,53 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase/client';
+import { collection, getDocs, query as firestoreQuery, where, orderBy } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
 import { Search, Users, Loader2, UserPlus } from 'lucide-react';
-import { formatDateSafe } from '../../../lib/utils';;
+import { formatDateSafe } from '../../../lib/utils';
 
 export function EmployeeCustomersPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Get employee ID
+  // Find employee by user ID
   const { data: employee } = useQuery({
-    queryKey: ['employee', profile?.id],
+    queryKey: ['employee-by-user', user?.id, profile?.agency_id],
     queryFn: async () => {
-      if (!profile?.id) return null;
+      if (!user?.id || !profile?.agency_id) return null;
 
-      const { data } = await supabase
-        .from('employees')
-        .select('id')
-        .eq('user_id', profile.id)
-        .single();
-
-      return data;
+      const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
+      const q = firestoreQuery(employeesRef, where('userId', '==', user.id));
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) return null;
+      return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id && !!profile?.agency_id,
   });
 
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['employee-customers', employee?.id],
+    queryKey: ['employee-customers', employee?.id, profile?.agency_id],
     queryFn: async () => {
       if (!employee?.id || !profile?.agency_id) return [];
 
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*, users(email, full_name, phone)')
-        .eq('agency_id', profile.agency_id)
-        .eq('assigned_officer_id', employee.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
+      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+      const q = firestoreQuery(
+        customersRef,
+        where('officerId', '==', user?.id),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+      }));
     },
     enabled: !!employee?.id && !!profile?.agency_id,
   });
@@ -52,15 +56,12 @@ export function EmployeeCustomersPage() {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
-      cust.users?.full_name?.toLowerCase().includes(search) ||
       cust.fullName?.toLowerCase().includes(search) ||
       cust.name?.toLowerCase().includes(search) ||
-      cust.customer_id?.toLowerCase().includes(search) ||
       cust.customerId?.toLowerCase().includes(search) ||
       cust.id?.toLowerCase().includes(search) ||
-      cust.nrc_number?.toLowerCase().includes(search) ||
-      cust.nrc?.toLowerCase().includes(search) ||
       cust.nrcNumber?.toLowerCase().includes(search) ||
+      cust.nrc?.toLowerCase().includes(search) ||
       cust.email?.toLowerCase().includes(search) ||
       cust.phone?.toLowerCase().includes(search)
     );
@@ -119,44 +120,44 @@ export function EmployeeCustomersPage() {
                         <div className="flex items-center">
                           <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center mr-3">
                             <span className="text-xs font-bold text-slate-600">
-                              {cust.users?.full_name?.charAt(0) || 'C'}
+                              {cust.fullName?.charAt(0) || cust.name?.charAt(0) || 'C'}
                             </span>
                           </div>
                           <div>
                             <div className="font-medium text-slate-900">
-                              {cust.users?.full_name || 'N/A'}
+                              {cust.fullName || cust.name || 'N/A'}
                             </div>
-                            <div className="text-xs text-slate-500">{cust.users?.email}</div>
+                            <div className="text-xs text-slate-500">{cust.email}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-medium">{cust.customer_id}</td>
-                      <td className="px-6 py-4">{cust.nrc_number || '-'}</td>
+                      <td className="px-6 py-4 font-medium">{cust.customerId || cust.id}</td>
+                      <td className="px-6 py-4">{cust.nrcNumber || cust.nrc || '-'}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center">
                           <div
                             className={`w-2 h-2 rounded-full mr-2 ${
-                              cust.risk_score >= 80
+                              (cust.riskScore || 50) >= 80
                                 ? 'bg-emerald-500'
-                                : cust.risk_score >= 60
+                                : (cust.riskScore || 50) >= 60
                                 ? 'bg-amber-500'
                                 : 'bg-red-500'
                             }`}
                           ></div>
-                          <span className="font-medium">{cust.risk_score}/100</span>
+                          <span className="font-medium">{cust.riskScore || 50}/100</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {cust.kyc_status === 'verified' ? (
+                        {cust.kycStatus === 'verified' || cust.kycVerified ? (
                           <Badge variant="success">Verified</Badge>
-                        ) : cust.kyc_status === 'pending' ? (
+                        ) : cust.kycStatus === 'pending' ? (
                           <Badge variant="warning">Pending</Badge>
                         ) : (
                           <Badge variant="destructive">Rejected</Badge>
                         )}
                       </td>
                       <td className="px-6 py-4 text-slate-500">
-                        {formatDateSafe(cust.created_at)}
+                        {formatDateSafe(cust.createdAt)}
                       </td>
                     </tr>
                   ))}
@@ -174,4 +175,3 @@ export function EmployeeCustomersPage() {
     </div>
   );
 }
-

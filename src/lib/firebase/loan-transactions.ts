@@ -180,6 +180,23 @@ export async function createLoanTransaction(
       return loanId;
     });
 
+    // Create notification for admins about new loan pending approval (outside transaction)
+    try {
+      const { createNotification } = await import('./notifications');
+      await createNotification({
+        agencyId: data.agencyId,
+        type: 'loan_pending_approval',
+        title: 'New Loan Pending Approval',
+        message: `A new loan application for ${data.amount.toLocaleString()} ZMW is pending approval.`,
+        metadata: { loanId: result, customerId: data.customerId },
+        priority: 'high',
+        actionUrl: `/admin/loans/${result}`,
+      });
+    } catch (notifError) {
+      // Don't fail loan creation if notification fails
+      console.warn('Failed to create notification:', notifError);
+    }
+
     return {
       loanId: result,
       success: true,

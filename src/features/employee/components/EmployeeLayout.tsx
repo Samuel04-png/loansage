@@ -197,7 +197,7 @@ export function EmployeeLayout() {
         <div className="p-4 border-t border-neutral-200/50 bg-white">
           <div className="flex items-center p-3 rounded-xl border border-neutral-200/50 bg-white mb-3 shadow-sm hover:shadow-md transition-shadow">
             <Avatar className="h-10 w-10 border-2 border-neutral-200">
-              <AvatarImage src={profile?.avatar_url} />
+              <AvatarImage src={(profile as any)?.avatar_url || (profile as any)?.photoURL || undefined} />
               <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white font-semibold">
                 {getUserInitials()}
               </AvatarFallback>
@@ -309,7 +309,7 @@ export function EmployeeLayout() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
                   <Avatar className="h-9 w-9 border-2 border-neutral-200">
-                    <AvatarImage src={profile?.avatar_url} />
+                    <AvatarImage src={(profile as any)?.avatar_url || (profile as any)?.photoURL || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>

@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
 import { useWhitelabel } from '../../../lib/whitelabel';
+import { Logo } from '../../../components/Logo';
 import { Button } from '../../../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import {
@@ -57,6 +58,10 @@ import {
   Sparkles,
   Shield,
   ClipboardList,
+  AlertCircle,
+  DollarSign,
+  TrendingUp,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { NotificationDropdown } from '../../../components/NotificationDropdown';
 import { cn } from '../../../lib/utils';
@@ -343,9 +348,7 @@ export function AdminLayout() {
           {!sidebarCollapsed && (
             <div className="h-16 flex items-center px-4 border-b border-neutral-200/50">
               <div className="flex items-center flex-1 min-w-0">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                  <Building2 className="w-4 h-4 text-white" />
-                </div>
+                <Logo size="sm" showText={false} className="mr-3 flex-shrink-0" />
                 <DropdownMenu open={showAccountSwitcher} onOpenChange={setShowAccountSwitcher}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center flex-1 min-w-0 group">
@@ -428,7 +431,7 @@ export function AdminLayout() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <div className="ml-2 text-xs text-neutral-500">
-                  {workspaces.find(w => w.active)?.memberCount || agency?.membersCount || 0} members
+                  {workspaces.find(w => w.active)?.memberCount || 0} members
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 ml-2 text-neutral-400 flex-shrink-0" />
               </div>
@@ -475,7 +478,7 @@ export function AdminLayout() {
                   onToggle={toggleSection}
                 />
                 <NavSection 
-                  title="Management" 
+                  title="Loan Management" 
                   items={managementNav} 
                   collapsed={false} 
                   sectionKey="management"
@@ -547,7 +550,7 @@ export function AdminLayout() {
               <DropdownMenuTrigger asChild>
                 <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 transition-colors group">
                   <Avatar className="h-8 w-8 border-2 border-neutral-200">
-                    <AvatarImage src={profile?.avatar_url} />
+                    <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>
@@ -569,7 +572,7 @@ export function AdminLayout() {
                 <div className="px-3 py-3 border-b border-neutral-200">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10 border-2 border-neutral-200">
-                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-sm font-semibold">
                         {getUserInitials()}
                       </AvatarFallback>
@@ -583,10 +586,12 @@ export function AdminLayout() {
             </div>
           </div>
                 <div className="py-1">
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Palette className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Themes</span>
-                    <span className="ml-auto text-xs text-neutral-400">⌘T</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/themes" className="px-3 py-2 cursor-pointer">
+                      <Palette className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Themes</span>
+                      <span className="ml-auto text-xs text-neutral-400">⌘T</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/admin/settings" className="px-3 py-2 cursor-pointer">
@@ -595,39 +600,53 @@ export function AdminLayout() {
                       <span className="ml-auto text-xs text-neutral-400">⌘S</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Bell className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Notification</span>
-                    <span className="ml-auto text-xs text-neutral-400">⌘N</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/notifications" className="px-3 py-2 cursor-pointer">
+                      <Bell className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Notification</span>
+                      <span className="ml-auto text-xs text-neutral-400">⌘N</span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Keyboard className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Hotkeys</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/hotkeys" className="px-3 py-2 cursor-pointer">
+                      <Keyboard className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Hotkeys</span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Download className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Download apps</span>
-                    <ChevronRight className="w-4 h-4 ml-auto text-neutral-400" />
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/download-apps" className="px-3 py-2 cursor-pointer">
+                      <Download className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Download apps</span>
+                      <ChevronRight className="w-4 h-4 ml-auto text-neutral-400" />
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Gift className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Referrals</span>
-                    <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                      New
-                    </span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/referrals" className="px-3 py-2 cursor-pointer">
+                      <Gift className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Referrals</span>
+                      <span className="ml-auto px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                        New
+                      </span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <CreditCard className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Plans</span>
-                    <ChevronRight className="w-4 h-4 ml-auto text-neutral-400" />
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/plans" className="px-3 py-2 cursor-pointer">
+                      <CreditCard className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Plans</span>
+                      <ChevronRight className="w-4 h-4 ml-auto text-neutral-400" />
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <HelpCircle className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Help</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/help" className="px-3 py-2 cursor-pointer">
+                      <HelpCircle className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Help</span>
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="px-3 py-2 cursor-pointer">
-                    <Trash2 className="w-4 h-4 mr-3 text-neutral-400" />
-                    <span className="text-sm text-neutral-900">Trash</span>
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin/trash" className="px-3 py-2 cursor-pointer">
+                      <Trash2 className="w-4 h-4 mr-3 text-neutral-400" />
+                      <span className="text-sm text-neutral-900">Trash</span>
+                    </Link>
                   </DropdownMenuItem>
                 </div>
                 <DropdownMenuSeparator />
@@ -661,12 +680,7 @@ export function AdminLayout() {
           <SheetContent side="left" className="w-64 p-0">
             <SheetHeader className="px-4 py-4 border-b border-neutral-200/50">
               <SheetTitle className="text-left">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-lg flex items-center justify-center mr-3">
-                    <Building2 className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-sm font-semibold text-neutral-900">{agencyName || 'LoanSage'}</span>
-                </div>
+                <Logo size="sm" showText={true} />
               </SheetTitle>
             </SheetHeader>
             <div className="px-3 py-4 space-y-1">
@@ -709,7 +723,7 @@ export function AdminLayout() {
               </div>
               <div className="pt-2 mt-2 border-t border-neutral-200">
                 <div className="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-                  Management
+                  Loan Management
                 </div>
                 {managementNav.map((item) => (
                   <Link
@@ -798,7 +812,7 @@ export function AdminLayout() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
                     <Avatar className="h-9 w-9 border-2 border-neutral-200">
-                      <AvatarImage src={profile?.avatar_url} />
+                      <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
                         {getUserInitials()}
                       </AvatarFallback>

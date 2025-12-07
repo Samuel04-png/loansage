@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['loan_officer', 'manager', 'collections', 'underwriter'], {
+  role: z.enum(['loan_officer', 'manager', 'collections', 'underwriter', 'accountant', 'customer_relations'], {
     required_error: 'Please select a role',
   }),
   note: z.string().optional(),
@@ -152,6 +152,8 @@ export function InviteEmployeeDrawer({ open, onOpenChange, onSuccess }: InviteEm
                 <option value="manager">Manager</option>
                 <option value="collections">Collections Officer</option>
                 <option value="underwriter">Underwriter</option>
+                <option value="accountant">Accountant</option>
+                <option value="customer_relations">Customer Relations</option>
               </select>
               {errors.role && (
                 <p className="text-sm text-red-600 mt-1">{errors.role.message}</p>

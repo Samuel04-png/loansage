@@ -27,6 +27,7 @@ import { exportLoans, exportCustomers, exportEmployees } from '../../../lib/data
 import { importCustomersFromCSV, importLoansFromCSV } from '../../../lib/data-import';
 import { createCustomer } from '../../../lib/firebase/firestore-helpers';
 import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
+import { PaymentHistoryTab } from './PaymentHistoryTab';
 
 const agencySchema = z.object({
   name: z.string().min(2, 'Agency name is required'),
@@ -73,7 +74,7 @@ export function SettingsPage() {
   const { agency, updateAgency, loading: agencyLoading } = useAgency();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans'>('agency');
+  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments'>('agency');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
@@ -532,7 +533,7 @@ export function SettingsPage() {
 
       {/* Tabs - Reference Style with ShadCN Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full max-w-3xl grid-cols-5 rounded-xl bg-neutral-100 p-1">
+        <TabsList className="grid w-full max-w-4xl grid-cols-6 rounded-xl bg-neutral-100 p-1">
           <TabsTrigger 
             value="agency" 
             className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
@@ -1447,6 +1448,11 @@ export function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
+        </TabsContent>
+
+        {/* Payment History Tab */}
+        <TabsContent value="payments" className="mt-6">
+          <PaymentHistoryTab />
         </TabsContent>
       </Tabs>
 

@@ -16,4 +16,5 @@ export { estimateCollateralValue } from './collateral-estimation';
 export { calculateCollateralProfit } from './collateral-profit';
 export { sendNotifications } from './notifications';
 export { generateThumbnail } from './thumbnail-generator';
+export { createCheckoutSession, stripeWebhook } from './stripe-checkout';
 

@@ -43,6 +43,17 @@ import { CollateralDetailPage } from '../features/admin/pages/CollateralDetailPa
 import { LoanDetailPage } from '../features/admin/pages/LoanDetailPage';
 import { LoanAnalysisPage } from '../features/admin/pages/LoanAnalysisPage';
 import { CollateralsPage } from '../features/admin/pages/CollateralsPage';
+import { ThemesPage } from '../features/admin/pages/ThemesPage';
+import { HotkeysPage } from '../features/admin/pages/HotkeysPage';
+import { DownloadAppsPage } from '../features/admin/pages/DownloadAppsPage';
+import { ReferralsPage } from '../features/admin/pages/ReferralsPage';
+import { PlansPage } from '../features/admin/pages/PlansPage';
+import { HelpPage } from '../features/admin/pages/HelpPage';
+import { TrashPage } from '../features/admin/pages/TrashPage';
+import { NotificationsPage as AdminNotificationsPage } from '../features/admin/pages/NotificationsPage';
+import { PendingApprovalsPage as AdminPendingApprovalsPage } from '../features/admin/pages/PendingApprovalsPage';
+import { LoanDisbursementPage } from '../features/admin/pages/LoanDisbursementPage';
+import { OutstandingBorrowersPage } from '../features/admin/pages/OutstandingBorrowersPage';
 
 // Employee pages
 import { EmployeeLayout } from '../features/employee/components/EmployeeLayout';
@@ -140,6 +151,17 @@ function AppContent() {
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="activity-logs" element={<ActivityLogsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="themes" element={<ThemesPage />} />
+                <Route path="hotkeys" element={<HotkeysPage />} />
+                <Route path="download-apps" element={<DownloadAppsPage />} />
+                <Route path="referrals" element={<ReferralsPage />} />
+                <Route path="plans" element={<PlansPage />} />
+                <Route path="help" element={<HelpPage />} />
+                <Route path="trash" element={<TrashPage />} />
+                <Route path="notifications" element={<AdminNotificationsPage />} />
+                <Route path="loans/pending" element={<AdminPendingApprovalsPage />} />
+                <Route path="loans/disbursement" element={<LoanDisbursementPage />} />
+                <Route path="loans/outstanding" element={<OutstandingBorrowersPage />} />
                 <Route index element={<AdminDashboard />} />
               </Route>
 

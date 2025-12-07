@@ -100,7 +100,7 @@ export async function updateLoanAfterPayment(
     let loanStatus = loan.status || 'active';
     
     if (remainingBalance <= 0) {
-      loanStatus = 'completed';
+      loanStatus = 'settled';
     } else {
       // Check for overdue repayments
       const hasOverdue = repayments.some((r: any) => {
@@ -141,8 +141,9 @@ export async function updateLoanAfterPayment(
 
     if (loanStatus !== loan.status) {
       updateData.status = loanStatus;
-      if (loanStatus === 'completed') {
-        updateData.completedAt = serverTimestamp();
+      if (loanStatus === 'settled') {
+        updateData.settledAt = serverTimestamp();
+        updateData.completedAt = serverTimestamp(); // Keep for backward compatibility
       }
     }
 

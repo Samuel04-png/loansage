@@ -1,53 +1,91 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase/client';
+import { collection, getDocs, query as firestoreQuery, where, orderBy, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
 import { Search, CheckCircle2, XCircle, FileText, Loader2, Eye } from 'lucide-react';
-import { formatDateSafe } from '../../../lib/utils';;
+import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { createNotification } from '../../../lib/firebase/notifications';
 
 export function PendingApprovalsPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data: pendingLoans, isLoading } = useQuery({
+  const { data: pendingLoans = [], isLoading } = useQuery({
     queryKey: ['pending-approvals', profile?.agency_id],
     queryFn: async () => {
       if (!profile?.agency_id) return [];
 
-      const { data, error } = await supabase
-        .from('loans')
-        .select('*, customers(customer_id, users(full_name, email)), created_by:employees(user_id, users(full_name))')
-        .eq('agency_id', profile.agency_id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+      const q = firestoreQuery(
+        loansRef,
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      
+      const loans = await Promise.all(
+        snapshot.docs.map(async (docSnapshot) => {
+          const loan = { id: docSnapshot.id, ...docSnapshot.data() };
+          
+          // Fetch customer data
+          if (loan.customerId) {
+            try {
+              const { doc: getDocRef, getDoc } = await import('firebase/firestore');
+              const customerRef = getDocRef(db, 'agencies', profile.agency_id, 'customers', loan.customerId);
+              const customerDoc = await getDoc(customerRef);
+              if (customerDoc.exists()) {
+                loan.customer = { id: customerDoc.id, ...customerDoc.data() };
+              }
+            } catch (error) {
+              console.warn('Failed to fetch customer:', error);
+            }
+          }
+          
+          return loan;
+        })
+      );
 
-      if (error) throw error;
-      return data || [];
+      return loans;
     },
     enabled: !!profile?.agency_id,
   });
 
   const approveLoan = useMutation({
     mutationFn: async (loanId: string) => {
-      const { error } = await supabase
-        .from('loans')
-        .update({
-          status: 'approved',
-          approved_by: profile?.id,
-        })
-        .eq('id', loanId);
+      if (!profile?.agency_id) throw new Error('Agency ID not found');
+      
+      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+      await updateDoc(loanRef, {
+        status: 'approved',
+        approvedBy: user?.id || profile.id,
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
-      if (error) throw error;
+      // Create notification
+      const loan = pendingLoans.find((l: any) => l.id === loanId);
+      if (loan?.customerId && profile?.agency_id) {
+        await createNotification({
+          agencyId: profile.agency_id,
+          userId: loan.customerId,
+          type: 'loan_approved',
+          title: 'Loan Approved',
+          message: `Your loan application has been approved. Loan ID: ${loan.loanNumber || loanId}`,
+          metadata: { loanId },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
       toast.success('Loan approved successfully');
     },
     onError: (error: any) => {
@@ -57,17 +95,32 @@ export function PendingApprovalsPage() {
 
   const rejectLoan = useMutation({
     mutationFn: async (loanId: string) => {
-      const { error } = await supabase
-        .from('loans')
-        .update({
-          status: 'rejected',
-        })
-        .eq('id', loanId);
+      if (!profile?.agency_id) throw new Error('Agency ID not found');
+      
+      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+      await updateDoc(loanRef, {
+        status: 'rejected',
+        rejectedBy: user?.id || profile.id,
+        rejectedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
-      if (error) throw error;
+      // Create notification
+      const loan = pendingLoans.find((l: any) => l.id === loanId);
+      if (loan?.customerId && profile?.agency_id) {
+        await createNotification({
+          agencyId: profile.agency_id,
+          userId: loan.customerId,
+          type: 'loan_rejected',
+          title: 'Loan Rejected',
+          message: `Your loan application has been rejected. Loan ID: ${loan.loanNumber || loanId}`,
+          metadata: { loanId },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
       toast.success('Loan rejected');
     },
     onError: (error: any) => {
@@ -79,10 +132,8 @@ export function PendingApprovalsPage() {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
-      loan.loan_number?.toLowerCase().includes(search) ||
       loan.loanNumber?.toLowerCase().includes(search) ||
       loan.id?.toLowerCase().includes(search) ||
-      loan.customers?.users?.full_name?.toLowerCase().includes(search) ||
       loan.customer?.fullName?.toLowerCase().includes(search) ||
       loan.customer?.name?.toLowerCase().includes(search) ||
       loan.loanType?.toLowerCase().includes(search) ||
@@ -121,37 +172,34 @@ export function PendingApprovalsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-slate-900">{loan.loan_number}</h3>
+                        <h3 className="font-semibold text-slate-900">{loan.loanNumber || loan.id}</h3>
                         <Badge variant="warning">Pending Approval</Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-4 text-sm mb-3">
                         <div>
                           <p className="text-slate-500">Customer</p>
                           <p className="font-medium text-slate-900">
-                            {loan.customers?.users?.full_name || 'N/A'}
+                            {loan.customer?.fullName || loan.customer?.name || 'N/A'}
                           </p>
                         </div>
                         <div>
                           <p className="text-slate-500">Amount</p>
                           <p className="font-semibold text-slate-900">
-                            {formatCurrency(Number(loan.amount), loan.currency)}
+                            {formatCurrency(Number(loan.amount || 0), loan.currency || 'ZMW')}
                           </p>
                         </div>
                         <div>
                           <p className="text-slate-500">Type</p>
-                          <p className="text-slate-600 capitalize">{loan.loan_type}</p>
+                          <p className="text-slate-600 capitalize">{loan.loanType || 'N/A'}</p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Created By</p>
-                          <p className="text-slate-600">
-                            {loan.created_by?.users?.full_name || 'N/A'}
-                          </p>
+                          <p className="text-slate-500">Duration</p>
+                          <p className="text-slate-600">{loan.durationMonths || 0} months</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span>Created: {formatDateSafe(loan.created_at)}</span>
-                        <span>Duration: {loan.duration_months} months</span>
-                        <span>Interest: {loan.interest_rate}%</span>
+                        <span>Created: {formatDateSafe(loan.createdAt)}</span>
+                        <span>Interest: {loan.interestRate || 0}%</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -194,4 +242,3 @@ export function PendingApprovalsPage() {
     </div>
   );
 }
-

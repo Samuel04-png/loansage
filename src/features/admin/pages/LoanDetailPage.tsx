@@ -1,12 +1,13 @@
-import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, doc, getDoc, query as firestoreQuery, where, orderBy, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -15,42 +16,71 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
-import { ArrowLeft, DollarSign, Calendar, FileText, User, AlertTriangle, CheckCircle2, Clock, TrendingUp, BarChart3 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import { 
+  ArrowLeft, 
+  DollarSign, 
+  Calendar, 
+  FileText, 
+  User, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock, 
+  TrendingUp, 
+  BarChart3, 
+  XCircle,
+  Edit,
+  Trash2,
+  Plus,
+  Shield,
+  History,
+  Phone,
+  Mail,
+  MapPin,
+  Loader2,
+  CreditCard
+} from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
-import { Loader2 } from 'lucide-react';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
 import { RepaymentSection } from '../../../components/repayment/RepaymentSection';
+import { AddPaymentDialog } from '../../../components/payment/AddPaymentDialog';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { calculateLoanFinancials, calculateLoanProfit } from '../../../lib/firebase/loan-calculations';
+import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 
 export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
-  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Fetch loan details
   const { data: loan, isLoading, error: loanError } = useQuery({
     queryKey: ['loan', profile?.agency_id, loanId],
     queryFn: async () => {
-      if (!profile?.agency_id || !loanId) {
-        console.warn('Missing agency_id or loanId', { agency_id: profile?.agency_id, loanId });
-        return null;
-      }
+      if (!profile?.agency_id || !loanId) return null;
 
       try {
         const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
         const loanSnap = await getDoc(loanRef);
         
-        if (!loanSnap.exists()) {
-          console.warn('Loan document does not exist', { loanId, agency_id: profile.agency_id });
-          return null;
-        }
+        if (!loanSnap.exists()) return null;
         
         const loanData = { id: loanSnap.id, ...loanSnap.data() };
-        console.log('Loan data fetched:', loanData);
 
         // Get customer info
         if (loanData.customerId) {
@@ -105,371 +135,644 @@ export function LoanDetailPage() {
     enabled: !!profile?.agency_id && !!loanId,
   });
 
+  // Fetch customer's other loans
+  const { data: customerLoans } = useQuery({
+    queryKey: ['customer-loans', profile?.agency_id, loan?.customerId],
+    queryFn: async () => {
+      if (!profile?.agency_id || !loan?.customerId) return [];
+      
+      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+      const q = firestoreQuery(loansRef, where('customerId', '==', loan.customerId));
+      const snapshot = await getDocs(q);
+      
+      return snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((l: any) => l.id !== loanId); // Exclude current loan
+    },
+    enabled: !!profile?.agency_id && !!loan?.customerId,
+  });
+
+  // Fetch activity logs for this loan
+  const { data: activityLogs } = useQuery({
+    queryKey: ['loan-activity-logs', profile?.agency_id, loanId],
+    queryFn: async () => {
+      if (!profile?.agency_id || !loanId) return [];
+
+      const logsRef = collection(db, 'agencies', profile.agency_id, 'audit_logs');
+      const q = firestoreQuery(
+        logsRef,
+        where('targetId', '==', loanId),
+        where('targetCollection', '==', 'loans'),
+        orderBy('createdAt', 'desc')
+      );
+      
+      try {
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        }));
+      } catch (error) {
+        // If query fails (e.g., missing index), try without orderBy
+        const q2 = firestoreQuery(
+          logsRef,
+          where('targetId', '==', loanId),
+          where('targetCollection', '==', 'loans')
+        );
+        const snapshot = await getDocs(q2);
+        const logs = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        }));
+        return logs.sort((a: any, b: any) => {
+          const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt || 0);
+          const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+      }
+    },
+    enabled: !!profile?.agency_id && !!loanId,
+  });
+
+  // Delete loan mutation
+  const deleteLoan = useMutation({
+    mutationFn: async () => {
+      if (!profile?.agency_id || !loanId) throw new Error('Missing agency ID or loan ID');
+      
+      // Soft delete - mark as deleted instead of actually deleting
+      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+      await updateDoc(loanRef, {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: user?.id || profile.id,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Create audit log
+      await createAuditLog(profile.agency_id, {
+        actorId: user?.id || profile.id,
+        action: 'delete_loan',
+        targetCollection: 'loans',
+        targetId: loanId,
+        metadata: { softDelete: true },
+      });
+    },
+    onSuccess: () => {
+      toast.success('Loan deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+      navigate('/admin/loans');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete loan');
+    },
+  });
+
   const getStatusBadge = (status?: string) => {
     if (!status) return <Badge variant="outline">Unknown</Badge>;
     
-    switch (status) {
-      case 'active':
-        return <Badge variant="success">Active</Badge>;
-      case 'pending':
-        return <Badge variant="warning">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="default">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-      case 'completed':
-      case 'paid':
-        return <Badge variant="success">Completed</Badge>;
-      case 'defaulted':
-        return <Badge variant="destructive">Defaulted</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    const statusConfig: Record<string, { label: string; className: string }> = {
+      active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+      pending: { label: 'Pending', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+      approved: { label: 'Approved', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
+      settled: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+      paid: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+      defaulted: { label: 'Defaulted', className: 'bg-red-50 text-red-700 border-red-200' },
+    };
+
+    const config = statusConfig[status] || { 
+      label: status, 
+      className: 'bg-neutral-50 text-neutral-700 border-neutral-200' 
+    };
+    return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
   };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10 rounded-xl" />
+          <Skeleton className="h-10 w-10 rounded-lg" />
           <div className="space-y-2">
             <Skeleton className="h-8 w-48" />
             <Skeleton className="h-4 w-32" />
           </div>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Skeleton className="h-64 rounded-2xl" />
-          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
         </div>
       </div>
     );
   }
 
-  if (loanError) {
+  if (loanError || !loan) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-16"
-      >
-        <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-[#EF4444]" />
-        <p className="text-lg font-semibold text-neutral-900 mb-2">Error loading loan</p>
-        <p className="text-sm text-neutral-600 mb-6">{loanError.message || 'Unknown error'}</p>
+      <div className="text-center py-16">
+        <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
+        <p className="text-lg font-semibold text-neutral-900 mb-2">
+          {loanError ? 'Error loading loan' : 'Loan not found'}
+        </p>
+        <p className="text-sm text-neutral-600 mb-6">
+          {loanError?.message || `Loan ID: ${loanId}`}
+        </p>
         <Link to="/admin/loans">
-          <Button variant="outline" className="rounded-xl">
+          <Button variant="outline" className="rounded-lg">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Loans
           </Button>
         </Link>
-      </motion.div>
-    );
-  }
-
-  if (!loan && !isLoading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-16"
-      >
-        <FileText className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
-        <p className="text-lg font-semibold text-neutral-900 mb-2">Loan not found</p>
-        <p className="text-sm text-neutral-600 mb-6">Loan ID: {loanId}</p>
-        <Link to="/admin/loans">
-          <Button variant="outline" className="rounded-xl">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Loans
-          </Button>
-        </Link>
-      </motion.div>
-    );
-  }
-
-  if (!loan) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#006BFF]" />
       </div>
     );
   }
 
-  const totalPaid = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
-  const totalDue = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountDue || 0), 0) || 0;
-  
   // Calculate financials
   const principal = Number(loan.amount || 0);
   const interestRate = Number(loan.interestRate || 0);
   const durationMonths = Number(loan.durationMonths || 0);
-  
   const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
-  const profitData = calculateLoanProfit(principal, interestRate, totalPaid);
-  
-  const outstanding = financials.totalAmount - totalPaid;
-  const overdueRepayments = loan.repayments?.filter((r: any) => {
-    if (r.status === 'paid') return false;
-    try {
-      const dueDate = r.dueDate?.toDate 
-        ? r.dueDate.toDate() 
-        : r.dueDate instanceof Date 
-        ? r.dueDate 
-        : r.dueDate 
-        ? new Date(r.dueDate) 
-        : null;
-      return dueDate && !isNaN(dueDate.getTime()) && dueDate < new Date();
-    } catch (error) {
-      return false;
-    }
-  }) || [];
+  const totalPaid = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
+  const remainingBalance = Math.max(0, financials.totalAmount - totalPaid);
+  const startDate = loan.createdAt?.toDate?.() || loan.createdAt || new Date();
+  const endDate = loan.endDate?.toDate?.() || loan.endDate || (() => {
+    const end = new Date(startDate);
+    end.setMonth(end.getMonth() + durationMonths);
+    return end;
+  })();
 
   return (
     <div className="space-y-6">
-      {/* Header - Reference Style */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-      >
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link to="/admin/loans">
-            <Button variant="outline" size="icon" className="rounded-xl">
+            <Button variant="outline" size="icon" className="rounded-lg">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h2 className="text-2xl font-bold text-neutral-900 mb-1">Loan Details</h2>
-            <p className="text-sm text-neutral-600 font-mono">ID: {loan.id.substring(0, 12)}...</p>
+            <h1 className="text-3xl font-bold text-neutral-900">Loan Details</h1>
+            <p className="text-sm text-neutral-600 font-mono mt-1">
+              {loan.loanNumber || loan.id.substring(0, 12)}...
+            </p>
           </div>
         </div>
-        <div className="flex gap-3">
-          {getStatusBadge(loan.status || 'pending')}
-          <Link to={`/admin/loans/${loanId}/analysis`}>
-            <Button variant="default" className="rounded-xl">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              View Analysis
-            </Button>
-          </Link>
+        <div className="flex gap-3 flex-wrap">
+          {getStatusBadge(loan.status)}
+          {loan.status === 'pending' && (
+            <>
+              <Button
+                variant="default"
+                onClick={async () => {
+                  try {
+                    const loanRef = doc(db, 'agencies', profile!.agency_id!, 'loans', loanId!);
+                    await updateDoc(loanRef, {
+                      status: 'approved',
+                      approvedBy: profile!.id,
+                      approvedAt: serverTimestamp(),
+                      updatedAt: serverTimestamp(),
+                    });
+                    toast.success('Loan approved successfully');
+                    queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+                  } catch (error: any) {
+                    toast.error(error.message || 'Failed to approve loan');
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 rounded-lg"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  const reason = prompt('Rejection reason (optional):');
+                  try {
+                    const loanRef = doc(db, 'agencies', profile!.agency_id!, 'loans', loanId!);
+                    await updateDoc(loanRef, {
+                      status: 'rejected',
+                      rejectedBy: profile!.id,
+                      rejectedAt: serverTimestamp(),
+                      rejectionReason: reason || 'Not specified',
+                      updatedAt: serverTimestamp(),
+                    });
+                    toast.success('Loan rejected');
+                    queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+                  } catch (error: any) {
+                    toast.error(error.message || 'Failed to reject loan');
+                  }
+                }}
+                className="rounded-lg"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          )}
           <Button
             variant="outline"
             onClick={() => setStatusDialogOpen(true)}
-            className="rounded-xl"
+            className="rounded-lg"
           >
-            Change Status
+            <Edit className="mr-2 h-4 w-4" />
+            Update Status
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setDeleteDialogOpen(true)}
+            className="rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
           </Button>
         </div>
-      </motion.div>
-
-      {/* Loan Information - Reference Style */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Loan Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Loan Amount</p>
-                <p className="font-bold text-xl text-neutral-900 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-[#006BFF]" />
-                  {formatCurrency(Number(loan.amount || 0), 'ZMW')}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Interest Rate</p>
-                <p className="font-semibold text-base text-neutral-900">{loan.interestRate || 0}%</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Duration</p>
-                <p className="font-semibold text-base text-neutral-900">{loan.durationMonths || 0} months</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Loan Type</p>
-                <p className="font-semibold text-base text-neutral-900 capitalize">{loan.loanType || 'N/A'}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-[#006BFF]" />
-                Financial Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-100">
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Principal</p>
-                  <p className="text-lg font-bold text-neutral-900">
-                    {formatCurrency(principal, 'ZMW')}
-                  </p>
-                </div>
-                <div className="p-4 bg-[#006BFF]/5 rounded-xl border border-[#006BFF]/10">
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Total Interest</p>
-                  <p className="text-lg font-bold text-[#006BFF]">
-                    {formatCurrency(financials.totalInterest, 'ZMW')}
-                  </p>
-                </div>
-                <div className="p-4 bg-[#22C55E]/5 rounded-xl border border-[#22C55E]/10">
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Total Amount Owed</p>
-                  <p className="text-lg font-bold text-[#22C55E]">
-                    {formatCurrency(financials.totalAmount, 'ZMW')}
-                  </p>
-                </div>
-                <div className="p-4 bg-[#FACC15]/5 rounded-xl border border-[#FACC15]/10">
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Total Paid</p>
-                  <p className="text-lg font-bold text-[#FACC15]">
-                    {formatCurrency(totalPaid, 'ZMW')}
-                  </p>
-                </div>
-              </div>
-              <div className="border-t border-neutral-200 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-neutral-700">Profit Earned</p>
-                  <p className={`text-xl font-bold ${profitData.isProfitable ? 'text-[#22C55E]' : 'text-neutral-400'}`}>
-                    {formatCurrency(profitData.profit, 'ZMW')}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600">Profit Margin</p>
-                  <p className={`font-semibold ${profitData.isProfitable ? 'text-[#22C55E]' : 'text-neutral-400'}`}>
-                    {profitData.profitMargin.toFixed(2)}%
-                  </p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-neutral-600">Remaining Balance</p>
-                  <p className="font-semibold text-neutral-900">
-                    {formatCurrency(profitData.remainingBalance, 'ZMW')}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Related Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {loan.customer && (
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Customer</p>
-                  <Link to={`/admin/customers/${loan.customer.id}`}>
-                    <p className="font-semibold text-[#006BFF] hover:underline text-base">
-                      {loan.customer.fullName || 'N/A'}
-                    </p>
-                  </Link>
-                  <p className="text-sm text-neutral-600 mt-1">{loan.customer.email || loan.customer.phone || ''}</p>
-                </div>
-              )}
-              {loan.officer && (
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Loan Officer</p>
-                  <p className="font-semibold text-neutral-900 text-base">{loan.officer.full_name || 'N/A'}</p>
-                  <p className="text-sm text-neutral-600 mt-1">{loan.officer.email || ''}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Outstanding Balance</p>
-                <p className="font-bold text-lg text-[#FACC15]">
-                  {formatCurrency(outstanding, 'ZMW')}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Total Paid</p>
-                <p className="font-bold text-lg text-[#22C55E]">
-                  {formatCurrency(totalPaid, 'ZMW')}
-                </p>
-              </div>
-              {overdueRepayments.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Overdue Repayments</p>
-                  <p className="font-bold text-lg text-[#EF4444] flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5" />
-                    {overdueRepayments.length}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
       </div>
 
-      {/* Collateral - Reference Style */}
-      {loan.collateral && loan.collateral.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Collateral</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {loan.collateral.map((coll: any, index: number) => (
-                  <motion.div
-                    key={coll.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 + index * 0.05 }}
-                  >
-                    <Link
-                      to={`/admin/loans/${loan.id}/collateral/${coll.id}`}
-                      className="block p-4 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 transition-all duration-300"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-neutral-900 capitalize mb-1">{coll.type?.replace('_', ' ') || 'N/A'}</p>
-                          <p className="text-sm text-neutral-600">{coll.description || 'No description'}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-neutral-900">{formatCurrency(Number(coll.estimatedValue || coll.value || 0), 'ZMW')}</p>
-                          {coll.verificationStatus && (
-                            <Badge 
-                              className={cn(
-                                "mt-2",
-                                coll.verificationStatus === 'verified' 
-                                  ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20" 
-                                  : "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20"
-                              )}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 rounded-lg bg-neutral-100 p-1">
+          <TabsTrigger value="overview" className="rounded-md data-[state=active]:bg-white">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="repayments" className="rounded-md data-[state=active]:bg-white">
+            Repayments
+          </TabsTrigger>
+          <TabsTrigger value="collateral" className="rounded-md data-[state=active]:bg-white">
+            Collateral
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="rounded-md data-[state=active]:bg-white">
+            Activity Logs
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6 mt-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Customer Overview */}
+            <Card className="border-neutral-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-[#006BFF]" />
+                  Customer Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loan.customer ? (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-neutral-600 mb-1">Name</p>
+                      <p className="text-lg font-semibold text-neutral-900">
+                        {loan.customer.fullName || loan.customer.name || 'N/A'}
+                      </p>
+                    </div>
+                    {loan.customer.nrcNumber && (
+                      <div>
+                        <p className="text-sm font-medium text-neutral-600 mb-1">NRC</p>
+                        <p className="text-base text-neutral-900">{loan.customer.nrcNumber}</p>
+                      </div>
+                    )}
+                    {loan.customer.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-neutral-400" />
+                        <p className="text-base text-neutral-900">{loan.customer.phone}</p>
+                      </div>
+                    )}
+                    {loan.customer.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-neutral-400" />
+                        <p className="text-base text-neutral-900">{loan.customer.email}</p>
+                      </div>
+                    )}
+                    {loan.customer.address && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-neutral-400 mt-0.5" />
+                        <p className="text-base text-neutral-900">{loan.customer.address}</p>
+                      </div>
+                    )}
+                    <div className="pt-4 border-t border-neutral-200">
+                      <p className="text-sm font-medium text-neutral-600 mb-2">Total Loans</p>
+                      <p className="text-2xl font-bold text-neutral-900">
+                        {(customerLoans?.length || 0) + 1}
+                      </p>
+                    </div>
+                    {customerLoans && customerLoans.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-neutral-600 mb-2">Other Loans</p>
+                        <div className="space-y-2">
+                          {customerLoans.slice(0, 3).map((otherLoan: any) => (
+                            <Link
+                              key={otherLoan.id}
+                              to={`/admin/loans/${otherLoan.id}`}
+                              className="block p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
                             >
-                              {coll.verificationStatus}
-                            </Badge>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-neutral-900">
+                                    {otherLoan.loanNumber || otherLoan.id.substring(0, 8)}
+                                  </p>
+                                  <p className="text-xs text-neutral-500">
+                                    {formatCurrency(Number(otherLoan.amount || 0), 'ZMW')}
+                                  </p>
+                                </div>
+                                {getStatusBadge(otherLoan.status)}
+                              </div>
+                            </Link>
+                          ))}
+                          {customerLoans.length > 3 && (
+                            <p className="text-xs text-neutral-500 text-center">
+                              +{customerLoans.length - 3} more
+                            </p>
                           )}
                         </div>
                       </div>
+                    )}
+                    <Link to={`/admin/customers/${loan.customer.id}`}>
+                      <Button variant="outline" className="w-full rounded-lg">
+                        View Customer Profile
+                      </Button>
                     </Link>
-                  </motion.div>
-                ))}
-              </div>
+                  </>
+                ) : (
+                  <p className="text-neutral-500">No customer information available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Loan Information */}
+            <Card className="border-neutral-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#006BFF]" />
+                  Loan Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Loan ID</p>
+                    <p className="text-base font-mono text-neutral-900">
+                      {loan.loanNumber || loan.id.substring(0, 12)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Status</p>
+                    {getStatusBadge(loan.status)}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-neutral-600 mb-1">Principal Amount</p>
+                  <p className="text-2xl font-bold text-neutral-900">
+                    {formatCurrency(principal, 'ZMW')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-neutral-600 mb-1">Interest Amount</p>
+                  <p className="text-xl font-semibold text-[#006BFF]">
+                    {formatCurrency(financials.totalInterest, 'ZMW')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-neutral-600 mb-1">Total Amount</p>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    {formatCurrency(financials.totalAmount, 'ZMW')}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Amount Repaid</p>
+                    <p className="text-lg font-semibold text-emerald-600">
+                      {formatCurrency(totalPaid, 'ZMW')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Amount Remaining</p>
+                    <p className="text-lg font-semibold text-red-600">
+                      {formatCurrency(remainingBalance, 'ZMW')}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Interest Rate</p>
+                    <p className="text-base font-semibold text-neutral-900">{interestRate}%</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Duration</p>
+                    <p className="text-base font-semibold text-neutral-900">{durationMonths} months</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Start Date</p>
+                    <p className="text-base text-neutral-900">{formatDateSafe(startDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">End Date</p>
+                    <p className="text-base text-neutral-900">{formatDateSafe(endDate)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-neutral-600 mb-1">Loan Type</p>
+                  <p className="text-base font-semibold text-neutral-900 capitalize">
+                    {loan.loanType || 'Standard Loan'}
+                  </p>
+                </div>
+                {loan.riskScore !== undefined && (
+                  <div>
+                    <p className="text-sm font-medium text-neutral-600 mb-1">Risk Assessment Score</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-neutral-200 rounded-full h-2">
+                        <div
+                          className={cn(
+                            "h-2 rounded-full transition-all",
+                            loan.riskScore >= 80 ? "bg-emerald-500" :
+                            loan.riskScore >= 60 ? "bg-amber-500" :
+                            "bg-red-500"
+                          )}
+                          style={{ width: `${loan.riskScore}%` }}
+                        />
+                      </div>
+                      <span className={cn(
+                        "text-sm font-semibold",
+                        loan.riskScore >= 80 ? "text-emerald-600" :
+                        loan.riskScore >= 60 ? "text-amber-600" :
+                        "text-red-600"
+                      )}>
+                        {loan.riskScore}/100
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Repayments Tab */}
+        <TabsContent value="repayments" className="mt-6">
+          {loan.id && profile?.agency_id && (
+            <RepaymentSection loan={loan} agencyId={profile.agency_id} />
+          )}
+        </TabsContent>
+
+        {/* Collateral Tab */}
+        <TabsContent value="collateral" className="mt-6">
+          <Card className="border-neutral-200">
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-[#006BFF]" />
+                Collateral Information
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg"
+                onClick={() => {
+                  // Navigate to add collateral page or open drawer
+                  toast.info('Add collateral feature coming soon');
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Collateral
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loan.collateral && loan.collateral.length > 0 ? (
+                <div className="space-y-4">
+                  {loan.collateral.map((coll: any) => (
+                    <div
+                      key={coll.id}
+                      className="p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="font-semibold text-neutral-900 capitalize">
+                              {coll.type?.replace('_', ' ') || 'N/A'}
+                            </p>
+                            {coll.verificationStatus && (
+                              <Badge
+                                variant={coll.verificationStatus === 'verified' ? 'default' : 'outline'}
+                                className={cn(
+                                  coll.verificationStatus === 'verified'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                )}
+                              >
+                                {coll.verificationStatus}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-neutral-600 mb-2">
+                            {coll.description || 'No description'}
+                          </p>
+                          {coll.serialNumber && (
+                            <p className="text-xs text-neutral-500">Serial: {coll.serialNumber}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-neutral-900">
+                            {formatCurrency(Number(coll.estimatedValue || coll.value || 0), 'ZMW')}
+                          </p>
+                          <p className="text-xs text-neutral-500">Estimated Value</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-neutral-500">
+                  <Shield className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
+                  <p>No collateral registered for this loan</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4 rounded-lg"
+                    onClick={() => {
+                      toast.info('Add collateral feature coming soon');
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Collateral
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </motion.div>
-      )}
+        </TabsContent>
 
-      {/* Repayment Section */}
-      {loan.id && profile?.agency_id && (
-        <RepaymentSection loan={loan} agencyId={profile.agency_id} />
-      )}
+        {/* Activity Logs Tab */}
+        <TabsContent value="activity" className="mt-6">
+          <Card className="border-neutral-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-[#006BFF]" />
+                Activity Logs
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activityLogs && activityLogs.length > 0 ? (
+                <div className="space-y-4">
+                  {activityLogs.map((log: any) => (
+                    <div
+                      key={log.id}
+                      className="p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center flex-shrink-0">
+                          <History className="w-5 h-5 text-neutral-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-neutral-900 capitalize">
+                              {log.action?.replace('_', ' ') || 'Unknown Action'}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {log.targetCollection}
+                            </Badge>
+                          </div>
+                          {log.metadata && (
+                            <div className="text-sm text-neutral-600 mb-2">
+                              {log.metadata.oldStatus && log.metadata.newStatus && (
+                                <p>
+                                  Status changed from <span className="font-medium">{log.metadata.oldStatus}</span> to{' '}
+                                  <span className="font-medium">{log.metadata.newStatus}</span>
+                                </p>
+                              )}
+                              {log.metadata.amount && (
+                                <p>Amount: {formatCurrency(log.metadata.amount, 'ZMW')}</p>
+                              )}
+                              {log.metadata.reason && (
+                                <p>Reason: {log.metadata.reason}</p>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-neutral-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatDateSafe(log.createdAt)}
+                            </span>
+                            {log.actorId && log.actorId !== 'system' && (
+                              <span>By: {log.actorId.substring(0, 8)}...</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-neutral-500">
+                  <History className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
+                  <p>No activity logs found</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
+      {/* Dialogs */}
       {loan.id && (
         <LoanStatusDialog
           open={statusDialogOpen}
@@ -479,7 +782,48 @@ export function LoanDetailPage() {
           agencyId={profile?.agency_id || ''}
         />
       )}
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="rounded-lg">
+          <DialogHeader>
+            <DialogTitle>Delete Loan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this loan? This action will mark the loan as deleted.
+              You can restore it later if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              className="rounded-lg"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteLoan.mutate();
+                setDeleteDialogOpen(false);
+              }}
+              disabled={deleteLoan.isPending}
+              className="rounded-lg"
+            >
+              {deleteLoan.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
