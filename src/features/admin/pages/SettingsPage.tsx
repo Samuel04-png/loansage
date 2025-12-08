@@ -171,16 +171,16 @@ export function SettingsPage() {
     enabled: !!profile?.agency_id && activeTab === 'data',
   });
 
-  const handleExport = (type: 'loans' | 'customers' | 'employees') => {
+  const handleExport = (type: 'loans' | 'customers' | 'employees', format: 'csv' | 'xlsx' = 'xlsx') => {
     if (type === 'loans' && loans) {
-      exportLoans(loans);
-      toast.success('Loans exported successfully');
+      exportLoans(loans, { format });
+      toast.success(`Loans exported to ${format.toUpperCase()} successfully`);
     } else if (type === 'customers' && customers) {
-      exportCustomers(customers);
-      toast.success('Customers exported successfully');
+      exportCustomers(customers, { format });
+      toast.success(`Customers exported to ${format.toUpperCase()} successfully`);
     } else if (type === 'employees' && employeesForExport) {
-      exportEmployees(employeesForExport);
-      toast.success('Employees exported successfully');
+      exportEmployees(employeesForExport, { format });
+      toast.success(`Employees exported to ${format.toUpperCase()} successfully`);
     } else {
       toast.error('No data available to export');
     }
@@ -1389,17 +1389,29 @@ export function SettingsPage() {
                         <Badge>{loans?.length || 0} loans</Badge>
                       </div>
                       <h4 className="font-semibold mb-1">Loans</h4>
-                      <p className="text-sm text-slate-500 mb-3">Export all loan data to CSV</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExport('loans')}
-                        disabled={!loans || loans.length === 0}
-                        className="w-full"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Loans
-                      </Button>
+                      <p className="text-sm text-slate-500 mb-3">Export all loan data</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('loans', 'xlsx')}
+                          disabled={!loans || loans.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Excel
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('loans', 'csv')}
+                          disabled={!loans || loans.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          CSV
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -1410,17 +1422,29 @@ export function SettingsPage() {
                         <Badge>{customers?.length || 0} customers</Badge>
                       </div>
                       <h4 className="font-semibold mb-1">Customers</h4>
-                      <p className="text-sm text-slate-500 mb-3">Export all customer data to CSV</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExport('customers')}
-                        disabled={!customers || customers.length === 0}
-                        className="w-full"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Customers
-                      </Button>
+                      <p className="text-sm text-slate-500 mb-3">Export all customer data</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('customers', 'xlsx')}
+                          disabled={!customers || customers.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Excel
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('customers', 'csv')}
+                          disabled={!customers || customers.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          CSV
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -1431,17 +1455,29 @@ export function SettingsPage() {
                         <Badge>{employeesForExport?.length || 0} employees</Badge>
                       </div>
                       <h4 className="font-semibold mb-1">Employees</h4>
-                      <p className="text-sm text-slate-500 mb-3">Export all employee data to CSV</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExport('employees')}
-                        disabled={!employeesForExport || employeesForExport.length === 0}
-                        className="w-full"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Export Employees
-                      </Button>
+                      <p className="text-sm text-slate-500 mb-3">Export all employee data</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('employees', 'xlsx')}
+                          disabled={!employeesForExport || employeesForExport.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Excel
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExport('employees', 'csv')}
+                          disabled={!employeesForExport || employeesForExport.length === 0}
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          CSV
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                   </div>
@@ -1454,13 +1490,13 @@ export function SettingsPage() {
                     <Card>
                     <CardHeader>
                       <CardTitle>Import Customers</CardTitle>
-                      <CardDescription>Upload a CSV file to import customers</CardDescription>
+                      <CardDescription>Upload a CSV or Excel file to import customers</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx,.xls"
                         className="hidden"
                         onChange={(e) => {
                           if (e.target.files?.[0]) {
@@ -1482,15 +1518,27 @@ export function SettingsPage() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Select CSV File
+                            Select File (CSV/Excel)
                           </>
                         )}
                       </Button>
                       {importResult && importType === 'customers' && (
-                        <div className="text-sm">
-                          <p className="text-green-600">✓ {importResult.success} imported</p>
+                        <div className="text-sm space-y-1">
+                          <p className="text-green-600">✓ {importResult.success} imported successfully</p>
                           {importResult.failed > 0 && (
                             <p className="text-red-600">✗ {importResult.failed} failed</p>
+                          )}
+                          {importResult.errors.length > 0 && importResult.errors.length <= 5 && (
+                            <div className="text-xs text-red-500 mt-2">
+                              {importResult.errors.map((error, idx) => (
+                                <p key={idx}>{error}</p>
+                              ))}
+                            </div>
+                          )}
+                          {importResult.errors.length > 5 && (
+                            <p className="text-xs text-red-500 mt-2">
+                              {importResult.errors.length} errors. Check console for details.
+                            </p>
                           )}
                         </div>
                       )}
@@ -1500,13 +1548,13 @@ export function SettingsPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>Import Loans</CardTitle>
-                      <CardDescription>Upload a CSV file to import loans</CardDescription>
+                      <CardDescription>Upload a CSV or Excel file to import loans</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx,.xls"
                         className="hidden"
                         onChange={(e) => {
                           if (e.target.files?.[0]) {
@@ -1528,15 +1576,27 @@ export function SettingsPage() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Select CSV File
+                            Select File (CSV/Excel)
                           </>
                         )}
                       </Button>
                       {importResult && importType === 'loans' && (
-                        <div className="text-sm">
-                          <p className="text-green-600">✓ {importResult.success} imported</p>
+                        <div className="text-sm space-y-1">
+                          <p className="text-green-600">✓ {importResult.success} imported successfully</p>
                           {importResult.failed > 0 && (
                             <p className="text-red-600">✗ {importResult.failed} failed</p>
+                          )}
+                          {importResult.errors.length > 0 && importResult.errors.length <= 5 && (
+                            <div className="text-xs text-red-500 mt-2">
+                              {importResult.errors.map((error, idx) => (
+                                <p key={idx}>{error}</p>
+                              ))}
+                            </div>
+                          )}
+                          {importResult.errors.length > 5 && (
+                            <p className="text-xs text-red-500 mt-2">
+                              {importResult.errors.length} errors. Check console for details.
+                            </p>
                           )}
                         </div>
                       )}
