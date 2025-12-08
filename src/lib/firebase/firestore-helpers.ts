@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { isDemoMode } from './config';
+import { initializeFreeTrial } from './subscription-helpers';
 
 /**
  * Get all agencies that a user has access to
@@ -152,10 +153,18 @@ export async function createAgency(data: {
   const agencyId = generateId();
   const agencyRef = doc(db, 'agencies', agencyId);
   
+  const now = new Date();
+  const trialEnd = new Date(now);
+  trialEnd.setDate(trialEnd.getDate() + 30); // 30 days free trial
+
   await setDoc(agencyRef, {
     ...data,
     id: agencyId,
     logoURL: data.logoURL || null,
+    planType: 'free',
+    subscriptionStatus: 'trialing',
+    trialStartDate: serverTimestamp(),
+    trialEndDate: Timestamp.fromDate(trialEnd),
     settings: {
       theme: 'light',
       allowCustomerPortal: false,

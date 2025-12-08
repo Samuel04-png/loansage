@@ -2,22 +2,27 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 
-// Get Stripe secret key from Firebase Functions config or environment variable
-// For production: Set via firebase functions:config:set stripe.secret_key="sk_live_..."
-// For local dev: Can use .env file in functions directory
+// Get Stripe secret key from environment variable
+// For Vercel: Set in Vercel dashboard as STRIPE_SECRET_KEY
+// For Firebase Functions: Set via firebase functions:config:set stripe.secret_key="sk_live_..."
+// For local dev: Use .env.local in root or .env in functions directory
 const getStripeSecretKey = () => {
-  // Try Firebase Functions config first (production)
+  // Priority 1: Environment variable (works with Vercel, Firebase Functions runtime config, and local .env)
+  if (process.env.STRIPE_SECRET_KEY) {
+    return process.env.STRIPE_SECRET_KEY;
+  }
+  // Priority 2: Firebase Functions config (legacy method, still supported)
   const config = functions.config();
   if (config?.stripe?.secret_key) {
     return config.stripe.secret_key;
   }
-  // Fallback to environment variable (local development)
-  // Note: For local dev, create a .env file in the functions directory
-  return process.env.STRIPE_SECRET_KEY || '';
+  // Fallback: Return empty string (will cause error, which is better than silent failure)
+  console.error('STRIPE_SECRET_KEY not found in environment variables or Firebase config');
+  return '';
 };
 
 const stripe = new Stripe(getStripeSecretKey(), {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2023-10-16',
 });
 
 /**
@@ -82,7 +87,8 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
       },
     });
 
-    return { sessionId: session.id };
+    // Return the checkout URL instead of sessionId (new Stripe.js API)
+    return { checkoutUrl: session.url };
   } catch (error: any) {
     console.error('Stripe checkout error:', error);
     throw new functions.https.HttpsError('internal', error.message || 'Failed to create checkout session');
@@ -95,9 +101,9 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
 export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
   
-  // Get webhook secret from Firebase Functions config or environment variable
-  const config = functions.config();
-  const webhookSecret = config?.stripe?.webhook_secret || process.env.STRIPE_WEBHOOK_SECRET;
+  // Get webhook secret from environment variable or Firebase Functions config
+  // Priority: Environment variable (Vercel/Firebase runtime) > Firebase Functions config
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || functions.config()?.stripe?.webhook_secret;
 
   if (!webhookSecret) {
     console.error('Stripe webhook secret not configured');
@@ -169,10 +175,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     .doc(session.id)
     .set(paymentData);
 
-  // Update agency subscription status
+  // Update agency subscription status to paid plan
   await admin.firestore().doc(`agencies/${agencyId}`).update({
+    planType: 'paid',
     subscriptionStatus: 'active',
     subscriptionId: session.subscription as string,
+    subscriptionStartDate: admin.firestore.FieldValue.serverTimestamp(),
+    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 }
@@ -211,9 +220,11 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     .doc(invoice.id)
     .set(paymentData, { merge: true });
 
-  // Update agency subscription
+  // Update agency subscription - payment succeeded
   await admin.firestore().doc(`agencies/${agencyId}`).update({
+    planType: 'paid',
     subscriptionStatus: 'active',
+    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 }
@@ -250,11 +261,28 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     .doc(invoice.id)
     .set(paymentData, { merge: true });
 
-  // Update agency subscription status
+  // Update agency subscription status - payment failed
   await admin.firestore().doc(`agencies/${agencyId}`).update({
     subscriptionStatus: 'past_due',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+  
+  // Check if should downgrade to free plan (after 35 days of no payment)
+  const agencyDoc = await admin.firestore().doc(`agencies/${agencyId}`).get();
+  const agencyData = agencyDoc.data();
+  const lastPayment = agencyData?.lastPaymentDate?.toDate?.() || agencyData?.lastPaymentDate;
+  
+  if (lastPayment) {
+    const daysSincePayment = (Date.now() - lastPayment.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSincePayment > 35) {
+      // Downgrade to free plan
+      await admin.firestore().doc(`agencies/${agencyId}`).update({
+        planType: 'free',
+        subscriptionStatus: 'expired',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  }
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
@@ -270,8 +298,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   const agencyId = agenciesSnapshot.docs[0].id;
 
-  // Update agency subscription status
+  // Update agency subscription status - cancelled, downgrade to free
   await admin.firestore().doc(`agencies/${agencyId}`).update({
+    planType: 'free',
     subscriptionStatus: 'cancelled',
     subscriptionId: null,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),

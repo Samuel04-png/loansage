@@ -19,7 +19,7 @@ import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, 
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
-import { uploadAgencyLogo } from '../../../lib/firebase/storage-helpers';
+import { uploadAgencyLogo, uploadProfilePhoto, uploadCompanyProfilePhoto } from '../../../lib/firebase/storage-helpers';
 import { InviteEmployeeDrawer } from '../components/InviteEmployeeDrawer';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { authService } from '../../../lib/supabase/auth';
@@ -76,6 +76,8 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments'>('agency');
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [companyProfileFile, setCompanyProfileFile] = useState<File | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
   const [addCustomerDrawerOpen, setAddCustomerDrawerOpen] = useState(false);
@@ -302,11 +304,22 @@ export function SettingsPage() {
     setLoading(true);
     try {
       let logoURL = agency?.logo_url || null;
+      let companyProfileURL = agency?.company_profile_url || null;
 
       if (agency && profile.agency_id) {
         // Upload logo if provided (for existing agency)
         if (logoFile) {
           logoURL = await uploadAgencyLogo(profile.agency_id, logoFile);
+        }
+        
+        // Upload company profile photo if provided
+        if (companyProfileFile) {
+          try {
+            companyProfileURL = await uploadCompanyProfilePhoto(profile.agency_id, companyProfileFile);
+          } catch (error: any) {
+            console.warn('Failed to upload company profile photo:', error);
+            toast('Company profile photo upload failed, but agency was updated', { icon: '⚠️' });
+          }
         }
         // Update existing agency - only include logoURL if it has a value
         const updateData: any = {
@@ -318,10 +331,14 @@ export function SettingsPage() {
         if (logoURL) {
           updateData.logoURL = logoURL;
         }
+        if (companyProfileURL) {
+          updateData.companyProfileURL = companyProfileURL;
+        }
         await updateAgencyHelper(profile.agency_id, updateData);
         await updateAgency({
           name: data.name,
           logo_url: logoURL,
+          company_profile_url: companyProfileURL,
         } as any);
         
         // Invalidate queries to refresh agency list in dropdown
@@ -402,13 +419,39 @@ export function SettingsPage() {
 
     setLoading(true);
     try {
+      // Upload avatar if provided
+      let photoURL = profile.photoURL || profile.photo_url;
+      if (avatarFile) {
+        try {
+          photoURL = await uploadProfilePhoto(profile.id, avatarFile);
+        } catch (error: any) {
+          console.warn('Failed to upload avatar:', error);
+          toast.error('Failed to upload avatar, but profile was updated');
+        }
+      }
+
       // Update profile in Firestore
       const { doc, updateDoc } = await import('firebase/firestore');
       const userRef = doc(db, 'users', profile.id);
-      await updateDoc(userRef, { full_name: data.fullName });
+      const updateData: any = { full_name: data.fullName };
+      if (photoURL) {
+        updateData.photoURL = photoURL;
+        updateData.photo_url = photoURL; // Also set photo_url for compatibility
+      }
+      await updateDoc(userRef, updateData);
+
+      // Also update Firebase Auth profile
+      if (photoURL) {
+        const { updateProfile: updateAuthProfile } = await import('firebase/auth');
+        const { auth } = await import('../../../lib/firebase/config');
+        if (auth.currentUser) {
+          await updateAuthProfile(auth.currentUser, { photoURL });
+        }
+      }
 
       toast.success('Profile updated successfully!');
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      setAvatarFile(null);
     } catch (error: any) {
       console.error('Error updating profile:', error);
       toast.error(error.message || 'Failed to update profile');
@@ -660,7 +703,7 @@ export function SettingsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold text-neutral-900">Logo</Label>
+                    <Label className="text-sm font-semibold text-neutral-900">Company Logo</Label>
                     <div className="flex items-center gap-4">
                       {agency?.logo_url && (
                         <img src={agency.logo_url} alt="Current logo" className="h-16 w-auto rounded-lg border border-neutral-200" />
@@ -679,6 +722,29 @@ export function SettingsPage() {
                     {logoFile && (
                       <p className="text-sm text-neutral-600 mt-2">Selected: {logoFile.name}</p>
                     )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-neutral-900">Company Profile Picture</Label>
+                    <div className="flex items-center gap-4">
+                      {agency?.company_profile_url && (
+                        <img src={agency.company_profile_url} alt="Company profile" className="h-32 w-32 rounded-lg object-cover border border-neutral-200" />
+                      )}
+                      <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-neutral-300 rounded-xl cursor-pointer hover:bg-neutral-50 transition-colors">
+                        <Upload className="w-8 h-8 text-neutral-400 mb-2" />
+                        <span className="text-sm text-neutral-500">Upload Photo</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => setCompanyProfileFile(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    </div>
+                    {companyProfileFile && (
+                      <p className="text-sm text-neutral-600 mt-2">Selected: {companyProfileFile.name}</p>
+                    )}
+                    <p className="text-xs text-neutral-500">This will be used as the company's profile picture</p>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-neutral-200">
@@ -1131,6 +1197,39 @@ export function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-6">
+                  {/* Avatar Upload */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-neutral-900">Profile Picture</Label>
+                    <div className="flex items-center gap-4">
+                      {(profile?.photoURL || profile?.photo_url) && (
+                        <img 
+                          src={profile.photoURL || profile.photo_url} 
+                          alt="Profile" 
+                          className="h-24 w-24 rounded-full object-cover border-2 border-neutral-200" 
+                        />
+                      )}
+                      {!profile?.photoURL && !profile?.photo_url && (
+                        <div className="h-24 w-24 rounded-full bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center text-white text-2xl font-semibold border-2 border-neutral-200">
+                          {profile?.full_name?.charAt(0)?.toUpperCase() || profile?.email?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                      )}
+                      <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-neutral-300 rounded-xl cursor-pointer hover:bg-neutral-50 transition-colors">
+                        <Upload className="w-8 h-8 text-neutral-400 mb-2" />
+                        <span className="text-sm text-neutral-500">Upload Avatar</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                    </div>
+                    {avatarFile && (
+                      <p className="text-sm text-neutral-600 mt-2">Selected: {avatarFile.name}</p>
+                    )}
+                    <p className="text-xs text-neutral-500">This will be displayed in the header and throughout the app</p>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-semibold text-neutral-900">Email</Label>
                     <Input 

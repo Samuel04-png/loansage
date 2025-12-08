@@ -132,6 +132,23 @@ export async function uploadProfilePhoto(
   });
 }
 
+export async function uploadCompanyProfilePhoto(
+  agencyId: string,
+  file: File
+): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `company-profile-${Date.now()}.${fileExt}`;
+  const path = `agencies/${agencyId}/profile/${fileName}`;
+  
+  return uploadFile(path, file, {
+    contentType: file.type,
+    customMetadata: {
+      agencyId,
+      type: 'company_profile',
+    },
+  });
+}
+
 export async function deleteFile(path: string): Promise<void> {
   if (isDemoMode) return;
 

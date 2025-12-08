@@ -70,8 +70,13 @@ service cloud.firestore {
     
     // Agencies collection
     match /agencies/{agencyId} {
-      // Allow creator to read immediately
-      allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.createdBy == request.auth.uid));
+      // Allow creator to read immediately, or if user belongs to agency, or if user is an employee
+      allow read: if isAuthenticated() && (
+        belongsToAgency(agencyId) || 
+        (resource != null && resource.data.createdBy == request.auth.uid) ||
+        // Allow reading if user is an employee of this agency (for getUserAgencies function)
+        exists(/databases/$(database)/documents/agencies/$(agencyId)/employees/$(request.auth.uid))
+      );
       allow create: if isAuthenticated();
       // Allow admins to update agency settings (including loanSettings) and other agency data
       // Also allow agency creator to update their own agency

@@ -1,9 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { CreditCard, Check, X, Zap, Crown, Building2 } from 'lucide-react';
+import { CreditCard, Check, X, Zap, Crown, Building2, AlertCircle } from 'lucide-react';
 import { useAgency } from '../../../hooks/useAgency';
 import { Link } from 'react-router-dom';
 import { CheckoutButton } from '../../../components/stripe/CheckoutButton';
+import { useEffect, useState } from 'react';
+import { getAgencyPlanStatus, type PlanType } from '../../../lib/firebase/subscription-helpers';
+import { Badge } from '../../../components/ui/badge';
+import toast from 'react-hot-toast';
 
 const plans = [
   {
@@ -63,15 +67,71 @@ const plans = [
 
 export function PlansPage() {
   const { agency } = useAgency();
+  const [planStatus, setPlanStatus] = useState<{
+    planType: PlanType;
+    status: string;
+    isActive: boolean;
+    daysRemaining?: number;
+    shouldDowngrade: boolean;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!agency) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const status = getAgencyPlanStatus(agency);
+      setPlanStatus({
+        planType: status.planType,
+        status: status.subscriptionStatus,
+        isActive: status.isTrialing || status.subscriptionStatus === 'active',
+        daysRemaining: status.daysRemaining || undefined,
+        shouldDowngrade: status.isExpired && status.planType === 'free',
+      });
+      
+      // Show warning if expired
+      if (status.isExpired && status.planType === 'free') {
+        toast.error('Your free trial has expired. Please subscribe to continue.');
+      }
+    } catch (error) {
+      console.error('Error loading plan status:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [agency]);
+
+  const currentPlan = planStatus?.planType || 'free';
+  const isFreePlan = currentPlan === 'free';
+  const daysRemaining = planStatus?.daysRemaining;
 
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-neutral-900 flex items-center gap-3">
-          <CreditCard className="w-8 h-8 text-[#006BFF]" />
-          Plans & Pricing
-        </h1>
-        <p className="text-neutral-600 mt-2">Choose the plan that's right for your agency</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-neutral-900 flex items-center gap-3">
+              <CreditCard className="w-8 h-8 text-[#006BFF]" />
+              Plans & Pricing
+            </h1>
+            <p className="text-neutral-600 mt-2">Choose the plan that's right for your agency</p>
+          </div>
+          {planStatus && (
+            <div className="flex items-center gap-3">
+              <Badge variant={isFreePlan ? 'outline' : 'default'} className="text-sm">
+                {isFreePlan ? 'Free Plan' : 'Professional Plan'}
+              </Badge>
+              {isFreePlan && daysRemaining !== undefined && (
+                <div className="flex items-center gap-2 text-sm text-neutral-600">
+                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                  <span>{daysRemaining} days remaining</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -124,7 +184,7 @@ export function PlansPage() {
                       </div>
                     ))}
                   </div>
-                  {plan.current ? (
+                  {((plan.name === 'Starter' && isFreePlan) || (plan.name === 'Professional' && !isFreePlan)) ? (
                     <Button
                       variant="outline"
                       className="w-full mt-6"
@@ -159,12 +219,28 @@ export function PlansPage() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-semibold text-neutral-900">Professional Plan</p>
-              <p className="text-sm text-neutral-500">$35/month - Billed monthly</p>
+              <p className="font-semibold text-neutral-900">
+                {isFreePlan ? 'Free Plan (Trial)' : 'Professional Plan'}
+              </p>
+              <p className="text-sm text-neutral-500">
+                {isFreePlan 
+                  ? daysRemaining !== undefined 
+                    ? `${daysRemaining} days remaining in your free trial`
+                    : '30-day free trial'
+                  : '$35/month - Billed monthly'
+                }
+              </p>
+              {isFreePlan && daysRemaining !== undefined && daysRemaining <= 7 && (
+                <p className="text-sm text-amber-600 mt-1">
+                  Your trial expires soon. Upgrade to continue using all features.
+                </p>
+              )}
             </div>
-            <Button variant="outline" asChild>
-              <Link to="/admin/settings">Manage Subscription</Link>
-            </Button>
+            {!isFreePlan && (
+              <Button variant="outline" asChild>
+                <Link to="/admin/settings">Manage Subscription</Link>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -9,6 +9,7 @@ interface Agency {
   slug?: string;
   logo_url?: string | null;
   logoURL?: string | null;
+  company_profile_url?: string | null;
   primary_color?: string;
   secondary_color?: string;
   theme_mode?: 'light' | 'dark' | 'auto';

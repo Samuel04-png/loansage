@@ -11,6 +11,11 @@ service firebase.storage {
       allow read, write, delete: if isAuthenticated();
     }
     
+    // Agency profile photos - authenticated users can access
+    match /agencies/{agencyId}/profile/{fileName} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
     // Customer documents - authenticated users can access
     // Note: Application-level checks should verify agency membership
     match /agencies/{agencyId}/customers/{customerId}/{allPaths=**} {

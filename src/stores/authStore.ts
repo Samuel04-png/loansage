@@ -12,6 +12,8 @@ interface UserProfile {
   employee_category: string | null;
   agency_id: string | null;
   is_active: boolean;
+  photoURL?: string | null;
+  photo_url?: string | null;
 }
 
 interface AuthState {

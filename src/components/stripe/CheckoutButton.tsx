@@ -47,15 +47,13 @@ export function CheckoutButton({
         cancelUrl: `${window.location.origin}/admin/plans?payment=cancelled`,
       });
 
-      const { sessionId } = result.data as { sessionId: string };
+      const { checkoutUrl } = result.data as { checkoutUrl: string };
 
-      // Redirect to Stripe Checkout
-      const stripe = await getStripe();
-      if (stripe) {
-        const { error } = await stripe.redirectToCheckout({ sessionId });
-        if (error) {
-          toast.error(error.message || 'Failed to redirect to checkout');
-        }
+      // Redirect to Stripe Checkout using the URL directly (new Stripe.js API)
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+      } else {
+        toast.error('Failed to get checkout URL');
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
