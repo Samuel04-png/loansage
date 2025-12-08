@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
@@ -117,8 +117,8 @@ export function AccountingPage() {
     // Calculate interest income
     const interestIncome = paidRepayments.reduce((sum: number, r: any) => {
       const loan = loans.find((l: any) => l.id === r.loanId);
-      if (loan) {
-        const interestPortion = Number(r.amountPaid || 0) - Number(r.amountPaid || 0) / (1 + Number(loan.interestRate || 0) / 100);
+      if (loan && (loan as any).interestRate) {
+        const interestPortion = Number(r.amountPaid || 0) - Number(r.amountPaid || 0) / (1 + Number((loan as any).interestRate || 0) / 100);
         return sum + interestPortion;
       }
       return sum;
@@ -819,7 +819,7 @@ export function AccountingPage() {
                         await updateDoc(repaymentRef, {
                           status: 'paid',
                           amountPaid: bankTx.amount,
-                          paidAt: Timestamp.fromDate(new Date(bankTx.date) || new Date()),
+                          paidAt: bankTx.date ? Timestamp.fromDate(new Date(bankTx.date)) : serverTimestamp(),
                           paymentMethod: 'bank_transfer',
                           notes: `Reconciled from bank statement: ${bankTx.description}`,
                           reconciledAt: serverTimestamp(),
