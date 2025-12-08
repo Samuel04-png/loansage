@@ -2,7 +2,20 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+// Get Stripe secret key from Firebase Functions config or environment variable
+// For production: Set via firebase functions:config:set stripe.secret_key="sk_live_..."
+// For local dev: Can use .env file in functions directory
+const getStripeSecretKey = () => {
+  // Try Firebase Functions config first (production)
+  const config = functions.config();
+  if (config?.stripe?.secret_key) {
+    return config.stripe.secret_key;
+  }
+  // Fallback to environment variable (local development)
+  return process.env.STRIPE_SECRET_KEY || process.env.VITE_STRIPE_SECREATE_KEY || '';
+};
+
+const stripe = new Stripe(getStripeSecretKey(), {
   apiVersion: '2024-11-20.acacia',
 });
 
@@ -80,7 +93,10 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
  */
 export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  
+  // Get webhook secret from Firebase Functions config or environment variable
+  const config = functions.config();
+  const webhookSecret = config?.stripe?.webhook_secret || process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
     console.error('Stripe webhook secret not configured');
