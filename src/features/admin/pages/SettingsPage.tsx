@@ -28,6 +28,7 @@ import { importCustomersFromCSV, importLoansFromCSV } from '../../../lib/data-im
 import { createCustomer } from '../../../lib/firebase/firestore-helpers';
 import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
 import { PaymentHistoryTab } from './PaymentHistoryTab';
+import { isDeepSeekConfigured, testDeepSeekConnection } from '../../../lib/ai/deepseek-client';
 
 const agencySchema = z.object({
   name: z.string().min(2, 'Agency name is required'),
@@ -74,7 +75,7 @@ export function SettingsPage() {
   const { agency, updateAgency, loading: agencyLoading } = useAgency();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments'>('agency');
+  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments' | 'ai'>('agency');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [companyProfileFile, setCompanyProfileFile] = useState<File | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);

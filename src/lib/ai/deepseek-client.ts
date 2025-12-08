@@ -10,6 +10,14 @@ const DEEP_SEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 // Vite automatically loads from .env.local, .env, etc.
 const DEEP_SEEK_API_KEY = (import.meta.env as any).VITE_DEEP_SEEK_API_KEY || '';
 
+// Debug logging (only in development)
+if (import.meta.env.DEV) {
+  console.log('[DeepSeek] API Key configured:', !!DEEP_SEEK_API_KEY && DEEP_SEEK_API_KEY.length > 0);
+  if (DEEP_SEEK_API_KEY) {
+    console.log('[DeepSeek] API Key prefix:', DEEP_SEEK_API_KEY.substring(0, 7) + '...');
+  }
+}
+
 interface DeepSeekMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
