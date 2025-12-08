@@ -70,11 +70,15 @@ service cloud.firestore {
     
     // Agencies collection
     match /agencies/{agencyId} {
-      // Allow creator to read immediately, or if user belongs to agency, or if user is an employee
-      allow read: if isAuthenticated() && (
+      // Allow reading if:
+      // 1. User belongs to agency, OR
+      // 2. User created the agency, OR
+      // 3. User is an employee of the agency, OR
+      // 4. For list queries, allow authenticated users (client will filter)
+      allow list: if isAuthenticated();
+      allow get: if isAuthenticated() && (
         belongsToAgency(agencyId) || 
         (resource != null && resource.data.createdBy == request.auth.uid) ||
-        // Allow reading if user is an employee of this agency (for getUserAgencies function)
         exists(/databases/$(database)/documents/agencies/$(agencyId)/employees/$(request.auth.uid))
       );
       allow create: if isAuthenticated();
