@@ -15,7 +15,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { cn } from '../../../lib/utils';
-import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database, Calculator, Percent, Calendar, DollarSign } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database, Calculator, Percent, Calendar, DollarSign, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
@@ -86,6 +86,8 @@ export function SettingsPage() {
   const [importType, setImportType] = useState<'customers' | 'loans' | null>(null);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [testingAI, setTestingAI] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Agency form
   const agencyForm = useForm<AgencyFormData>({
@@ -612,6 +614,13 @@ export function SettingsPage() {
           >
             <Database className="w-4 h-4 mr-2" />
             Data
+          </TabsTrigger>
+          <TabsTrigger 
+            value="ai"
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Settings
           </TabsTrigger>
         </TabsList>
 
@@ -1613,6 +1622,152 @@ export function SettingsPage() {
         {/* Payment History Tab */}
         <TabsContent value="payments" className="mt-6">
           <PaymentHistoryTab />
+        </TabsContent>
+
+        {/* AI Settings Tab */}
+        <TabsContent value="ai" className="mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-6"
+          >
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900">DeepSeek AI Configuration</CardTitle>
+                <CardDescription className="text-sm text-neutral-600">
+                  Configure and test your DeepSeek AI integration for intelligent loan analysis
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
+                    <div>
+                      <p className="font-semibold text-neutral-900">API Key Status</p>
+                      <p className="text-sm text-neutral-600 mt-1">
+                        {isDeepSeekConfigured() 
+                          ? 'API key is configured and ready to use'
+                          : 'API key not found. Add VITE_DEEP_SEEK_API_KEY to your .env.local file'}
+                      </p>
+                    </div>
+                    {isDeepSeekConfigured() ? (
+                      <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <XCircle className="w-6 h-6 text-red-600" />
+                    )}
+                  </div>
+
+                  {isDeepSeekConfigured() && (
+                    <div className="space-y-4">
+                      <Button
+                        onClick={async () => {
+                          setTestingAI(true);
+                          setAiTestResult(null);
+                          try {
+                            const result = await testDeepSeekConnection();
+                            setAiTestResult(result);
+                            if (result.success) {
+                              toast.success('DeepSeek AI is working correctly!');
+                            } else {
+                              toast.error(result.message);
+                            }
+                          } catch (error: any) {
+                            setAiTestResult({
+                              success: false,
+                              message: error.message || 'Failed to test connection',
+                            });
+                            toast.error('Failed to test DeepSeek connection');
+                          } finally {
+                            setTestingAI(false);
+                          }
+                        }}
+                        disabled={testingAI}
+                        className="w-full bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
+                      >
+                        {testingAI ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Testing Connection...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Test DeepSeek Connection
+                          </>
+                        )}
+                      </Button>
+
+                      {aiTestResult && (
+                        <div className={`p-4 rounded-xl border ${
+                          aiTestResult.success 
+                            ? 'bg-green-50 border-green-200' 
+                            : 'bg-red-50 border-red-200'
+                        }`}>
+                          <div className="flex items-start gap-3">
+                            {aiTestResult.success ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                            )}
+                            <div>
+                              <p className={`font-semibold ${
+                                aiTestResult.success ? 'text-green-900' : 'text-red-900'
+                              }`}>
+                                {aiTestResult.success ? 'Connection Successful!' : 'Connection Failed'}
+                              </p>
+                              <p className={`text-sm mt-1 ${
+                                aiTestResult.success ? 'text-green-800' : 'text-red-800'
+                              }`}>
+                                {aiTestResult.message}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="p-4 bg-neutral-50 rounded-xl">
+                        <p className="text-sm font-semibold text-neutral-900 mb-2">AI Features Enabled:</p>
+                        <ul className="text-sm text-neutral-700 space-y-1">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Collateral Valuation - AI-powered market price estimation
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Risk Scoring - Intelligent loan risk assessment
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Smart Notifications - AI-driven recommendations
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            NRC Risk Analysis - Historical pattern analysis
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Loan Summaries - AI-generated loan insights
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isDeepSeekConfigured() && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                      <p className="text-sm font-semibold text-yellow-900 mb-2">Setup Required:</p>
+                      <p className="text-sm text-yellow-800 mb-3">
+                        To enable AI features, you need to add your DeepSeek API key to the <code className="bg-yellow-100 px-1 rounded">.env.local</code> file in the project root.
+                      </p>
+                      <p className="text-sm text-yellow-800">
+                        Get your API key from: <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">platform.deepseek.com</a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </TabsContent>
       </Tabs>
 
