@@ -12,7 +12,8 @@ const getStripeSecretKey = () => {
     return config.stripe.secret_key;
   }
   // Fallback to environment variable (local development)
-  return process.env.STRIPE_SECRET_KEY || process.env.VITE_STRIPE_SECREATE_KEY || '';
+  // Note: For local dev, create a .env file in the functions directory
+  return process.env.STRIPE_SECRET_KEY || '';
 };
 
 const stripe = new Stripe(getStripeSecretKey(), {
