@@ -862,7 +862,7 @@ export function AdminLayout() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">What's New in LoanSage</h2>
-                <p className="text-sm text-slate-600">Version 2.0.0 - Latest Updates</p>
+                <p className="text-sm text-slate-600">Version 2.1.0 - Latest Updates</p>
               </div>
             </div>
           </DialogHeader>
@@ -876,21 +876,27 @@ export function AdminLayout() {
               </h3>
               <div className="space-y-3">
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">🌐 Offline Functionality</h4>
+                  <h4 className="font-semibold text-slate-900 mb-1">📊 Excel Import/Export</h4>
                   <p className="text-sm text-slate-600">
-                    Work seamlessly even without internet! All your changes are saved locally and automatically synced when you're back online. No data loss, ever.
+                    Import and export loans, customers, and employees using Excel (.xlsx) or CSV files. Bulk import with automatic data validation and error reporting.
                   </p>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">🎨 Enhanced UI/UX</h4>
+                  <h4 className="font-semibold text-slate-900 mb-1">💰 Bank Reconciliation</h4>
                   <p className="text-sm text-slate-600">
-                    Beautiful, modern authentication pages with smooth animations, glassmorphism effects, and a completely redesigned landing page with pricing plans.
+                    Automatically match bank statement transactions with loan repayments. Upload CSV or Excel files to reconcile payments and update loan statuses automatically.
                   </p>
                 </div>
                 <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">🤖 AI-Powered Features</h4>
+                  <h4 className="font-semibold text-slate-900 mb-1">🤖 Enhanced AI Features</h4>
                   <p className="text-sm text-slate-600">
-                    DeepSeek AI integration for intelligent risk assessment, collateral valuation, and smart loan recommendations.
+                    Improved DeepSeek AI integration with connection testing, better error handling, and AI-powered risk assessment, collateral valuation, and smart recommendations.
+                  </p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
+                  <h4 className="font-semibold text-slate-900 mb-1">💳 Stripe Payment Integration</h4>
+                  <p className="text-sm text-slate-600">
+                    Seamless subscription management with Stripe. Free 30-day trial, automatic plan upgrades, and payment history tracking.
                   </p>
                 </div>
               </div>
@@ -905,27 +911,35 @@ export function AdminLayout() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed dashboard statistics and real-time data updates</span>
+                  <span>Enhanced loan management with tabbed interface and advanced filtering</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Improved customer loan history display</span>
+                  <span>Improved repayment system with automatic balance calculations</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Enhanced mobile responsiveness across all pages</span>
+                  <span>Better CSV parsing with support for quoted fields and commas</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Better error handling and date formatting</span>
+                  <span>Enhanced bank reconciliation with intelligent transaction matching</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Optimized Firestore queries for faster loading</span>
+                  <span>Profile picture support for users and company profiles</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Updated security rules for better access control</span>
+                  <span>AI Settings tab with connection testing and status monitoring</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Improved loan details page with comprehensive overview tabs</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <span>Better data export with Excel format support</span>
                 </li>
               </ul>
             </div>
@@ -939,52 +953,43 @@ export function AdminLayout() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed "Invalid time value" date errors</span>
+                  <span>Fixed remaining balance calculation for amortized loans</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Resolved Firestore permission issues</span>
+                  <span>Resolved 404 errors on loan detail pages</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed undefined field errors in loan creation</span>
+                  <span>Fixed Firestore permission issues for employees</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Corrected dashboard chart data display</span>
+                  <span>Corrected Stripe checkout flow and plan status updates</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed storage permission errors for profile photos</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Resolved subscription helper function conflicts</span>
                 </li>
               </ul>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t border-slate-200">
-              <Button
-                onClick={() => {
-                  // Trigger PWA update if available
-                  if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistration().then((registration) => {
-                      if (registration?.waiting) {
-                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                        window.location.reload();
-                      } else {
-                        window.location.reload();
-                      }
-                    });
-                  } else {
-                    window.location.reload();
-                  }
-                }}
-                className="flex-1 bg-gradient-to-r from-[#006BFF] to-[#4F46E5] hover:from-[#0052CC] hover:to-[#4338CA] text-white"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Now
-              </Button>
+            <div className="flex justify-end pt-4 border-t border-slate-200">
               <Button
                 variant="outline"
-                onClick={() => setUpdateModalOpen(false)}
-                className="flex-1"
+                onClick={() => {
+                  setUpdateModalOpen(false);
+                  localStorage.setItem('update-notification-dismissed', 'true');
+                  setUpdateNotificationDismissed(true);
+                }}
+                className="bg-gradient-to-r from-[#006BFF] to-[#4F46E5] hover:from-[#0052CC] hover:to-[#4338CA] text-white border-0"
               >
-                Later
+                Got it!
               </Button>
             </div>
           </div>
