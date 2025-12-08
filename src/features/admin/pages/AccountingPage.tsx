@@ -10,12 +10,13 @@ import { Badge } from '../../../components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Calendar, FileText, Download, Filter, Search, Loader2, Upload, CheckCircle2, AlertCircle, FileCheck } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { parseBankStatementCSV, matchBankTransactions, generateReconciliationReport } from '../../../lib/accounting/bank-reconciliation';
+import { parseBankStatementFile, matchBankTransactions, generateReconciliationReport } from '../../../lib/accounting/bank-reconciliation';
 import toast from 'react-hot-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/dialog';
 
 export function AccountingPage() {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [searchTerm, setSearchTerm] = useState('');
   const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
@@ -629,11 +630,11 @@ export function AccountingPage() {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Upload Bank Statement (CSV)</label>
+              <label className="block text-sm font-medium mb-2">Upload Bank Statement</label>
               <input
                 ref={bankStatementFileRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
@@ -641,14 +642,19 @@ export function AccountingPage() {
 
                   setProcessingReconciliation(true);
                   try {
-                    const text = await file.text();
-                    const bankTransactions = parseBankStatementCSV(text);
+                    const bankTransactions = await parseBankStatementFile(file);
+                    if (bankTransactions.length === 0) {
+                      toast.error('No valid transactions found in the file');
+                      setProcessingReconciliation(false);
+                      return;
+                    }
+                    
                     const matches = matchBankTransactions(bankTransactions, repayments);
                     const report = generateReconciliationReport(matches);
                     
                     setReconciliationMatches(matches);
                     setReconciliationReport(report);
-                    toast.success(`Processed ${bankTransactions.length} transactions`);
+                    toast.success(`Processed ${bankTransactions.length} transactions. ${report.matched} matched, ${report.unmatched} unmatched.`);
                   } catch (error: any) {
                     console.error('Reconciliation error:', error);
                     toast.error('Failed to process bank statement: ' + error.message);
@@ -671,12 +677,12 @@ export function AccountingPage() {
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Select CSV File
+                    Select File (CSV/Excel)
                   </>
                 )}
               </Button>
               <p className="text-xs text-slate-500 mt-2">
-                CSV should contain: Date, Description, Amount columns (Reference optional)
+                File should contain: Date, Description, Amount columns (Reference optional). Supports CSV, XLSX, and XLS formats.
               </p>
             </div>
 
@@ -686,18 +692,24 @@ export function AccountingPage() {
                   <div>
                     <p className="text-xs text-slate-600">Total Transactions</p>
                     <p className="text-lg font-bold">{reconciliationReport.totalTransactions}</p>
+                    <p className="text-xs text-slate-500">{formatCurrency(reconciliationReport.totalAmount, 'ZMW')}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-600">Matched</p>
                     <p className="text-lg font-bold text-green-600">{reconciliationReport.matched}</p>
+                    <p className="text-xs text-green-600">{formatCurrency(reconciliationReport.matchedAmount, 'ZMW')}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-600">Unmatched</p>
                     <p className="text-lg font-bold text-red-600">{reconciliationReport.unmatched}</p>
+                    <p className="text-xs text-red-600">{formatCurrency(reconciliationReport.unmatchedAmount, 'ZMW')}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-600">Match Rate</p>
                     <p className="text-lg font-bold">{reconciliationReport.matchRate.toFixed(1)}%</p>
+                    <p className="text-xs text-slate-500">
+                      {reconciliationReport.highConfidence} high, {reconciliationReport.mediumConfidence} medium
+                    </p>
                   </div>
                 </div>
 
@@ -710,6 +722,7 @@ export function AccountingPage() {
                         <th className="px-4 py-2 text-right">Amount</th>
                         <th className="px-4 py-2 text-left">Match</th>
                         <th className="px-4 py-2 text-left">Confidence</th>
+                        <th className="px-4 py-2 text-left">Reason</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -742,6 +755,9 @@ export function AccountingPage() {
                               {match.matchConfidence}
                             </Badge>
                           </td>
+                          <td className="px-4 py-2 text-xs text-slate-500">
+                            {match.matchReason}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -765,15 +781,99 @@ export function AccountingPage() {
             {reconciliationReport && (
               <Button
                 onClick={async () => {
-                  const highConfidenceMatches = reconciliationMatches.filter(
-                    m => m.repayment && m.matchConfidence === 'high'
-                  );
-                  
-                  toast.success(`Applied ${highConfidenceMatches.length} matched transactions`);
-                  setReconciliationDialogOpen(false);
+                  try {
+                    // Get matches with high or medium confidence
+                    const matchesToApply = reconciliationMatches.filter(
+                      m => m.repayment && (m.matchConfidence === 'high' || m.matchConfidence === 'medium')
+                    );
+                    
+                    if (matchesToApply.length === 0) {
+                      toast.error('No matches to apply. Only high/medium confidence matches can be applied.');
+                      return;
+                    }
+                    
+                    setProcessingReconciliation(true);
+                    
+                    // Import Firestore functions
+                    const { doc, updateDoc, serverTimestamp, Timestamp } = await import('firebase/firestore');
+                    
+                    let applied = 0;
+                    let failed = 0;
+                    
+                    for (const match of matchesToApply) {
+                      try {
+                        const repayment = match.repayment;
+                        const bankTx = match.bankTransaction;
+                        
+                        // Update repayment status to paid
+                        const repaymentRef = doc(
+                          db,
+                          'agencies',
+                          profile!.agency_id,
+                          'loans',
+                          repayment.loanId,
+                          'repayments',
+                          repayment.id
+                        );
+                        
+                        await updateDoc(repaymentRef, {
+                          status: 'paid',
+                          amountPaid: bankTx.amount,
+                          paidAt: Timestamp.fromDate(new Date(bankTx.date) || new Date()),
+                          paymentMethod: 'bank_transfer',
+                          notes: `Reconciled from bank statement: ${bankTx.description}`,
+                          reconciledAt: serverTimestamp(),
+                          reconciledBy: profile!.id,
+                          transactionId: bankTx.reference || bankTx.account || undefined,
+                          updatedAt: serverTimestamp(),
+                        });
+                        
+                        // Update loan summary after payment
+                        const { updateLoanAfterPayment } = await import('../../../lib/firebase/repayment-helpers');
+                        await updateLoanAfterPayment(profile!.agency_id, repayment.loanId);
+                        
+                        applied++;
+                      } catch (error: any) {
+                        console.error('Error applying match:', error);
+                        failed++;
+                      }
+                    }
+                    
+                    // Invalidate queries to refresh data
+                    queryClient.invalidateQueries({ queryKey: ['accounting-repayments'] });
+                    queryClient.invalidateQueries({ queryKey: ['accounting-loans'] });
+                    
+                    if (applied > 0) {
+                      toast.success(`Successfully reconciled ${applied} repayment${applied > 1 ? 's' : ''}`);
+                    }
+                    if (failed > 0) {
+                      toast.error(`Failed to reconcile ${failed} repayment${failed > 1 ? 's' : ''}`);
+                    }
+                    
+                    setReconciliationDialogOpen(false);
+                    setReconciliationMatches([]);
+                    setReconciliationReport(null);
+                  } catch (error: any) {
+                    console.error('Error applying reconciliation:', error);
+                    toast.error('Failed to apply reconciliation: ' + error.message);
+                  } finally {
+                    setProcessingReconciliation(false);
+                  }
                 }}
+                disabled={processingReconciliation}
+                className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
               >
-                Apply Matches
+                {processingReconciliation ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="mr-2 h-4 w-4" />
+                    Apply Matches ({reconciliationMatches.filter(m => m.repayment && (m.matchConfidence === 'high' || m.matchConfidence === 'medium')).length})
+                  </>
+                )}
               </Button>
             )}
           </DialogFooter>
