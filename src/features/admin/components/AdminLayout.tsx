@@ -64,6 +64,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { NotificationDropdown } from '../../../components/NotificationDropdown';
+import { GlobalSearchDialog } from '../../../components/search/GlobalSearchDialog';
 import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import toast from 'react-hot-toast';
@@ -96,6 +97,7 @@ export function AdminLayout() {
   
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   
   // Persist expanded sections state in localStorage
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
@@ -137,11 +139,13 @@ export function AdminLayout() {
   const managementNav = useMemo(() => [
     { id: 'loans', label: 'Loans', icon: FileText, path: '/admin/loans' },
     { id: 'collaterals', label: 'Collaterals', icon: Shield, path: '/admin/collaterals' },
+    { id: 'crm', label: 'CRM', icon: Users, path: '/admin/crm' },
     { id: 'invitations', label: 'Invitations', icon: Mail, path: '/admin/invitations' },
   ], []);
 
   const systemNav = useMemo(() => [
     { id: 'activity-logs', label: 'Activity Logs', icon: ClipboardList, path: '/admin/activity-logs' },
+    { id: 'compliance', label: 'Compliance', icon: Shield, path: '/admin/compliance' },
     { id: 'data-management', label: 'Data Management', icon: Folder, path: '/admin/data-management' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/admin/settings' },
   ], []);
@@ -441,17 +445,23 @@ export function AdminLayout() {
           {/* Search Bar */}
           {!sidebarCollapsed && (
             <div className="px-4 py-3 border-b border-neutral-200/50">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">
-                  ⌘K
+              <button
+                onClick={() => setSearchDialogOpen(true)}
+                className="w-full relative"
+              >
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="Search loans, customers, employees..."
+                    readOnly
+                    className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 cursor-pointer hover:border-[#006BFF] transition-all"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">
+                    ⌘K
+                  </div>
                 </div>
-              </div>
+              </button>
             </div>
           )}
 
@@ -1015,6 +1025,9 @@ export function AdminLayout() {
           }
         }} 
       />
+
+      {/* Global Search Dialog */}
+      <GlobalSearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
     </TooltipProvider>
   );
 }

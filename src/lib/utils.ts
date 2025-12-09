@@ -5,12 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+import { formatCurrencyWithSymbol } from './currency/currency-helpers';
+
 export function formatCurrency(amount: number, currency: string = 'ZMW'): string {
-  return new Intl.NumberFormat('en-ZM', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
+  return formatCurrencyWithSymbol(amount, currency);
 }
 
 /**

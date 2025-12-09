@@ -75,7 +75,7 @@ export function SettingsPage() {
   const { agency, updateAgency, loading: agencyLoading } = useAgency();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments' | 'ai'>('agency');
+  const [activeTab, setActiveTab] = useState<'agency' | 'employees' | 'account' | 'data' | 'loans' | 'payments' | 'ai' | 'currency'>('agency');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [companyProfileFile, setCompanyProfileFile] = useState<File | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);

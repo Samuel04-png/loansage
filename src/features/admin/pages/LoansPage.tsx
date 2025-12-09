@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collection, getDocs, query as firestoreQuery, where, orderBy, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query as firestoreQuery, where, orderBy, doc, updateDoc, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -43,7 +43,11 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
-  Trash2
+  Trash2,
+  Edit,
+  CheckSquare,
+  Square,
+  Upload
 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
@@ -55,6 +59,8 @@ import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
+import { Checkbox } from '../../../components/ui/checkbox';
+import { Label } from '../../../components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -80,6 +86,12 @@ export function LoansPage() {
   const [loanToDelete, setLoanToDelete] = useState<{ id: string; loanNumber?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
+  const [selectedLoans, setSelectedLoans] = useState<Set<string>>(new Set());
+  const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
+  const [bulkPaymentDialogOpen, setBulkPaymentDialogOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<string>('active');
+  const [bulkPaymentAmount, setBulkPaymentAmount] = useState<string>('');
+  const [bulkPaymentDate, setBulkPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Fetch all loans
   const { data: loans, isLoading, refetch } = useQuery({
@@ -290,6 +302,110 @@ export function LoansPage() {
   };
 
   // Delete loan mutation
+  // Bulk status update
+  const bulkStatusUpdate = useMutation({
+    mutationFn: async (loanIds: string[]) => {
+      if (!profile?.agency_id) throw new Error('Agency not found');
+      
+      const batch = writeBatch(db);
+      loanIds.forEach(loanId => {
+        const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+        batch.update(loanRef, {
+          status: bulkStatus,
+          updatedAt: serverTimestamp(),
+        });
+      });
+      
+      await batch.commit();
+      
+      // Create audit logs
+      for (const loanId of loanIds) {
+        await createAuditLog(profile.agency_id, {
+          actorId: user?.id || 'system',
+          action: 'bulk_status_update',
+          targetCollection: 'loans',
+          targetId: loanId,
+          metadata: { newStatus: bulkStatus, bulkOperation: true },
+        }).catch(() => {});
+      }
+    },
+    onSuccess: () => {
+      toast.success(`Updated ${selectedLoans.size} loan(s) status to ${bulkStatus}`);
+      setSelectedLoans(new Set());
+      setBulkStatusDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update loans');
+    },
+  });
+
+  // Bulk payment recording
+  const bulkPaymentRecord = useMutation({
+    mutationFn: async (loanIds: string[]) => {
+      if (!profile?.agency_id) throw new Error('Agency not found');
+      if (!bulkPaymentAmount) throw new Error('Payment amount is required');
+      
+      const amount = parseFloat(bulkPaymentAmount);
+      if (isNaN(amount) || amount <= 0) throw new Error('Invalid payment amount');
+      
+      const batch = writeBatch(db);
+      
+      for (const loanId of loanIds) {
+        const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'repayments');
+        const repaymentsSnapshot = await getDocs(repaymentsRef);
+        
+        // Find next pending repayment
+        const repayments = repaymentsSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter((r: any) => r.status === 'pending')
+          .sort((a: any, b: any) => {
+            const aDate = a.dueDate?.toDate?.() || new Date(a.dueDate);
+            const bDate = b.dueDate?.toDate?.() || new Date(b.dueDate);
+            return aDate.getTime() - bDate.getTime();
+          });
+        
+        if (repayments.length > 0) {
+          const repayment = repayments[0];
+          const repaymentRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId, 'repayments', repayment.id);
+          
+          const amountPaid = (repayment.amountPaid || 0) + amount;
+          const isFullyPaid = amountPaid >= repayment.amountDue;
+          
+          batch.update(repaymentRef, {
+            amountPaid,
+            status: isFullyPaid ? 'paid' : 'partial',
+            paidAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+      
+      await batch.commit();
+      
+      // Create audit logs
+      for (const loanId of loanIds) {
+        await createAuditLog(profile.agency_id, {
+          actorId: user?.id || 'system',
+          action: 'bulk_payment_recorded',
+          targetCollection: 'loans',
+          targetId: loanId,
+          metadata: { amount, paymentDate: bulkPaymentDate, bulkOperation: true },
+        }).catch(() => {});
+      }
+    },
+    onSuccess: () => {
+      toast.success(`Recorded payments for ${selectedLoans.size} loan(s)`);
+      setSelectedLoans(new Set());
+      setBulkPaymentAmount('');
+      setBulkPaymentDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to record payments');
+    },
+  });
+
   const deleteLoan = useMutation({
     mutationFn: async (loanId: string) => {
       if (!profile?.agency_id || !loanId) throw new Error('Missing agency ID or loan ID');
@@ -509,6 +625,55 @@ export function LoansPage() {
           </div>
         </CardHeader>
 
+        {/* Bulk Actions Bar */}
+        {selectedLoans.size > 0 && (
+          <div className="border-b border-neutral-200 bg-blue-50 px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedLoans.size} loan{selectedLoans.size > 1 ? 's' : ''} selected
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedLoans(new Set())}
+                className="text-xs"
+              >
+                Clear Selection
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkStatusDialogOpen(true)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Update Status
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkPaymentDialogOpen(true)}
+              >
+                <DollarSign className="mr-2 h-4 w-4" />
+                Record Payment
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const selectedLoansData = filteredAndSortedLoans.filter((loan: any) => selectedLoans.has(loan.id));
+                  exportLoans(selectedLoansData);
+                  toast.success('Selected loans exported successfully');
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export Selected
+              </Button>
+            </div>
+          </div>
+        )}
+
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-4">
@@ -522,6 +687,18 @@ export function LoansPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedLoans.size === paginatedLoans.length && paginatedLoans.length > 0}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedLoans(new Set(paginatedLoans.map((loan: any) => loan.id)));
+                            } else {
+                              setSelectedLoans(new Set());
+                            }
+                          }}
+                        />
+                      </TableHead>
                       <TableHead className="font-semibold">Loan Details</TableHead>
                       <TableHead className="font-semibold">Customer</TableHead>
                       <TableHead className="font-semibold text-right">Loan Amount</TableHead>
@@ -548,10 +725,29 @@ export function LoansPage() {
                     return (
                       <TableRow 
                         key={loan.id} 
-                        className="hover:bg-neutral-50 cursor-pointer transition-colors"
-                        onClick={() => window.location.href = `/admin/loans/${loan.id}`}
+                        className={cn(
+                          "hover:bg-neutral-50 transition-colors",
+                          selectedLoans.has(loan.id) && "bg-blue-50"
+                        )}
                       >
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedLoans.has(loan.id)}
+                            onCheckedChange={(checked) => {
+                              const newSelection = new Set(selectedLoans);
+                              if (checked) {
+                                newSelection.add(loan.id);
+                              } else {
+                                newSelection.delete(loan.id);
+                              }
+                              setSelectedLoans(newSelection);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell 
+                          className="cursor-pointer"
+                          onClick={() => window.location.href = `/admin/loans/${loan.id}`}
+                        >
                           <div className="space-y-1">
                             <div className="font-semibold text-neutral-900">
                               {loan.loanNumber || loan.id.substring(0, 12)}
@@ -564,7 +760,10 @@ export function LoansPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell 
+                          className="cursor-pointer"
+                          onClick={() => window.location.href = `/admin/loans/${loan.id}`}
+                        >
                           <div className="space-y-1">
                             <div className="font-medium text-neutral-900">
                               {loan.customer?.fullName || loan.customer?.name || 'N/A'}
@@ -773,6 +972,116 @@ export function LoansPage() {
           agencyId={profile?.agency_id || ''}
         />
       )}
+
+      {/* Bulk Status Update Dialog */}
+      <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Update Status</DialogTitle>
+            <DialogDescription>
+              Update status for {selectedLoans.size} selected loan{selectedLoans.size > 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>New Status</Label>
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="active">Active</option>
+                <option value="settled">Settled</option>
+                <option value="defaulted">Defaulted</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkStatusDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => bulkStatusUpdate.mutate(Array.from(selectedLoans))}
+              disabled={bulkStatusUpdate.isPending}
+            >
+              {bulkStatusUpdate.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Update {selectedLoans.size} Loan{selectedLoans.size > 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Payment Dialog */}
+      <Dialog open={bulkPaymentDialogOpen} onOpenChange={setBulkPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Record Payment</DialogTitle>
+            <DialogDescription>
+              Record payment for {selectedLoans.size} selected loan{selectedLoans.size > 1 ? 's' : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Payment Amount</Label>
+              <Input
+                type="number"
+                value={bulkPaymentAmount}
+                onChange={(e) => setBulkPaymentAmount(e.target.value)}
+                placeholder="0.00"
+                step="0.01"
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label>Payment Date</Label>
+              <Input
+                type="date"
+                value={bulkPaymentDate}
+                onChange={(e) => setBulkPaymentDate(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!bulkPaymentAmount) {
+                  toast.error('Please enter payment amount');
+                  return;
+                }
+                bulkPaymentRecord.mutate(Array.from(selectedLoans));
+              }}
+              disabled={bulkPaymentRecord.isPending}
+            >
+              {bulkPaymentRecord.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Recording...
+                </>
+              ) : (
+                <>
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Record Payment
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

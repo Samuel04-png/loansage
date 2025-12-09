@@ -54,6 +54,9 @@ import { NotificationsPage as AdminNotificationsPage } from '../features/admin/p
 import { PendingApprovalsPage as AdminPendingApprovalsPage } from '../features/admin/pages/PendingApprovalsPage';
 import { LoanDisbursementPage } from '../features/admin/pages/LoanDisbursementPage';
 import { OutstandingBorrowersPage } from '../features/admin/pages/OutstandingBorrowersPage';
+import { CRMPage } from '../features/admin/pages/CRMPage';
+import { CompliancePage } from '../features/admin/pages/CompliancePage';
+import { CurrencySettingsPage } from '../features/admin/pages/CurrencySettingsPage';
 
 // Employee pages
 import { EmployeeLayout } from '../features/employee/components/EmployeeLayout';
@@ -162,6 +165,9 @@ function AppContent() {
                 <Route path="loans/pending" element={<AdminPendingApprovalsPage />} />
                 <Route path="loans/disbursement" element={<LoanDisbursementPage />} />
                 <Route path="loans/outstanding" element={<OutstandingBorrowersPage />} />
+                <Route path="crm" element={<CRMPage />} />
+                <Route path="compliance" element={<CompliancePage />} />
+                <Route path="settings/currency" element={<CurrencySettingsPage />} />
                 <Route index element={<AdminDashboard />} />
               </Route>
 

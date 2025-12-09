@@ -147,11 +147,11 @@ export function LoanDetailPage() {
 
         // Get collateral from loan's subcollection
         try {
-          const collateralRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'collateral');
-          const collateralSnapshot = await getDocs(collateralRef);
-          loanData.collateral = collateralSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
+        const collateralRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'collateral');
+        const collateralSnapshot = await getDocs(collateralRef);
+        loanData.collateral = collateralSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
             createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
             updatedAt: doc.data().updatedAt?.toDate?.() || doc.data().updatedAt,
           }));
@@ -588,11 +588,11 @@ export function LoanDetailPage() {
               </div>
                     )}
                     {loan.customer.id && (
-                      <Link to={`/admin/customers/${loan.customer.id}`}>
-                        <Button variant="outline" className="w-full rounded-lg">
-                          View Customer Profile
-                        </Button>
-                      </Link>
+                    <Link to={`/admin/customers/${loan.customer.id}`}>
+                      <Button variant="outline" className="w-full rounded-lg">
+                        View Customer Profile
+                      </Button>
+                    </Link>
                     )}
                   </>
                 ) : (
@@ -750,7 +750,7 @@ export function LoanDetailPage() {
                 <div className="space-y-4">
                   {loan.collateral.map((coll: any) => (
                     <div
-                      key={coll.id}
+                    key={coll.id}
                       className="p-4 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
                     >
                       <div className="flex items-start justify-between">
@@ -759,18 +759,18 @@ export function LoanDetailPage() {
                             <p className="font-semibold text-neutral-900 capitalize">
                               {coll.type?.replace('_', ' ') || 'N/A'}
                             </p>
-                            {coll.verificationStatus && (
-                              <Badge 
+                          {coll.verificationStatus && (
+                            <Badge 
                                 variant={coll.verificationStatus === 'verified' ? 'default' : 'outline'}
-                                className={cn(
-                                  coll.verificationStatus === 'verified' 
+                              className={cn(
+                                coll.verificationStatus === 'verified' 
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     : 'bg-amber-50 text-amber-700 border-amber-200'
-                                )}
-                              >
-                                {coll.verificationStatus}
-                              </Badge>
-                            )}
+                              )}
+                            >
+                              {coll.verificationStatus}
+                            </Badge>
+                          )}
                           </div>
                           <p className="text-sm text-neutral-600 mb-2">
                             {coll.description || 'No description'}
@@ -797,8 +797,8 @@ export function LoanDetailPage() {
                                 <div className="w-16 h-16 bg-neutral-100 rounded border border-neutral-200 flex items-center justify-center text-xs text-neutral-500">
                                   +{coll.photos.length - 3}
                                 </div>
-                              )}
-                            </div>
+                          )}
+                        </div>
                           )}
                         </div>
                         <div className="text-right ml-4">
@@ -807,10 +807,10 @@ export function LoanDetailPage() {
                           </p>
                           <p className="text-xs text-neutral-500">Estimated Value</p>
                         </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
+              </div>
               ) : (
                 <div className="text-center py-12 text-neutral-500">
                   <Shield className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
