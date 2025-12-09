@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { Palette, Sun, Moon, Monitor, Check } from 'lucide-react';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Palette, Sun, Moon, Monitor, Check, Loader2 } from 'lucide-react';
 import { useTheme } from '../../../components/providers/ThemeProvider';
 import { useAgency } from '../../../hooks/useAgency';
-import { updateAgency } from '../../../lib/firebase/firestore-helpers';
 import { useAuth } from '../../../hooks/useAuth';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
@@ -17,9 +18,17 @@ const themes = [
 
 export function ThemesPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const { agency } = useAgency();
+  const { agency, updateAgency } = useAgency();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [primaryColor, setPrimaryColor] = useState(agency?.primary_color || '#006BFF');
+  const [secondaryColor, setSecondaryColor] = useState(agency?.secondary_color || '#3B82FF');
+
+  // Update local state when agency changes
+  useEffect(() => {
+    if (agency?.primary_color) setPrimaryColor(agency.primary_color);
+    if (agency?.secondary_color) setSecondaryColor(agency.secondary_color);
+  }, [agency?.primary_color, agency?.secondary_color]);
 
   const handleThemeChange = async (newTheme: 'light' | 'dark' | 'auto') => {
     setTheme(newTheme);
@@ -28,7 +37,7 @@ export function ThemesPage() {
     if (profile?.role === 'admin' && agency?.id) {
       setSaving(true);
       try {
-        await updateAgency(agency.id, {
+        await updateAgency({
           theme_mode: newTheme,
         });
         toast.success('Theme preference saved');
@@ -38,6 +47,24 @@ export function ThemesPage() {
       } finally {
         setSaving(false);
       }
+    }
+  };
+
+  const handleColorSave = async () => {
+    if (!profile?.role === 'admin' || !agency?.id) return;
+    
+    setSaving(true);
+    try {
+      await updateAgency({
+        primary_color: primaryColor,
+        secondary_color: secondaryColor,
+      });
+      toast.success('Brand colors saved successfully!');
+    } catch (error: any) {
+      console.error('Error saving colors:', error);
+      toast.error('Failed to save brand colors');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -129,6 +156,101 @@ export function ThemesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Brand Colors */}
+      {profile?.role === 'admin' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Brand Colors</CardTitle>
+            <CardDescription>Customize your agency's brand colors</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="primaryColor">Primary Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    id="primaryColor"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="w-16 h-10 rounded border border-neutral-300 cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    placeholder="#006BFF"
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-neutral-500">Used for primary buttons and accents</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="secondaryColor">Secondary Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    id="secondaryColor"
+                    value={secondaryColor}
+                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    className="w-16 h-10 rounded border border-neutral-300 cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={secondaryColor}
+                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    placeholder="#3B82FF"
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-neutral-500">Used for secondary elements and gradients</p>
+              </div>
+            </div>
+
+            {/* Color Preview */}
+            <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200">
+              <p className="text-sm font-semibold text-neutral-700 mb-3">Preview</p>
+              <div className="flex gap-2">
+                <div 
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Primary
+                </div>
+                <div 
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  style={{ backgroundColor: secondaryColor }}
+                >
+                  Secondary
+                </div>
+                <div 
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  style={{ background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor})` }}
+                >
+                  Gradient
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleColorSave}
+              disabled={saving}
+              className="w-full bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Brand Colors'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

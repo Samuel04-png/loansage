@@ -21,10 +21,12 @@ interface DashboardStats {
   repaymentsDue: number;
   repaymentsDueCount: number;
   activeCustomers: number;
+  totalCustomers: number;
   totalEmployees: number;
   approvalRate: number;
   overdueLoans: number;
   totalLoans: number;
+  totalPortfolioValue: number;
 }
 
 /**
@@ -41,10 +43,12 @@ export function subscribeToDashboardStats(
       repaymentsDue: 0,
       repaymentsDueCount: 0,
       activeCustomers: 0,
+      totalCustomers: 0,
       totalEmployees: 0,
       approvalRate: 0,
       overdueLoans: 0,
       totalLoans: 0,
+      totalPortfolioValue: 0,
     });
     return () => {};
   }
@@ -63,12 +67,15 @@ export function subscribeToDashboardStats(
   let employeesData: any[] = [];
 
   const updateStats = async () => {
+    // Filter out deleted loans
+    const activeLoansData = loansData.filter((l: any) => !l.deleted);
+    
     // Calculate stats from current data
-    const activeLoans = loansData.filter((l: any) => l.status === 'active');
-    const totalLoans = loansData.length;
+    const activeLoans = activeLoansData.filter((l: any) => l.status === 'active');
+    const totalLoans = activeLoansData.length;
     
     // Total disbursed this month
-    const thisMonthLoans = loansData.filter((l: any) => {
+    const thisMonthLoans = activeLoansData.filter((l: any) => {
       const disbursementDate = l.disbursementDate?.toDate?.() || 
                                (l.disbursementDate instanceof Timestamp ? l.disbursementDate.toDate() : null) ||
                                (l.disbursementDate ? new Date(l.disbursementDate) : null);
@@ -105,16 +112,23 @@ export function subscribeToDashboardStats(
     }
 
     // Overdue loans
-    const overdueLoans = loansData.filter((l: any) => {
+    const overdueLoans = activeLoansData.filter((l: any) => {
       return l.status === 'overdue' || l.status === 'defaulted';
     });
 
     // Active customers (customers with at least one active loan)
     const activeCustomerIds = new Set(activeLoans.map((l: any) => l.customerId).filter(Boolean));
     const activeCustomers = activeCustomerIds.size;
+    const totalCustomers = customersData.length;
 
-    // Approval rate
-    const approvedLoans = loansData.filter((l: any) => 
+    // Total portfolio value (sum of all active loan amounts)
+    const totalPortfolioValue = activeLoans.reduce(
+      (sum, l: any) => sum + Number(l.amount || 0),
+      0
+    );
+
+    // Approval rate - exclude deleted loans
+    const approvedLoans = activeLoansData.filter((l: any) => 
       ['active', 'completed', 'paid'].includes(l.status)
     );
     const approvalRate = totalLoans > 0 ? (approvedLoans.length / totalLoans) * 100 : 0;
@@ -125,10 +139,12 @@ export function subscribeToDashboardStats(
       repaymentsDue,
       repaymentsDueCount,
       activeCustomers,
+      totalCustomers,
       totalEmployees: employeesData.length,
       approvalRate,
       overdueLoans: overdueLoans.length,
       totalLoans,
+      totalPortfolioValue,
     });
   };
 

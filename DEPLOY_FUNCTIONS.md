@@ -32,6 +32,15 @@ Set the webhook secret (after creating webhook in Stripe):
 firebase functions:config:set stripe.webhook_secret="whsec_YOUR_WEBHOOK_SECRET"
 ```
 
+Set the DeepSeek API key:
+```bash
+firebase functions:config:set deepseek.api_key="sk-YOUR_DEEPSEEK_API_KEY_HERE"
+```
+
+Or using environment variables (Alternative):
+- **Name**: `DEEP_SEEK_API_KEY`
+- **Value**: `sk-YOUR_DEEPSEEK_API_KEY_HERE`
+
 ### Option B: Firebase Functions Environment Variables (Alternative)
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
@@ -155,4 +164,5 @@ npm run serve
 - `calculateCollateralProfit` - Calculates collateral profit
 - `sendNotifications` - Sends notifications
 - `generateThumbnail` - Generates image thumbnails
+- `deepseekProxy` - Proxies DeepSeek API calls (avoids CORS issues)
 

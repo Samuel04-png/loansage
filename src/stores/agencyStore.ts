@@ -52,11 +52,17 @@ export const useAgencyStore = create<AgencyState>((set, get) => ({
 
       if (agencySnap.exists()) {
         const data = agencySnap.data();
+        // Default AI to enabled if not set
+        const settings = data.settings || {};
+        if (settings.aiEnabled === undefined) {
+          settings.aiEnabled = true;
+        }
         set({ 
           agency: { 
             id: agencySnap.id, 
             ...data,
             logo_url: data.logoURL || data.logo_url,
+            settings,
           } as Agency, 
           loading: false 
         });

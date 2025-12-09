@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Skeleton } from '../../../components/ui/skeleton';
-import { ArrowUpRight, ArrowDownRight, DollarSign, Users, FileCheck, UserPlus, Plus, AlertTriangle, TrendingUp, Calendar } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, DollarSign, Users, FileCheck, UserPlus, Plus, AlertTriangle, TrendingUp, Calendar, Sparkles } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
@@ -18,6 +18,8 @@ import { subscribeToDashboardStats } from '../../../lib/firebase/dashboard-helpe
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import { useAIInsights } from '../../../hooks/useAIInsights';
+import { AIInsightsPanel } from '../../../components/ai/AIInsightsPanel';
 
 // Animated Counter Component
 function AnimatedCounter({ value, className }: { value: number | string; className?: string }) {
@@ -120,6 +122,9 @@ export function AdminDashboard() {
   // Enable automatic loan status updates
   const { overdueSummary } = useLoanAutomation(profile?.agency_id, true);
   
+  // AI Insights
+  const { insights: aiInsights, isAnalyzing: aiAnalyzing } = useAIInsights(true);
+  
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -181,8 +186,17 @@ export function AdminDashboard() {
         
         const monthLoans = loans.filter((l: any) => {
           if (!l.disbursementDate) return false;
-          const disbursementDate = l.disbursementDate?.toDate?.() || new Date(l.disbursementDate);
+          // Handle Firestore Timestamp, Date object, or string
+          let disbursementDate: Date;
+          if (l.disbursementDate?.toDate && typeof l.disbursementDate.toDate === 'function') {
+            disbursementDate = l.disbursementDate.toDate();
+          } else if (l.disbursementDate instanceof Date) {
+            disbursementDate = l.disbursementDate;
+          } else {
+            disbursementDate = new Date(l.disbursementDate);
+          }
           if (isNaN(disbursementDate.getTime())) return false;
+          // Check if disbursement date falls within the month range
           return disbursementDate >= monthStart && disbursementDate <= monthEnd;
         });
         
@@ -233,6 +247,27 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* AI Insights Panel */}
+      {aiInsights.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#006BFF]" />
+                AI Intelligence Insights
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AIInsightsPanel insights={aiInsights} isLoading={aiAnalyzing} maxItems={5} />
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Quick Actions - Reference Style */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -293,7 +328,7 @@ export function AdminDashboard() {
         <StatCard
           title="Total Active Loans"
           value={stats?.totalActiveLoans || 0}
-          change={`${formatCurrency((stats?.totalActiveLoans || 0) * 50000, 'ZMW')} portfolio`}
+          change={`${formatCurrency(stats?.totalPortfolioValue || 0, 'ZMW')} portfolio`}
           trend="up"
           icon={DollarSign}
           onClick={() => window.location.href = '/admin/loans?status=active'}
@@ -317,8 +352,8 @@ export function AdminDashboard() {
         />
         <StatCard
           title="Active Customers"
-          value={stats?.totalCustomers || 0}
-          change="+4.1%"
+          value={stats?.activeCustomers || 0}
+          change={`${stats?.totalCustomers || 0} total`}
           trend="up"
           icon={Users}
           onClick={() => window.location.href = '/admin/customers'}
@@ -352,8 +387,8 @@ export function AdminDashboard() {
         />
         <StatCard
           title="Total Loans"
-          value={stats?.totalActiveLoans || 0}
-          change="Active"
+          value={stats?.totalLoans || 0}
+          change={`${stats?.totalActiveLoans || 0} active`}
           trend="up"
           icon={FileCheck}
         />

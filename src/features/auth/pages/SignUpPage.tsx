@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -35,6 +35,8 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export function SignUpPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get('ref');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -59,6 +61,13 @@ export function SignUpPage() {
   const selectedRole = watch('role');
   const emailValue = watch('email');
 
+  // Show referral code if present
+  useEffect(() => {
+    if (referralCode) {
+      toast.success(`You were referred by someone! Using referral code: ${referralCode}`, { duration: 5000 });
+    }
+  }, [referralCode]);
+
   const onSubmit = async (data: SignUpFormData) => {
     setLoading(true);
     try {
@@ -67,6 +76,7 @@ export function SignUpPage() {
         password: data.password,
         fullName: data.fullName,
         role: data.role,
+        referralCode: referralCode || undefined,
       });
 
       if (result.user && result.session) {

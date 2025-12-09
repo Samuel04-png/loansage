@@ -30,9 +30,9 @@ const loanSchema = z.object({
   interestRate: z.string().min(1, 'Interest rate is required').refine((val) => parseFloat(val) >= 0 && parseFloat(val) <= 100, 'Rate must be between 0 and 100'),
   durationMonths: z.string().min(1, 'Duration is required').refine((val) => parseInt(val) > 0, 'Duration must be greater than 0'),
   disbursementDate: z.string().min(1, 'Disbursement date is required'),
-  collateralType: z.string().optional(),
-  collateralDescription: z.string().optional(),
-  collateralValue: z.string().optional(),
+  collateralType: z.string().min(1, 'Collateral type is required'),
+  collateralDescription: z.string().min(5, 'Collateral description is required (minimum 5 characters)'),
+  collateralValue: z.string().min(1, 'Collateral value is required').refine((val) => parseFloat(val) > 0, 'Collateral value must be greater than 0'),
 });
 
 type LoanFormData = z.infer<typeof loanSchema>;
@@ -236,23 +236,14 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
 
         const collateralData = {
           type: data.collateralType as any,
+          name: `${data.collateralType} - ${data.collateralDescription.substring(0, 50)}`,
           description: data.collateralDescription,
           estimatedValue: data.collateralValue ? parseFloat(data.collateralValue) : 0,
           photos: collateralPhotos,
         };
 
-        // Add to loan's collateral subcollection
+        // addCollateral already creates it in both loan subcollection and top-level registry
         await addCollateral(profile.agency_id, loanId, collateralData);
-
-        // Also create in top-level collateral registry (only pass defined values)
-        await createCollateral(profile.agency_id, {
-          type: collateralData.type,
-          description: collateralData.description,
-          estimatedValue: collateralData.estimatedValue,
-          photos: collateralData.photos,
-          loanId: loanId,
-          ownerCustomerId: data.customerId,
-        });
       }
 
       // Upload loan documents
@@ -445,43 +436,58 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
             {step === 3 && (
               <div className="space-y-6">
                 <div className="border-b pb-4">
-                  <h3 className="text-sm font-semibold mb-3">Collateral (Optional)</h3>
+                  <h3 className="text-sm font-semibold mb-3">Collateral (Required)</h3>
+                  <p className="text-xs text-neutral-500 mb-4">All loans must have at least one collateral item</p>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="collateralType">Collateral Type</Label>
+                      <Label htmlFor="collateralType">Collateral Type *</Label>
                       <select
                         id="collateralType"
                         {...register('collateralType')}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       >
-                        <option value="">None</option>
+                        <option value="">Select collateral type</option>
                         <option value="vehicle">Vehicle</option>
                         <option value="land">Land</option>
+                        <option value="property">Property</option>
                         <option value="electronics">Electronics</option>
                         <option value="equipment">Equipment</option>
+                        <option value="jewelry">Jewelry</option>
+                        <option value="livestock">Livestock</option>
                         <option value="other">Other</option>
                       </select>
+                      {errors.collateralType && (
+                        <p className="text-sm text-red-600 mt-1">{errors.collateralType.message}</p>
+                      )}
                     </div>
 
                     <div>
-                      <Label htmlFor="collateralDescription">Description</Label>
+                      <Label htmlFor="collateralDescription">Description *</Label>
                       <Textarea
                         id="collateralDescription"
                         placeholder="Describe the collateral..."
                         rows={3}
                         {...register('collateralDescription')}
+                        className={errors.collateralDescription ? 'border-red-500' : ''}
                       />
+                      {errors.collateralDescription && (
+                        <p className="text-sm text-red-600 mt-1">{errors.collateralDescription.message}</p>
+                      )}
                     </div>
 
                     <div>
-                      <Label htmlFor="collateralValue">Estimated Value</Label>
+                      <Label htmlFor="collateralValue">Estimated Value (ZMW) *</Label>
                       <Input
                         id="collateralValue"
                         type="number"
                         placeholder="0.00"
                         step="0.01"
                         {...register('collateralValue')}
+                        className={errors.collateralValue ? 'border-red-500' : ''}
                       />
+                      {errors.collateralValue && (
+                        <p className="text-sm text-red-600 mt-1">{errors.collateralValue.message}</p>
+                      )}
                     </div>
 
                     <div>

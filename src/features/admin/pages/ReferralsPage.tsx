@@ -4,6 +4,9 @@ import { Gift, Copy, Share2, Users, TrendingUp, Award } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
 
 export function ReferralsPage() {
   const { profile } = useAuth();
@@ -12,6 +15,46 @@ export function ReferralsPage() {
   // Generate referral code from user ID
   const referralCode = profile?.id ? `LOANSAGE-${profile.id.slice(0, 8).toUpperCase()}` : 'LOANSAGE-XXXX';
   const referralLink = `${window.location.origin}/auth/signup?ref=${referralCode}`;
+
+  // Fetch referral stats
+  const { data: referralStats } = useQuery({
+    queryKey: ['referral-stats', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return { total: 0, active: 0, rewards: 0 };
+      
+      try {
+        // Get referral count from user document
+        const userRef = doc(db, 'users', profile.id);
+        const userSnap = await getDoc(userRef);
+        const referralCount = userSnap.data()?.referralCount || 0;
+        
+        // Get active referrals (users who signed up and are active)
+        const referralsRef = collection(db, 'referrals');
+        const referralsQuery = query(referralsRef, where('referrerId', '==', profile.id));
+        const referralsSnapshot = await getDocs(referralsQuery);
+        
+        let activeCount = 0;
+        for (const refDoc of referralsSnapshot.docs) {
+          const refData = refDoc.data();
+          const userRef = doc(db, 'users', refData.referredUserId);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists() && userSnap.data()?.is_active) {
+            activeCount++;
+          }
+        }
+        
+        return {
+          total: referralCount,
+          active: activeCount,
+          rewards: 0, // Can be calculated based on active referrals
+        };
+      } catch (error) {
+        console.error('Error fetching referral stats:', error);
+        return { total: 0, active: 0, rewards: 0 };
+      }
+    },
+    enabled: !!profile?.id,
+  });
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);
@@ -56,7 +99,7 @@ export function ReferralsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-neutral-900">0</p>
+            <p className="text-3xl font-bold text-neutral-900">{referralStats?.total || 0}</p>
             <p className="text-sm text-neutral-500 mt-1">People you've referred</p>
           </CardContent>
         </Card>
@@ -69,7 +112,7 @@ export function ReferralsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-neutral-900">0</p>
+            <p className="text-3xl font-bold text-neutral-900">{referralStats?.active || 0}</p>
             <p className="text-sm text-neutral-500 mt-1">Active referrals</p>
           </CardContent>
         </Card>
@@ -82,7 +125,7 @@ export function ReferralsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-neutral-900">$0</p>
+            <p className="text-3xl font-bold text-neutral-900">${referralStats?.rewards || 0}</p>
             <p className="text-sm text-neutral-500 mt-1">Total rewards</p>
           </CardContent>
         </Card>

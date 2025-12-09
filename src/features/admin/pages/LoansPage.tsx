@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, query as firestoreQuery, where, orderBy } from 'firebase/firestore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, query as firestoreQuery, where, orderBy, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -42,7 +42,8 @@ import {
   Phone,
   CreditCard,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
@@ -53,11 +54,21 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
+import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
 
 type SortOption = 'date' | 'repaymentDate' | 'status' | 'amount' | 'customerName';
 
 export function LoansPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date');
@@ -65,6 +76,8 @@ export function LoansPage() {
   const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<{ id: string; status: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [loanToDelete, setLoanToDelete] = useState<{ id: string; loanNumber?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
@@ -76,11 +89,13 @@ export function LoansPage() {
 
       const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
       const snapshot = await getDocs(loansRef);
-      const loansData = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-      }));
+      const loansData = snapshot.docs
+        .map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        }))
+        .filter((loan: any) => !loan.deleted); // Filter out deleted loans
 
       // Fetch customer data, repayments, and calculate metrics for each loan
       const loansWithDetails = await Promise.all(
@@ -176,6 +191,11 @@ export function LoansPage() {
           if (loanStatus !== 'settled' && loanStatus !== 'paid') {
             return false;
           }
+        } else if (statusFilter === 'pending') {
+          // Pending filter - exact match
+          if (loanStatus !== 'pending') {
+            return false;
+          }
         } else {
           // Exact match for other filters
           if (loanStatus !== statusFilter.toLowerCase()) {
@@ -268,6 +288,40 @@ export function LoansPage() {
     };
     return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
   };
+
+  // Delete loan mutation
+  const deleteLoan = useMutation({
+    mutationFn: async (loanId: string) => {
+      if (!profile?.agency_id || !loanId) throw new Error('Missing agency ID or loan ID');
+      
+      // Soft delete - mark as deleted instead of actually deleting
+      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+      await updateDoc(loanRef, {
+        deleted: true,
+        deletedAt: serverTimestamp(),
+        deletedBy: user?.id || profile.id,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Create audit log
+      await createAuditLog(profile.agency_id, {
+        actorId: user?.id || profile.id,
+        action: 'delete_loan',
+        targetCollection: 'loans',
+        targetId: loanId,
+        metadata: { softDelete: true },
+      });
+    },
+    onSuccess: () => {
+      toast.success('Loan deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+      setDeleteDialogOpen(false);
+      setLoanToDelete(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete loan');
+    },
+  });
 
   const stats = useMemo(() => {
     if (!loans) return null;
@@ -428,9 +482,12 @@ export function LoansPage() {
 
             {/* Filter Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
-              <TabsList className="grid w-full grid-cols-6 rounded-lg bg-neutral-100 p-1">
+              <TabsList className="grid w-full grid-cols-7 rounded-lg bg-neutral-100 p-1">
                 <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white">
                   All
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white">
+                  Pending
                 </TabsTrigger>
                 <TabsTrigger value="active" className="rounded-md data-[state=active]:bg-white">
                   Active
@@ -599,6 +656,17 @@ export function LoansPage() {
                                 <FileText className="mr-2 h-4 w-4" />
                                 Change Status
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLoanToDelete({ id: loan.id, loanNumber: loan.loanNumber });
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="cursor-pointer text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Loan
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -705,6 +773,56 @@ export function LoansPage() {
           agencyId={profile?.agency_id || ''}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Loan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this loan? This action will mark the loan as deleted (soft delete) and it will no longer appear in the loans list.
+              {loanToDelete?.loanNumber && (
+                <div className="mt-2 font-semibold text-neutral-900">
+                  Loan: {loanToDelete.loanNumber}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setLoanToDelete(null);
+              }}
+              disabled={deleteLoan.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (loanToDelete?.id) {
+                  deleteLoan.mutate(loanToDelete.id);
+                }
+              }}
+              disabled={deleteLoan.isPending}
+            >
+              {deleteLoan.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

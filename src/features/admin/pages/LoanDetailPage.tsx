@@ -57,19 +57,27 @@ import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
+import { useLoanAIInsights } from '../../../hooks/useAIInsights';
+import { AIInsightsPanel } from '../../../components/ai/AIInsightsPanel';
+import { Sparkles } from 'lucide-react';
+import { AddCollateralDrawer } from '../components/AddCollateralDrawer';
 
 export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addCollateralDrawerOpen, setAddCollateralDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // AI Insights for this loan
+  const { insights: loanAIInsights, isLoading: aiLoading } = useLoanAIInsights(loanId, true);
+
   // Fetch loan details
-  const { data: loan, isLoading, error: loanError } = useQuery({
+  const { data: loan, isLoading, error: loanError, refetch: refetchLoan } = useQuery({
     queryKey: ['loan', profile?.agency_id, loanId],
     queryFn: async () => {
       if (!profile?.agency_id || !loanId) return null;
@@ -82,17 +90,36 @@ export function LoanDetailPage() {
         
         const loanData = { id: loanSnap.id, ...loanSnap.data() };
 
-        // Get customer info
-        if (loanData.customerId) {
+        // Get customer info - check both customerId and customer_id fields
+        const customerId = loanData.customerId || loanData.customer_id;
+        if (customerId) {
           try {
-            const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', loanData.customerId);
+            const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customerId);
             const customerSnap = await getDoc(customerRef);
             if (customerSnap.exists()) {
               loanData.customer = { id: customerSnap.id, ...customerSnap.data() };
+            } else {
+              console.warn(`Customer document not found for ID: ${customerId}`);
+              // Try to find customer by querying if direct lookup fails
+              try {
+                const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+                const customerQuery = firestoreQuery(
+                  customersRef,
+                  where('id', '==', customerId)
+                );
+                const customerQuerySnap = await getDocs(customerQuery);
+                if (!customerQuerySnap.empty) {
+                  loanData.customer = { id: customerQuerySnap.docs[0].id, ...customerQuerySnap.docs[0].data() };
+                }
+              } catch (queryError) {
+                console.warn('Failed to query customer:', queryError);
+              }
             }
           } catch (error) {
-            console.warn('Failed to fetch customer:', error);
+            console.error('Failed to fetch customer:', error);
           }
+        } else {
+          console.warn('No customerId or customer_id found in loan data');
         }
 
         // Get officer info
@@ -118,13 +145,37 @@ export function LoanDetailPage() {
           paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
         }));
 
-        // Get collateral
-        const collateralRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'collateral');
-        const collateralSnapshot = await getDocs(collateralRef);
-        loanData.collateral = collateralSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Get collateral from loan's subcollection
+        try {
+          const collateralRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'collateral');
+          const collateralSnapshot = await getDocs(collateralRef);
+          loanData.collateral = collateralSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+            updatedAt: doc.data().updatedAt?.toDate?.() || doc.data().updatedAt,
+          }));
+        } catch (error) {
+          console.warn('Error fetching collateral:', error);
+          loanData.collateral = [];
+        }
+        
+        // Also check top-level collateral registry for this loan
+        if (!loanData.collateral || loanData.collateral.length === 0) {
+          try {
+            const registryRef = collection(db, 'agencies', profile.agency_id, 'collateral');
+            const registrySnapshot = await getDocs(registryRef);
+            const registryCollateral = registrySnapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter((coll: any) => coll.loanId === loanId);
+            
+            if (registryCollateral.length > 0) {
+              loanData.collateral = registryCollateral;
+            }
+          } catch (error) {
+            console.warn('Error fetching collateral from registry:', error);
+          }
+        }
 
         return loanData;
       } catch (error) {
@@ -136,20 +187,35 @@ export function LoanDetailPage() {
   });
 
   // Fetch customer's other loans
+  const customerIdForQuery = loan?.customerId || (loan as any)?.customer_id;
   const { data: customerLoans } = useQuery({
-    queryKey: ['customer-loans', profile?.agency_id, loan?.customerId],
+    queryKey: ['customer-loans', profile?.agency_id, customerIdForQuery],
     queryFn: async () => {
-      if (!profile?.agency_id || !loan?.customerId) return [];
+      if (!profile?.agency_id || !customerIdForQuery) return [];
       
       const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-      const q = firestoreQuery(loansRef, where('customerId', '==', loan.customerId));
-      const snapshot = await getDocs(q);
+      // Try both customerId and customer_id fields
+      const q1 = firestoreQuery(loansRef, where('customerId', '==', customerIdForQuery));
+      const q2 = firestoreQuery(loansRef, where('customer_id', '==', customerIdForQuery));
       
-      return snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((l: any) => l.id !== loanId); // Exclude current loan
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+      const allLoans = new Map();
+      
+      snap1.docs.forEach(doc => {
+        if (doc.id !== loanId) {
+          allLoans.set(doc.id, { id: doc.id, ...doc.data() });
+        }
+      });
+      
+      snap2.docs.forEach(doc => {
+        if (doc.id !== loanId) {
+          allLoans.set(doc.id, { id: doc.id, ...doc.data() });
+        }
+      });
+      
+      return Array.from(allLoans.values());
     },
-    enabled: !!profile?.agency_id && !!loan?.customerId,
+    enabled: !!profile?.agency_id && !!customerIdForQuery && !!loan,
   });
 
   // Fetch activity logs for this loan
@@ -249,7 +315,8 @@ export function LoanDetailPage() {
     return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
   };
 
-  if (isLoading) {
+  // Show loading state while auth or loan data is loading
+  if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -263,6 +330,24 @@ export function LoanDetailPage() {
           <Skeleton className="h-64 rounded-xl" />
           <Skeleton className="h-64 rounded-xl" />
         </div>
+      </div>
+    );
+  }
+
+  // If auth is done but no profile, show error (shouldn't happen due to RoleGuard, but safety check)
+  if (!profile?.agency_id) {
+    return (
+      <div className="text-center py-16">
+        <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
+        <p className="text-lg font-semibold text-neutral-900 mb-2">
+          Authentication Error
+        </p>
+        <p className="text-sm text-neutral-600 mb-6">
+          Unable to load your profile. Please try refreshing the page.
+        </p>
+        <Button variant="outline" onClick={() => window.location.reload()} className="rounded-lg">
+          Refresh Page
+        </Button>
       </div>
     );
   }
@@ -286,7 +371,7 @@ export function LoanDetailPage() {
       </div>
     );
   }
-
+  
   // Calculate financials
   const principal = Number(loan.amount || 0);
   const interestRate = Number(loan.interestRate || 0);
@@ -367,7 +452,7 @@ export function LoanDetailPage() {
               >
                 <XCircle className="mr-2 h-4 w-4" />
                 Reject
-              </Button>
+            </Button>
             </>
           )}
           <Button
@@ -408,7 +493,22 @@ export function LoanDetailPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6 mt-6">
-          <div className="grid gap-6 md:grid-cols-2">
+          {/* AI Insights for this loan */}
+          {loanAIInsights.length > 0 && (
+            <Card className="border-neutral-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-[#006BFF]" />
+                  AI Intelligence Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AIInsightsPanel insights={loanAIInsights} isLoading={aiLoading} maxItems={5} />
+              </CardContent>
+            </Card>
+          )}
+
+      <div className="grid gap-6 md:grid-cols-2">
             {/* Customer Overview */}
             <Card className="border-neutral-200">
               <CardHeader>
@@ -416,18 +516,18 @@ export function LoanDetailPage() {
                   <User className="w-5 h-5 text-[#006BFF]" />
                   Customer Overview
                 </CardTitle>
-              </CardHeader>
+            </CardHeader>
               <CardContent className="space-y-4">
                 {loan.customer ? (
                   <>
-                    <div>
+              <div>
                       <p className="text-sm font-medium text-neutral-600 mb-1">Name</p>
                       <p className="text-lg font-semibold text-neutral-900">
                         {loan.customer.fullName || loan.customer.name || 'N/A'}
-                      </p>
-                    </div>
+                </p>
+              </div>
                     {loan.customer.nrcNumber && (
-                      <div>
+              <div>
                         <p className="text-sm font-medium text-neutral-600 mb-1">NRC</p>
                         <p className="text-base text-neutral-900">{loan.customer.nrcNumber}</p>
                       </div>
@@ -455,7 +555,7 @@ export function LoanDetailPage() {
                       <p className="text-2xl font-bold text-neutral-900">
                         {(customerLoans?.length || 0) + 1}
                       </p>
-                    </div>
+              </div>
                     {customerLoans && customerLoans.length > 0 && (
                       <div>
                         <p className="text-sm font-medium text-neutral-600 mb-2">Other Loans</p>
@@ -467,7 +567,7 @@ export function LoanDetailPage() {
                               className="block p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
                             >
                               <div className="flex items-center justify-between">
-                                <div>
+              <div>
                                   <p className="text-sm font-medium text-neutral-900">
                                     {otherLoan.loanNumber || otherLoan.id.substring(0, 8)}
                                   </p>
@@ -484,20 +584,29 @@ export function LoanDetailPage() {
                               +{customerLoans.length - 3} more
                             </p>
                           )}
-                        </div>
-                      </div>
+              </div>
+              </div>
                     )}
-                    <Link to={`/admin/customers/${loan.customer.id}`}>
-                      <Button variant="outline" className="w-full rounded-lg">
-                        View Customer Profile
-                      </Button>
-                    </Link>
+                    {loan.customer.id && (
+                      <Link to={`/admin/customers/${loan.customer.id}`}>
+                        <Button variant="outline" className="w-full rounded-lg">
+                          View Customer Profile
+                        </Button>
+                      </Link>
+                    )}
                   </>
                 ) : (
-                  <p className="text-neutral-500">No customer information available</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-neutral-500">Customer information not available</p>
+                    {(loan.customerId || (loan as any).customer_id) && (
+                      <p className="text-xs text-neutral-400">
+                        Customer ID: {loan.customerId || (loan as any).customer_id}
+                      </p>
+                    )}
+                  </div>
                 )}
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
 
             {/* Loan Information */}
             <Card className="border-neutral-200">
@@ -505,10 +614,10 @@ export function LoanDetailPage() {
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#006BFF]" />
                   Loan Information
-                </CardTitle>
-              </CardHeader>
+              </CardTitle>
+            </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Loan ID</p>
                     <p className="text-base font-mono text-neutral-900">
@@ -542,44 +651,44 @@ export function LoanDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Amount Repaid</p>
                     <p className="text-lg font-semibold text-emerald-600">
-                      {formatCurrency(totalPaid, 'ZMW')}
-                    </p>
-                  </div>
+                    {formatCurrency(totalPaid, 'ZMW')}
+                  </p>
+                </div>
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Amount Remaining</p>
                     <p className="text-lg font-semibold text-red-600">
                       {formatCurrency(remainingBalance, 'ZMW')}
-                    </p>
-                  </div>
+                  </p>
                 </div>
+              </div>
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200">
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Interest Rate</p>
                     <p className="text-base font-semibold text-neutral-900">{interestRate}%</p>
                   </div>
-                  <div>
+                <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Duration</p>
                     <p className="text-base font-semibold text-neutral-900">{durationMonths} months</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
+                <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Start Date</p>
                     <p className="text-base text-neutral-900">{formatDateSafe(startDate)}</p>
-                  </div>
-                  <div>
+                </div>
+              <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">End Date</p>
                     <p className="text-base text-neutral-900">{formatDateSafe(endDate)}</p>
                   </div>
-                </div>
-                <div>
+              </div>
+              <div>
                   <p className="text-sm font-medium text-neutral-600 mb-1">Loan Type</p>
                   <p className="text-base font-semibold text-neutral-900 capitalize">
                     {loan.loanType || 'Standard Loan'}
-                  </p>
-                </div>
+                </p>
+              </div>
                 {loan.riskScore !== undefined && (
-                  <div>
+                <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Risk Assessment Score</p>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-neutral-200 rounded-full h-2">
@@ -602,11 +711,11 @@ export function LoanDetailPage() {
                         {loan.riskScore}/100
                       </span>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+      </div>
         </TabsContent>
 
         {/* Repayments Tab */}
@@ -629,8 +738,7 @@ export function LoanDetailPage() {
                 size="sm"
                 className="rounded-lg"
                 onClick={() => {
-                  // Navigate to add collateral page or open drawer
-                  toast.info('Add collateral feature coming soon');
+                  setAddCollateralDrawerOpen(true);
                 }}
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -652,10 +760,10 @@ export function LoanDetailPage() {
                               {coll.type?.replace('_', ' ') || 'N/A'}
                             </p>
                             {coll.verificationStatus && (
-                              <Badge
+                              <Badge 
                                 variant={coll.verificationStatus === 'verified' ? 'default' : 'outline'}
                                 className={cn(
-                                  coll.verificationStatus === 'verified'
+                                  coll.verificationStatus === 'verified' 
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     : 'bg-amber-50 text-amber-700 border-amber-200'
                                 )}
@@ -667,11 +775,33 @@ export function LoanDetailPage() {
                           <p className="text-sm text-neutral-600 mb-2">
                             {coll.description || 'No description'}
                           </p>
-                          {coll.serialNumber && (
-                            <p className="text-xs text-neutral-500">Serial: {coll.serialNumber}</p>
+                          <div className="flex flex-wrap gap-4 text-xs text-neutral-500">
+                            {coll.brand && <span>Brand: {coll.brand}</span>}
+                            {coll.model && <span>Model: {coll.model}</span>}
+                            {coll.year && <span>Year: {coll.year}</span>}
+                            {coll.serialNumber && <span>Serial: {coll.serialNumber}</span>}
+                            {coll.condition && <span className="capitalize">Condition: {coll.condition}</span>}
+                            {coll.location && <span>Location: {coll.location}</span>}
+                          </div>
+                          {coll.photos && coll.photos.length > 0 && (
+                            <div className="mt-3 flex gap-2">
+                              {coll.photos.slice(0, 3).map((photo: string, idx: number) => (
+                                <img
+                                  key={idx}
+                                  src={photo}
+                                  alt={`Collateral ${idx + 1}`}
+                                  className="w-16 h-16 object-cover rounded border border-neutral-200"
+                                />
+                              ))}
+                              {coll.photos.length > 3 && (
+                                <div className="w-16 h-16 bg-neutral-100 rounded border border-neutral-200 flex items-center justify-center text-xs text-neutral-500">
+                                  +{coll.photos.length - 3}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
-                        <div className="text-right">
+                        <div className="text-right ml-4">
                           <p className="font-bold text-neutral-900">
                             {formatCurrency(Number(coll.estimatedValue || coll.value || 0), 'ZMW')}
                           </p>
@@ -685,16 +815,16 @@ export function LoanDetailPage() {
                 <div className="text-center py-12 text-neutral-500">
                   <Shield className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
                   <p>No collateral registered for this loan</p>
-                  <Button
-                    variant="outline"
+            <Button
+              variant="outline"
                     className="mt-4 rounded-lg"
-                    onClick={() => {
-                      toast.info('Add collateral feature coming soon');
+              onClick={() => {
+                      setAddCollateralDrawerOpen(true);
                     }}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Collateral
-                  </Button>
+            </Button>
                 </div>
               )}
             </CardContent>
@@ -709,8 +839,8 @@ export function LoanDetailPage() {
                 <History className="w-5 h-5 text-[#006BFF]" />
                 Activity Logs
               </CardTitle>
-            </CardHeader>
-            <CardContent>
+          </CardHeader>
+          <CardContent>
               {activityLogs && activityLogs.length > 0 ? (
                 <div className="space-y-4">
                   {activityLogs.map((log: any) => (
@@ -730,7 +860,7 @@ export function LoanDetailPage() {
                             <Badge variant="outline" className="text-xs">
                               {log.targetCollection}
                             </Badge>
-                          </div>
+                </div>
                           {log.metadata && (
                             <div className="text-sm text-neutral-600 mb-2">
                               {log.metadata.oldStatus && log.metadata.newStatus && (
@@ -744,14 +874,14 @@ export function LoanDetailPage() {
                               )}
                               {log.metadata.reason && (
                                 <p>Reason: {log.metadata.reason}</p>
-                              )}
-                            </div>
+                            )}
+                          </div>
                           )}
                           <div className="flex items-center gap-4 text-xs text-neutral-500">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {formatDateSafe(log.createdAt)}
-                            </span>
+                              </span>
                             {log.actorId && log.actorId !== 'system' && (
                               <span>By: {log.actorId.substring(0, 8)}...</span>
                             )}
@@ -765,22 +895,22 @@ export function LoanDetailPage() {
                 <div className="text-center py-12 text-neutral-500">
                   <History className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
                   <p>No activity logs found</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
         </TabsContent>
       </Tabs>
 
       {/* Dialogs */}
       {loan.id && (
-        <LoanStatusDialog
-          open={statusDialogOpen}
-          onOpenChange={setStatusDialogOpen}
-          loanId={loan.id}
-          currentStatus={loan.status || 'pending'}
-          agencyId={profile?.agency_id || ''}
-        />
+          <LoanStatusDialog
+            open={statusDialogOpen}
+            onOpenChange={setStatusDialogOpen}
+            loanId={loan.id}
+            currentStatus={loan.status || 'pending'}
+            agencyId={profile?.agency_id || ''}
+          />
       )}
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -818,12 +948,26 @@ export function LoanDetailPage() {
                 <>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
-                </>
-              )}
+        </>
+      )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Collateral Drawer */}
+      <AddCollateralDrawer
+        open={addCollateralDrawerOpen}
+        onOpenChange={setAddCollateralDrawerOpen}
+        initialLoanId={loanId}
+        initialCustomerId={loan?.customerId || (loan as any)?.customer_id}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['loan', profile?.agency_id, loanId] });
+          queryClient.invalidateQueries({ queryKey: ['collaterals', profile?.agency_id] });
+          refetchLoan();
+          toast.success('Collateral added successfully');
+        }}
+      />
     </div>
   );
 }

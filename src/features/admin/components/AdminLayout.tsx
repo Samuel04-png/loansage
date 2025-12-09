@@ -862,7 +862,7 @@ export function AdminLayout() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">What's New in LoanSage</h2>
-                <p className="text-sm text-slate-600">Version 2.1.0 - Latest Updates</p>
+                <p className="text-sm text-slate-600">Version 2.2.0 - Latest Updates</p>
               </div>
             </div>
           </DialogHeader>
@@ -890,7 +890,7 @@ export function AdminLayout() {
                 <div className="p-4 bg-green-50 rounded-lg border border-green-100">
                   <h4 className="font-semibold text-slate-900 mb-1">🤖 Enhanced AI Features</h4>
                   <p className="text-sm text-slate-600">
-                    Improved DeepSeek AI integration with connection testing, better error handling, and AI-powered risk assessment, collateral valuation, and smart recommendations.
+                    Improved Byte&Berry Copilot AI integration with connection testing, better error handling, and AI-powered risk assessment, collateral valuation, and smart recommendations.
                   </p>
                 </div>
                 <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
@@ -953,6 +953,22 @@ export function AdminLayout() {
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed dashboard stats accuracy - portfolio value now calculated from actual loan amounts</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Corrected active customers and total customers display on dashboard</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Fixed chart data calculations for accurate monthly disbursement tracking</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Resolved total loans count to show all loans instead of just active</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <span>Fixed remaining balance calculation for amortized loans</span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -966,14 +982,6 @@ export function AdminLayout() {
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <span>Corrected Stripe checkout flow and plan status updates</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed storage permission errors for profile photos</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Resolved subscription helper function conflicts</span>
                 </li>
               </ul>
             </div>

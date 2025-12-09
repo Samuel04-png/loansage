@@ -1634,20 +1634,58 @@ export function SettingsPage() {
           >
             <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
               <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold text-neutral-900">DeepSeek AI Configuration</CardTitle>
+                <CardTitle className="text-lg font-semibold text-neutral-900">Byte&Berry Copilot Configuration</CardTitle>
                 <CardDescription className="text-sm text-neutral-600">
-                  Configure and test your DeepSeek AI integration for intelligent loan analysis
+                  Configure and test your Byte&Berry Copilot AI integration for intelligent loan analysis
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
+                  {/* AI Intelligence Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-5 h-5 text-blue-600" />
+                        <p className="font-semibold text-neutral-900">AI Intelligence Engine</p>
+                      </div>
+                      <p className="text-sm text-neutral-600 mt-1">
+                        Enable embedded AI intelligence for risk monitoring, insights, and smart reminders
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-sm font-medium ${(agency?.settings?.aiEnabled !== false) ? 'text-green-600' : 'text-neutral-400'}`}>
+                        {(agency?.settings?.aiEnabled !== false) ? 'Active' : 'Inactive'}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agency?.settings?.aiEnabled !== false}
+                          onChange={async (e) => {
+                            try {
+                              const newSettings = {
+                                ...agency?.settings,
+                                aiEnabled: e.target.checked,
+                              };
+                              await updateAgency({ settings: newSettings });
+                              toast.success(`AI Intelligence Engine ${e.target.checked ? 'enabled' : 'disabled'}`);
+                            } catch (error: any) {
+                              toast.error('Failed to update AI settings');
+                            }
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
                     <div>
                       <p className="font-semibold text-neutral-900">API Key Status</p>
                       <p className="text-sm text-neutral-600 mt-1">
                         {isDeepSeekConfigured() 
                           ? 'API key is configured and ready to use'
-                          : 'API key not found. Add VITE_DEEP_SEEK_API_KEY to your .env.local file'}
+                          : 'API key not found. Configured on server via Cloud Functions'}
                       </p>
                     </div>
                     {isDeepSeekConfigured() ? (
@@ -1667,7 +1705,7 @@ export function SettingsPage() {
                             const result = await testDeepSeekConnection();
                             setAiTestResult(result);
                             if (result.success) {
-                              toast.success('DeepSeek AI is working correctly!');
+                              toast.success('Byte&Berry Copilot is working correctly!');
                             } else {
                               toast.error(result.message);
                             }
@@ -1676,7 +1714,7 @@ export function SettingsPage() {
                               success: false,
                               message: error.message || 'Failed to test connection',
                             });
-                            toast.error('Failed to test DeepSeek connection');
+                            toast.error('Failed to test Byte&Berry Copilot connection');
                           } finally {
                             setTestingAI(false);
                           }
@@ -1692,7 +1730,7 @@ export function SettingsPage() {
                         ) : (
                           <>
                             <Sparkles className="mr-2 h-4 w-4" />
-                            Test DeepSeek Connection
+                            Test Byte&Berry Copilot Connection
                           </>
                         )}
                       </Button>
@@ -1726,27 +1764,35 @@ export function SettingsPage() {
                       )}
 
                       <div className="p-4 bg-neutral-50 rounded-xl">
-                        <p className="text-sm font-semibold text-neutral-900 mb-2">AI Features Enabled:</p>
+                        <p className="text-sm font-semibold text-neutral-900 mb-2">AI Intelligence Capabilities:</p>
                         <ul className="text-sm text-neutral-700 space-y-1">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Risk Monitoring - Detects overdue loans, payment delays, and default risks
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Smart Reminders - Automatic reminders for payments, status updates, and missing data
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Financial Insights - Portfolio health, performance trends, and revenue analysis
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Payment Health - Predicts repayment outcomes and identifies at-risk customers
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            Action Suggestions - Recommends actions like status updates, payment entries, and customer contact
+                          </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-green-600" />
                             Collateral Valuation - AI-powered market price estimation
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            Risk Scoring - Intelligent loan risk assessment
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            Smart Notifications - AI-driven recommendations
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
                             NRC Risk Analysis - Historical pattern analysis
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            Loan Summaries - AI-generated loan insights
                           </li>
                         </ul>
                       </div>
@@ -1757,10 +1803,10 @@ export function SettingsPage() {
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                       <p className="text-sm font-semibold text-yellow-900 mb-2">Setup Required:</p>
                       <p className="text-sm text-yellow-800 mb-3">
-                        To enable AI features, you need to add your DeepSeek API key to the <code className="bg-yellow-100 px-1 rounded">.env.local</code> file in the project root.
+                        To enable AI features, you need to configure Byte&Berry Copilot API key on the server via Firebase Functions.
                       </p>
                       <p className="text-sm text-yellow-800">
-                        Get your API key from: <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" className="underline font-semibold">platform.deepseek.com</a>
+                        Byte&Berry Copilot provides intelligent AI-powered features for loan management and analysis.
                       </p>
                     </div>
                   )}

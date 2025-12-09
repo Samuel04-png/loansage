@@ -449,7 +449,8 @@ export async function addCollateral(
   agencyId: string,
   loanId: string,
   data: {
-    type: 'vehicle' | 'land' | 'electronics' | 'equipment' | 'other';
+    type: 'vehicle' | 'land' | 'property' | 'electronics' | 'equipment' | 'jewelry' | 'livestock' | 'other';
+    name: string;
     description: string;
     estimatedValue: number;
     photos: string[];
@@ -502,7 +503,8 @@ export async function addCollateral(
 export async function createCollateral(
   agencyId: string,
   data: {
-    type: 'vehicle' | 'land' | 'electronics' | 'equipment' | 'other';
+    type: 'vehicle' | 'land' | 'property' | 'electronics' | 'equipment' | 'jewelry' | 'livestock' | 'other';
+    name: string;
     description: string;
     estimatedValue: number;
     photos?: string[];
@@ -528,6 +530,7 @@ export async function createCollateral(
   const cleanData: any = {
     id: collateralId,
     type: data.type,
+    name: data.name,
     description: data.description,
     estimatedValue: data.estimatedValue,
     photos: data.photos || [],

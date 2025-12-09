@@ -18,6 +18,7 @@ import { db } from '../../../lib/firebase/config';
 import { formatCurrency } from '../../../lib/utils';
 
 const collateralSchema = z.object({
+  name: z.string().min(2, 'Collateral name is required'),
   type: z.enum(['vehicle', 'land', 'property', 'equipment', 'electronics', 'jewelry', 'livestock', 'other']),
   description: z.string().min(5, 'Description is required'),
   estimatedValue: z.string().min(1, 'Estimated value is required').refine((val) => parseFloat(val) > 0, 'Value must be greater than 0'),
@@ -128,21 +129,38 @@ export function AddCollateralDrawer({
         }
       }
 
-      // Create collateral in registry
-      await createCollateral(profile.agency_id, {
-        type: data.type,
-        description: data.description,
-        estimatedValue: parseFloat(data.estimatedValue),
-        photos: photoURLs,
-        brand: data.brand || undefined,
-        model: data.model || undefined,
-        year: data.year ? parseInt(data.year) : undefined,
-        serialNumber: data.serialNumber || undefined,
-        condition: data.condition || 'good',
-        location: data.location || undefined,
-        ownerCustomerId: data.customerId || undefined,
-        loanId: data.loanId || undefined,
-      });
+      // If linked to a loan, use addCollateral which updates both loan subcollection and registry
+      if (data.loanId) {
+        await addCollateral(profile.agency_id, data.loanId, {
+          type: data.type as any,
+          name: data.name,
+          description: data.description,
+          estimatedValue: parseFloat(data.estimatedValue),
+          photos: photoURLs,
+          brand: data.brand || undefined,
+          model: data.model || undefined,
+          year: data.year ? parseInt(data.year) : undefined,
+          serialNumber: data.serialNumber || undefined,
+          condition: data.condition || 'good',
+          location: data.location || undefined,
+        });
+      } else {
+        // Create collateral in registry (standalone)
+        await createCollateral(profile.agency_id, {
+          type: data.type as any,
+          name: data.name,
+          description: data.description,
+          estimatedValue: parseFloat(data.estimatedValue),
+          photos: photoURLs,
+          brand: data.brand || undefined,
+          model: data.model || undefined,
+          year: data.year ? parseInt(data.year) : undefined,
+          serialNumber: data.serialNumber || undefined,
+          condition: data.condition || 'good',
+          location: data.location || undefined,
+          ownerCustomerId: data.customerId || undefined,
+        });
+      }
 
       toast.success('Collateral created successfully!');
       reset();
@@ -168,6 +186,18 @@ export function AddCollateralDrawer({
         </DrawerHeader>
         <DrawerBody>
           <form id="collateral-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div>
+              <Label htmlFor="name">Collateral Name *</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Toyota Corolla 2018, Plot 1234, iPhone 13 Pro"
+                {...register('name')}
+                className={errors.name ? 'border-red-500' : ''}
+              />
+              {errors.name && (
+                <p className="text-sm text-red-600 mt-1">{errors.name.message}</p>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="type">Collateral Type *</Label>

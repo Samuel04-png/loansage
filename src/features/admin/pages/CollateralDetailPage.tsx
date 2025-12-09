@@ -11,6 +11,7 @@ import { ArrowLeft, Image as ImageIcon, FileText, DollarSign, Calendar, CheckCir
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import * as React from 'react';
 import { estimateCollateralPrice, calculateCollateralProfit } from '../../../lib/ai/collateral-pricing';
 import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import toast from 'react-hot-toast';
@@ -22,6 +23,8 @@ export function CollateralDetailPage() {
   const { profile } = useAuth();
   const [aiValuation, setAiValuation] = useState<any>(null);
   const [loadingValuation, setLoadingValuation] = useState(false);
+  const [marketValue, setMarketValue] = useState<number | null>(null);
+  const [loadingMarketValue, setLoadingMarketValue] = useState(false);
 
   // Fetch loan details
   const { data: loan } = useQuery({
@@ -111,10 +114,47 @@ export function CollateralDetailPage() {
     enabled: !!profile?.agency_id && !!loanId,
   });
 
+  // Fetch market value when collateral is loaded
+  const fetchMarketValue = async () => {
+    if (!collateral || loadingMarketValue) return;
+    
+    setLoadingMarketValue(true);
+    try {
+      const { estimateCollateralPrice } = await import('../../../lib/ai/collateral-pricing');
+      const pricingResult = await estimateCollateralPrice({
+        type: collateral.type || 'other',
+        name: collateral.name || '',
+        description: collateral.description || '',
+        brand: collateral.brand,
+        model: collateral.model,
+        year: collateral.year,
+        condition: collateral.condition || 'good',
+        location: collateral.location,
+        estimatedValue: Number(collateral.estimatedValue || collateral.value || 0),
+      });
+      setMarketValue(pricingResult.estimatedMarketValue);
+      setAiValuation(pricingResult);
+    } catch (error) {
+      console.error('Failed to fetch market value:', error);
+    } finally {
+      setLoadingMarketValue(false);
+    }
+  };
+
+  // Auto-fetch market value when collateral loads
+  React.useEffect(() => {
+    if (collateral && !marketValue && !loadingMarketValue) {
+      fetchMarketValue();
+    }
+  }, [collateral]);
+
   // Calculate financial metrics
   const collateralValue = Number(collateral?.estimatedValue || collateral?.value || 0);
+  const marketValueToUse = marketValue || collateralValue;
   const loanAmount = loan ? Number(loan.amount || 0) : 0;
-  const loanCoverageRatio = loanAmount > 0 ? (collateralValue / loanAmount) * 100 : 0;
+  const loanCoverageRatio = loanAmount > 0 ? (marketValueToUse / loanAmount) * 100 : 0;
+  const valueDifference = marketValue ? marketValue - collateralValue : 0;
+  const valueDifferencePercent = collateralValue > 0 ? (valueDifference / collateralValue) * 100 : 0;
   const totalPaid = loanRepayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
   
   // Calculate remaining balance using proper amortization calculation
@@ -296,6 +336,12 @@ export function CollateralDetailPage() {
               <CardTitle>Collateral Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {collateral.name && (
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Name</p>
+                  <p className="font-semibold text-lg">{collateral.name}</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Type</p>
                 <p className="font-semibold capitalize">{collateral.type?.replace('_', ' ') || 'N/A'}</p>
@@ -462,24 +508,52 @@ export function CollateralDetailPage() {
               <div className="space-y-4">
                 <div>
                   <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
-                    Estimated Market Value
+                    Estimated Value (Entered)
                   </p>
-                  <p className="text-2xl font-bold text-[#22C55E]">
+                  <p className="text-2xl font-bold text-[#006BFF]">
                     {formatCurrency(collateralValue, collateral.currency || 'ZMW')}
                   </p>
                   <p className="text-sm text-neutral-500 mt-1">
-                    Current estimated value
+                    Value entered when creating collateral
                   </p>
                 </div>
-                {collateral.marketValue && Number(collateral.marketValue) !== collateralValue && (
+                {loadingMarketValue ? (
+                  <div className="flex items-center gap-2 text-neutral-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Fetching market value...</span>
+                  </div>
+                ) : marketValue ? (
                   <div>
                     <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
-                      Market Price
+                      Market Value (AI Estimated)
                     </p>
-                    <p className="text-xl font-semibold text-[#8B5CF6]">
-                      {formatCurrency(Number(collateral.marketValue), collateral.currency || 'ZMW')}
+                    <p className="text-2xl font-bold text-[#22C55E]">
+                      {formatCurrency(marketValue, collateral.currency || 'ZMW')}
+                    </p>
+                    {valueDifference !== 0 && (
+                      <p className={cn(
+                        "text-sm mt-1 font-semibold",
+                        valueDifference > 0 ? "text-[#22C55E]" : "text-[#EF4444]"
+                      )}>
+                        {valueDifference > 0 ? '+' : ''}{formatCurrency(valueDifference, collateral.currency || 'ZMW')} 
+                        ({valueDifferencePercent > 0 ? '+' : ''}{valueDifferencePercent.toFixed(1)}%)
+                      </p>
+                    )}
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Based on {collateral.name || collateral.description} market analysis
                     </p>
                   </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchMarketValue}
+                    disabled={loadingMarketValue}
+                    className="mt-2"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Get Market Value
+                  </Button>
                 )}
                 {loanCoverageRatio > 0 && (
                   <div className="pt-4 border-t border-neutral-200">

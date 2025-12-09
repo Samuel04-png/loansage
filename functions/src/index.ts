@@ -22,6 +22,11 @@ if (process.env.NODE_ENV !== 'production') {
         if (match && !process.env.STRIPE_SECRET_KEY) {
           process.env.STRIPE_SECRET_KEY = match[1].trim().replace(/^["']|["']$/g, '');
         }
+        // Load DeepSeek API key (with or without VITE_ prefix)
+        const deepseekMatch = line.match(/^(?:VITE_)?DEEP_SEEK_API_KEY=(.+)$/);
+        if (deepseekMatch && !process.env.DEEP_SEEK_API_KEY) {
+          process.env.DEEP_SEEK_API_KEY = deepseekMatch[1].trim().replace(/^["']|["']$/g, '');
+        }
       });
     }
   } catch (error) {
@@ -42,4 +47,5 @@ export { calculateCollateralProfit } from './collateral-profit';
 export { sendNotifications } from './notifications';
 export { generateThumbnail } from './thumbnail-generator';
 export { createCheckoutSession, stripeWebhook } from './stripe-checkout';
+export { deepseekProxy } from './deepseek-proxy';
 

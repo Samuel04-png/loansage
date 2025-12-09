@@ -1,22 +1,13 @@
 /**
- * DeepSeek API Client
- * Handles all AI-powered features using DeepSeek API
+ * Byte&Berry Copilot API Client
+ * Handles all AI-powered features using Byte&Berry Copilot via Cloud Function proxy
  */
 
-/// <reference types="vite/client" />
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase/config';
 
-const DEEP_SEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-// Note: Vite requires VITE_ prefix for client-side environment variables
-// Vite automatically loads from .env.local, .env, etc.
-const DEEP_SEEK_API_KEY = (import.meta.env as any).VITE_DEEP_SEEK_API_KEY || '';
-
-// Debug logging (only in development)
-if (import.meta.env.DEV) {
-  console.log('[DeepSeek] API Key configured:', !!DEEP_SEEK_API_KEY && DEEP_SEEK_API_KEY.length > 0);
-  if (DEEP_SEEK_API_KEY) {
-    console.log('[DeepSeek] API Key prefix:', DEEP_SEEK_API_KEY.substring(0, 7) + '...');
-  }
-}
+// Cloud Function reference
+const deepseekProxyFunction = httpsCallable(functions, 'deepseekProxy');
 
 interface DeepSeekMessage {
   role: 'system' | 'user' | 'assistant';
@@ -49,7 +40,7 @@ interface DeepSeekResponse {
 }
 
 /**
- * Call DeepSeek API with a prompt
+ * Call DeepSeek API with a prompt via Cloud Function proxy
  */
 export async function callDeepSeekAPI(
   messages: DeepSeekMessage[],
@@ -59,11 +50,6 @@ export async function callDeepSeekAPI(
     model?: string;
   } = {}
 ): Promise<string> {
-  if (!DEEP_SEEK_API_KEY) {
-    console.warn('DeepSeek API key not configured');
-    throw new Error('DeepSeek API key is not configured. Please add VITE_DEEP_SEEK_API_KEY=sk-your-key to your .env.local file. Note: Vite requires the VITE_ prefix for client-side environment variables.');
-  }
-
   const {
     temperature = 0.7,
     maxTokens = 2000,
@@ -71,70 +57,38 @@ export async function callDeepSeekAPI(
   } = options;
 
   try {
-    const response = await fetch(DEEP_SEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEP_SEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: false, // Ensure we get a complete response
-      }),
+    const result = await deepseekProxyFunction({
+      messages,
+      temperature,
+      maxTokens,
+      model,
     });
 
-    if (!response.ok) {
-      let errorMessage = `DeepSeek API error: ${response.status} ${response.statusText}`;
-      
-      try {
-        const errorData: DeepSeekResponse = await response.json();
-        if (errorData.error?.message) {
-          errorMessage = `DeepSeek API error: ${errorData.error.message}`;
-        }
-      } catch (parseError) {
-        // If JSON parsing fails, use the status text
-        const text = await response.text().catch(() => '');
-        if (text) {
-          errorMessage = `DeepSeek API error: ${text}`;
-        }
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    const data: DeepSeekResponse = await response.json();
+    const data = result.data as { content: string; usage?: any; model?: string };
     
-    // Check for API-level errors
-    if (data.error) {
-      throw new Error(`DeepSeek API error: ${data.error.message || 'Unknown error'}`);
-    }
-    
-    if (!data.choices || data.choices.length === 0) {
-      throw new Error('No response from DeepSeek API - empty choices array');
+    if (!data || !data.content) {
+      throw new Error('No content in Byte&Berry Copilot API response');
     }
 
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No content in DeepSeek API response');
-    }
-
-    return content;
+    return data.content;
   } catch (error: any) {
-    console.error('DeepSeek API error:', error);
+    console.error('Byte&Berry Copilot API error:', error);
     
-    // Provide more helpful error messages
-    if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-      throw new Error('DeepSeek API authentication failed. Please check your API key.');
-    } else if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+    // Handle Firebase Functions errors
+    if (error.code === 'functions/unauthenticated') {
+      throw new Error('You must be logged in to use DeepSeek API.');
+    } else if (error.code === 'functions/failed-precondition') {
+      throw new Error('DeepSeek API key is not configured on the server. Please contact support.');
+    } else if (error.code === 'functions/resource-exhausted') {
       throw new Error('DeepSeek API rate limit exceeded. Please try again later.');
-    } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+    } else if (error.code === 'functions/unavailable') {
       throw new Error('Network error connecting to DeepSeek API. Please check your internet connection.');
+    } else if (error.message) {
+      // Use the error message from the Cloud Function
+      throw new Error(error.message);
     }
     
-    throw error;
+    throw new Error('Unknown error occurred while calling DeepSeek API');
   }
 }
 
@@ -189,21 +143,25 @@ export function parseAIResponse<T>(response: string, fallback: T): T {
 }
 
 /**
- * Check if DeepSeek API is configured
+ * Check if Byte&Berry Copilot API is configured
+ * Note: The API key is now stored on the server, so we can't check it from the client
+ * This function always returns true if Firebase Functions are available
  */
 export function isDeepSeekConfigured(): boolean {
-  return !!DEEP_SEEK_API_KEY && DEEP_SEEK_API_KEY.length > 0 && DEEP_SEEK_API_KEY.startsWith('sk-');
+  // Since the API key is now on the server, we assume it's configured
+  // The actual check happens on the server side
+  return true;
 }
 
 /**
- * Test DeepSeek API connection
+ * Test Byte&Berry Copilot API connection
  * Returns true if API is working, false otherwise
  */
 export async function testDeepSeekConnection(): Promise<{ success: boolean; message: string }> {
   if (!isDeepSeekConfigured()) {
     return {
       success: false,
-      message: 'DeepSeek API key is not configured. Please add VITE_DEEP_SEEK_API_KEY to your .env.local file.',
+      message: 'Byte&Berry Copilot API key is not configured. Please configure it on the server via Firebase Functions.',
     };
   }
 
@@ -225,18 +183,18 @@ export async function testDeepSeekConnection(): Promise<{ success: boolean; mess
     if (response && response.toLowerCase().includes('hello')) {
       return {
         success: true,
-        message: 'DeepSeek API is working correctly!',
+        message: 'Byte&Berry Copilot is working correctly!',
       };
     }
 
     return {
       success: true,
-      message: 'DeepSeek API responded, but response format was unexpected.',
+      message: 'Byte&Berry Copilot responded, but response format was unexpected.',
     };
   } catch (error: any) {
     return {
       success: false,
-      message: `DeepSeek API test failed: ${error.message || 'Unknown error'}`,
+      message: `Byte&Berry Copilot test failed: ${error.message || 'Unknown error'}`,
     };
   }
 }

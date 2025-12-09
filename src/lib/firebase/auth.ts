@@ -14,7 +14,7 @@ import {
   OAuthProvider,
 } from 'firebase/auth';
 import { auth, isDemoMode } from './config';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './config';
 
 // Types compatible with Supabase auth interface
@@ -63,6 +63,7 @@ export interface SignUpData {
   fullName?: string;
   role?: 'admin' | 'employee' | 'customer';
   employeeCategory?: string;
+  referralCode?: string;
 }
 
 export interface SignInData {
@@ -205,6 +206,40 @@ export const authService = {
       // Send email verification
       await sendEmailVerification(userCredential.user);
 
+      // Handle referral tracking
+      let referredByUserId: string | null = null;
+      if (data.referralCode) {
+        try {
+          // Extract user ID from referral code (format: LOANSAGE-XXXXXXXX)
+          const codeParts = data.referralCode.split('-');
+          if (codeParts.length === 2 && codeParts[0] === 'LOANSAGE') {
+            // Search for user with matching ID prefix
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+            const matchingUser = usersSnapshot.docs.find(doc => 
+              doc.id.startsWith(codeParts[1].toLowerCase())
+            );
+            if (matchingUser) {
+              referredByUserId = matchingUser.id;
+              
+              // Update referrer's stats
+              const referrerRef = doc(db, 'users', referredByUserId);
+              const referrerSnap = await getDoc(referrerRef);
+              if (referrerSnap.exists()) {
+                const referrerData = referrerSnap.data();
+                const referralCount = (referrerData.referralCount || 0) + 1;
+                await updateDoc(referrerRef, {
+                  referralCount,
+                  updated_at: new Date().toISOString(),
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to process referral:', error);
+        }
+      }
+
       // Create user document in Firestore
       const userDoc = {
         id: userCredential.user.uid,
@@ -214,11 +249,25 @@ export const authService = {
         employee_category: data.employeeCategory || null,
         agency_id: null, // Will be set when organization is created
         is_active: true,
+        referred_by: referredByUserId,
+        referral_code: data.referralCode || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       await setDoc(doc(db, 'users', userCredential.user.uid), userDoc);
+      
+      // Create referral record if referred
+      if (referredByUserId) {
+        const referralRef = doc(db, 'referrals', `${referredByUserId}_${userCredential.user.uid}`);
+        await setDoc(referralRef, {
+          referrerId: referredByUserId,
+          referredUserId: userCredential.user.uid,
+          referredEmail: data.email,
+          status: 'pending', // pending, active, rewarded
+          createdAt: new Date().toISOString(),
+        });
+      }
 
       // Convert to our User type
       const user = await convertFirebaseUser(userCredential.user);
