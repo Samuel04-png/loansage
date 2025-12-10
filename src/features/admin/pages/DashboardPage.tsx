@@ -131,12 +131,28 @@ export function AdminDashboard() {
   // Use real-time subscription for dashboard stats
   useEffect(() => {
     if (!profile?.agency_id) {
+      console.warn('Dashboard: No agency_id in profile', { profile });
       setIsLoading(false);
+      setStats({
+        totalActiveLoans: 0,
+        totalDisbursedThisMonth: 0,
+        repaymentsDue: 0,
+        repaymentsDueCount: 0,
+        activeCustomers: 0,
+        totalCustomers: 0,
+        totalEmployees: 0,
+        approvalRate: 0,
+        overdueLoans: 0,
+        totalLoans: 0,
+        totalPortfolioValue: 0,
+      });
       return;
     }
 
+    console.log('Dashboard: Setting up stats subscription for agency:', profile.agency_id);
     setIsLoading(true);
     const unsubscribe = subscribeToDashboardStats(profile.agency_id, (newStats) => {
+      console.log('Dashboard: Stats received:', newStats);
       setStats(newStats);
       setIsLoading(false);
     });
@@ -227,6 +243,35 @@ export function AdminDashboard() {
     staleTime: 60000, // Cache for 1 minute
   });
 
+  // Show warning if no agency_id
+  if (!profile?.agency_id) {
+    return (
+      <div className="space-y-6">
+        <Card className="rounded-2xl border-2 border-yellow-200 bg-yellow-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-yellow-900 mb-2">
+                  Agency Not Assigned
+                </h3>
+                <p className="text-yellow-800 mb-4">
+                  Your account is not assigned to an agency. Please contact your administrator to be assigned to an agency, or create a new agency in Settings.
+                </p>
+                <Button
+                  onClick={() => window.location.href = '/admin/settings'}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  Go to Settings
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -241,6 +286,35 @@ export function AdminDashboard() {
             </Card>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="space-y-6">
+        <Card className="rounded-2xl border-2 border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-6 h-6 text-red-600 mt-1" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-red-900 mb-2">
+                  Unable to Load Dashboard Data
+                </h3>
+                <p className="text-red-800 mb-4">
+                  There was an error loading dashboard statistics. Please check your browser console for more details or try refreshing the page.
+                </p>
+                <Button
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-100"
+                >
+                  Refresh Page
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

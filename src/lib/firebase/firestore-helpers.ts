@@ -41,52 +41,95 @@ export async function getUserAgencies(userId: string): Promise<Array<{
       isActive: boolean;
       createdBy?: string;
     }> = [];
+    const agencyIds = new Set<string>();
 
-    // Get user document to find their current agency_id
-    const userRef = doc(db, 'users', userId);
-    const userSnap = await getDoc(userRef);
-    const userAgencyId = userSnap.data()?.agency_id;
+    // Get user document to find their current agency_id (with error handling)
+    let userAgencyId: string | undefined;
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      userAgencyId = userSnap.data()?.agency_id;
+      if (userAgencyId) {
+        agencyIds.add(userAgencyId);
+      }
+    } catch (userError) {
+      console.warn('Could not fetch user document for getUserAgencies:', userError);
+    }
 
-    // Get all agencies where user is a member (via employees collection) or creator
-    const agenciesRef = collection(db, 'agencies');
-    const agenciesSnapshot = await getDocs(agenciesRef);
+    // Query 1: Get agencies where user is the creator
+    // Note: This requires a Firestore index on agencies.createdBy
+    try {
+      const agenciesRef = collection(db, 'agencies');
+      const creatorQuery = query(agenciesRef, where('createdBy', '==', userId));
+      const creatorSnapshot = await getDocs(creatorQuery);
+      creatorSnapshot.docs.forEach(doc => {
+        agencyIds.add(doc.id);
+      });
+    } catch (error: any) {
+      // If index is missing, we'll skip this query and rely on other methods
+      if (error.code === 'failed-precondition') {
+        console.warn('Firestore index missing for agencies.createdBy. Please create the index or the query will be skipped.');
+      } else {
+        console.warn('Could not query agencies by creator:', error);
+      }
+    }
 
-    for (const agencyDoc of agenciesSnapshot.docs) {
-      const agencyData = agencyDoc.data();
-      const agencyId = agencyDoc.id;
-
-      // Check if user created this agency (most common case for admins)
-      const isCreator = agencyData.createdBy === userId;
-      
-      // Check if this is the user's current agency
-      const isCurrentAgency = agencyId === userAgencyId;
-      
-      // Check if user is an employee of this agency
-      let isMember = false;
+    // Query 2: Find agencies where user is an employee
+    // We need to query all agencies and check employees subcollection
+    // But we'll use a more targeted approach - get the user's current agency first
+    if (userAgencyId) {
       try {
-        const employeesRef = collection(db, 'agencies', agencyId, 'employees');
+        const employeesRef = collection(db, 'agencies', userAgencyId, 'employees');
         const employeeQuery = query(employeesRef, where('userId', '==', userId));
         const employeeSnapshot = await getDocs(employeeQuery);
-        isMember = !employeeSnapshot.empty;
+        if (!employeeSnapshot.empty) {
+          agencyIds.add(userAgencyId);
+        }
       } catch (error) {
-        // If employees collection doesn't exist or query fails, continue
-        console.warn(`Could not check employees for agency ${agencyId}:`, error);
+        console.warn(`Could not check employees for agency ${userAgencyId}:`, error);
       }
+    }
 
-      // Include agency if user is creator OR member OR if it's their current agency
-      if (isCreator || isMember || isCurrentAgency) {
-        // Get employee count for this agency
-        const allEmployeesRef = collection(db, 'agencies', agencyId, 'employees');
-        const allEmployeesSnapshot = await getDocs(allEmployeesRef);
-        const memberCount = allEmployeesSnapshot.size;
+    // If no agencies found yet, but user has an agency_id, try to get that agency directly
+    if (agencyIds.size === 0 && userAgencyId) {
+      agencyIds.add(userAgencyId);
+    }
 
-        agencies.push({
-          id: agencyId,
-          name: agencyData.name || 'Unnamed Agency',
-          memberCount,
-          isActive: agencyId === userAgencyId,
-          createdBy: agencyData.createdBy,
-        });
+    // Now fetch details for each agency the user has access to
+    for (const agencyId of agencyIds) {
+      try {
+        const agencyRef = doc(db, 'agencies', agencyId);
+        const agencySnap = await getDoc(agencyRef);
+        
+        if (agencySnap.exists()) {
+          const agencyData = agencySnap.data();
+          
+          // Get employee count for this agency
+          let memberCount = 0;
+          try {
+            const allEmployeesRef = collection(db, 'agencies', agencyId, 'employees');
+            const allEmployeesSnapshot = await getDocs(allEmployeesRef);
+            memberCount = allEmployeesSnapshot.size;
+          } catch (error) {
+            // If we can't get employees, continue with 0 count
+            console.debug(`Could not get employee count for agency ${agencyId} (non-critical):`, error);
+          }
+
+          agencies.push({
+            id: agencyId,
+            name: agencyData.name || 'Unnamed Agency',
+            memberCount,
+            isActive: agencyId === userAgencyId,
+            createdBy: agencyData.createdBy,
+          });
+        }
+      } catch (error: any) {
+        // If permission denied, log but continue
+        if (error.code === 'permission-denied') {
+          console.warn(`Permission denied for agency ${agencyId}. User may not have access.`);
+        } else {
+          console.warn(`Could not fetch agency ${agencyId}:`, error);
+        }
       }
     }
 

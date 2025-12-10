@@ -177,6 +177,7 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
             
             const collateralPayload: any = {
               type: validType,
+              name: collateralData.name || collateralData.description?.substring(0, 50) || `Collateral ${extractedCollaterals.length + 1}`,
               description: collateralData.description,
               estimatedValue: collateralData.estimatedValue || 0,
               ownerCustomerId: customer.id,

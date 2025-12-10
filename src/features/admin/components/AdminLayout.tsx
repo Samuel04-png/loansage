@@ -117,6 +117,18 @@ export function AdminLayout() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Global keyboard shortcut for search (Ctrl+K / Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchDialogOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const toggleSection = useCallback((section: string) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -803,14 +815,18 @@ export function AdminLayout() {
           </div>
 
             <div className="flex items-center gap-3 sm:gap-6">
-            <div className="relative hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="Global search..."
-                  className="h-9 w-64 rounded-lg border border-neutral-200 bg-white pl-9 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
-              />
-            </div>
+              {/* Search Button */}
+              <button
+                onClick={() => setSearchDialogOpen(true)}
+                className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:border-[#006BFF] hover:text-[#006BFF] transition-colors"
+                title="Search (⌘K)"
+              >
+                <Search className="w-4 h-4" />
+                <span className="text-sm">Search</span>
+                <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border border-neutral-200 bg-neutral-50 px-1.5 font-mono text-[10px] font-medium text-neutral-500">
+                  ⌘K
+                </kbd>
+              </button>
               <NotificationDropdown />
               <Link
                 to="/admin/settings"

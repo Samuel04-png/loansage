@@ -37,6 +37,7 @@ export function subscribeToDashboardStats(
   callback: (stats: DashboardStats) => void
 ): () => void {
   if (!agencyId) {
+    console.warn('subscribeToDashboardStats: No agencyId provided');
     callback({
       totalActiveLoans: 0,
       totalDisbursedThisMonth: 0,
@@ -52,6 +53,8 @@ export function subscribeToDashboardStats(
     });
     return () => {};
   }
+
+  console.log('subscribeToDashboardStats: Setting up listeners for agency:', agencyId);
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -133,7 +136,7 @@ export function subscribeToDashboardStats(
     );
     const approvalRate = totalLoans > 0 ? (approvedLoans.length / totalLoans) * 100 : 0;
 
-    callback({
+    const stats = {
       totalActiveLoans: activeLoans.length,
       totalDisbursedThisMonth,
       repaymentsDue,
@@ -145,24 +148,83 @@ export function subscribeToDashboardStats(
       overdueLoans: overdueLoans.length,
       totalLoans,
       totalPortfolioValue,
-    });
+    };
+    
+    console.log('Dashboard stats updated:', stats);
+    callback(stats);
   };
 
-  // Set up listeners
-  const unsubscribeLoans = onSnapshot(
-    query(loansRef, orderBy('createdAt', 'desc'), limit(1000)),
-    (snapshot) => {
-      loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      updateStats();
-    },
-    (error) => {
-      console.error('Error listening to loans:', error);
-    }
-  );
+  // Set up listeners with fallback
+  let unsubscribeLoans: (() => void) | null = null;
+  
+  try {
+    unsubscribeLoans = onSnapshot(
+      query(loansRef, orderBy('createdAt', 'desc'), limit(1000)),
+      (snapshot) => {
+        console.log('Loans snapshot received:', snapshot.size, 'loans');
+        loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateStats();
+      },
+      (error: any) => {
+        console.error('Error listening to loans with orderBy:', error);
+        // Fallback: try without orderBy
+        if (error.code === 'failed-precondition') {
+          console.log('Trying loans query without orderBy...');
+          try {
+            unsubscribeLoans = onSnapshot(
+              query(loansRef, limit(1000)),
+              (snapshot) => {
+                console.log('Loans snapshot received (fallback):', snapshot.size, 'loans');
+                loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateStats();
+              },
+              (fallbackError: any) => {
+                console.error('Error listening to loans (fallback):', fallbackError);
+                // Call callback with error state
+                callback({
+                  totalActiveLoans: 0,
+                  totalDisbursedThisMonth: 0,
+                  repaymentsDue: 0,
+                  repaymentsDueCount: 0,
+                  activeCustomers: 0,
+                  totalCustomers: 0,
+                  totalEmployees: 0,
+                  approvalRate: 0,
+                  overdueLoans: 0,
+                  totalLoans: 0,
+                  totalPortfolioValue: 0,
+                });
+              }
+            );
+          } catch (fallbackErr) {
+            console.error('Failed to set up fallback listener:', fallbackErr);
+          }
+        } else {
+          // Call callback with error state
+          callback({
+            totalActiveLoans: 0,
+            totalDisbursedThisMonth: 0,
+            repaymentsDue: 0,
+            repaymentsDueCount: 0,
+            activeCustomers: 0,
+            totalCustomers: 0,
+            totalEmployees: 0,
+            approvalRate: 0,
+            overdueLoans: 0,
+            totalLoans: 0,
+            totalPortfolioValue: 0,
+          });
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to set up loans listener:', err);
+  }
 
   const unsubscribeCustomers = onSnapshot(
     customersRef,
     (snapshot) => {
+      console.log('Customers snapshot received:', snapshot.size, 'customers');
       customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateStats();
     },
@@ -174,6 +236,7 @@ export function subscribeToDashboardStats(
   const unsubscribeEmployees = onSnapshot(
     employeesRef,
     (snapshot) => {
+      console.log('Employees snapshot received:', snapshot.size, 'employees');
       employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateStats();
     },
@@ -184,7 +247,7 @@ export function subscribeToDashboardStats(
 
   // Return unsubscribe function
   return () => {
-    unsubscribeLoans();
+    if (unsubscribeLoans) unsubscribeLoans();
     unsubscribeCustomers();
     unsubscribeEmployees();
   };

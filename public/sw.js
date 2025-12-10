@@ -49,9 +49,24 @@ self.addEventListener('fetch', (event) => {
           }
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(event.request, responseToCache).catch((err) => {
+              // Silently fail cache operations - network errors are expected
+              console.debug('Cache put failed (non-critical):', err);
+            });
+          }).catch((err) => {
+            // Silently fail cache operations
+            console.debug('Cache open failed (non-critical):', err);
           });
           return response;
+        }).catch((err) => {
+          // If fetch fails, try to return cached response
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // If no cache, return offline response
+            throw err;
+          });
         });
       })
       .catch(() => {

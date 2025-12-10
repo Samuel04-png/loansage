@@ -91,6 +91,7 @@ export function LoginPage() {
 
         toast.success('Welcome back!');
         
+        // Update last login in background (non-blocking, don't wait for it)
         Promise.resolve().then(async () => {
           try {
             const { supabase } = await import('../../../lib/supabase/client');
@@ -99,12 +100,15 @@ export function LoginPage() {
               .update({ last_login: new Date().toISOString() })
               .eq('id', user.id);
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Update timeout')), 3000)
+              setTimeout(() => reject(new Error('Update timeout')), 10000) // Increased to 10 seconds
             );
             await Promise.race([updatePromise, timeoutPromise]);
           } catch (error) {
-            console.warn('Failed to update last login:', error);
+            // Silently fail - this is not critical
+            console.warn('Failed to update last login (non-critical):', error);
           }
+        }).catch(() => {
+          // Ignore errors - this is a background operation
         });
         
         const userRole = profile?.role || user.user_metadata?.role || 'admin';

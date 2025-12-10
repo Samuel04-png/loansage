@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, query as firestoreQuery, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -34,81 +34,158 @@ interface GlobalSearchDialogProps {
 export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogProps) {
   const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchType, setSearchType] = useState<'all' | 'loans' | 'customers' | 'employees'>('all');
+  const [forceSearch, setForceSearch] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    if (forceSearch) {
+      setDebouncedQuery(searchQuery);
+      setForceSearch(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, forceSearch]);
 
   // Global search across all entities
-  const { data: searchResults, isLoading } = useQuery({
-    queryKey: ['global-search', profile?.agency_id, searchQuery, searchType],
+  const { data: searchResults, isLoading, error } = useQuery({
+    queryKey: ['global-search', profile?.agency_id, debouncedQuery, searchType],
     queryFn: async () => {
-      if (!profile?.agency_id || !searchQuery.trim()) return { loans: [], customers: [], employees: [] };
+      if (!profile?.agency_id || !debouncedQuery.trim()) {
+        return { loans: [], customers: [], employees: [] };
+      }
 
       const results: any = { loans: [], customers: [], employees: [] };
-      const queryLower = searchQuery.toLowerCase();
+      const queryLower = debouncedQuery.toLowerCase().trim();
 
-      // Search loans
-      if (searchType === 'all' || searchType === 'loans') {
-        const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-        const loansSnapshot = await getDocs(loansRef);
-        results.loans = loansSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((loan: any) => {
-            if (loan.deleted) return false;
-            return (
-              loan.id?.toLowerCase().includes(queryLower) ||
-              loan.loanNumber?.toLowerCase().includes(queryLower) ||
-              loan.customerId?.toLowerCase().includes(queryLower) ||
-              String(loan.amount || '').includes(queryLower) ||
-              loan.status?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5); // Limit results
-      }
+      try {
+        // Search loans
+        if (searchType === 'all' || searchType === 'loans') {
+          try {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansSnapshot = await getDocs(loansRef);
+            const allLoans = loansSnapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter((loan: any) => !loan.deleted);
 
-      // Search customers
-      if (searchType === 'all' || searchType === 'customers') {
-        const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
-        const customersSnapshot = await getDocs(customersRef);
-        results.customers = customersSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((customer: any) => {
-            return (
-              customer.id?.toLowerCase().includes(queryLower) ||
-              customer.fullName?.toLowerCase().includes(queryLower) ||
-              customer.name?.toLowerCase().includes(queryLower) ||
-              customer.email?.toLowerCase().includes(queryLower) ||
-              customer.phone?.toLowerCase().includes(queryLower) ||
-              customer.nrcNumber?.toLowerCase().includes(queryLower) ||
-              customer.nrc?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-      }
+            // Fetch customer data for loans to search by customer name
+            for (const loan of allLoans) {
+              let customerName = '';
+              const customerId = loan.customerId || loan.customer_id;
+              
+              if (customerId) {
+                try {
+                  const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customerId);
+                  const customerDoc = await getDoc(customerRef);
+                  if (customerDoc.exists()) {
+                    const customerData = customerDoc.data();
+                    customerName = (customerData.fullName || customerData.name || customerData.full_name || '').toLowerCase();
+                  }
+                } catch (err) {
+                  // Ignore customer fetch errors - continue searching
+                  console.debug('Could not fetch customer for loan search:', err);
+                }
+              }
 
-      // Search employees
-      if (searchType === 'all' || searchType === 'employees') {
-        const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
-        const employeesSnapshot = await getDocs(employeesRef);
-        results.employees = employeesSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((employee: any) => {
-            return (
-              employee.id?.toLowerCase().includes(queryLower) ||
-              employee.name?.toLowerCase().includes(queryLower) ||
-              employee.email?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
+              const matches = (
+                loan.id?.toLowerCase().includes(queryLower) ||
+                loan.loanNumber?.toLowerCase().includes(queryLower) ||
+                loan.loan_number?.toLowerCase().includes(queryLower) ||
+                customerId?.toLowerCase().includes(queryLower) ||
+                customerName.includes(queryLower) ||
+                String(loan.amount || '').includes(queryLower) ||
+                loan.status?.toLowerCase().includes(queryLower) ||
+                loan.loanType?.toLowerCase().includes(queryLower) ||
+                loan.loan_type?.toLowerCase().includes(queryLower)
+              );
+
+              if (matches) {
+                results.loans.push(loan);
+                if (results.loans.length >= 10) break; // Increased limit
+              }
+            }
+          } catch (err) {
+            console.error('Error searching loans:', err);
+          }
+        }
+
+        // Search customers
+        if (searchType === 'all' || searchType === 'customers') {
+          try {
+            const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+            const customersSnapshot = await getDocs(customersRef);
+            results.customers = customersSnapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter((customer: any) => {
+                const searchFields = [
+                  customer.id,
+                  customer.fullName,
+                  customer.full_name,
+                  customer.name,
+                  customer.email,
+                  customer.phone,
+                  customer.phoneNumber,
+                  customer.phone_number,
+                  customer.nrcNumber,
+                  customer.nrc_number,
+                  customer.nrc,
+                ].filter(Boolean).map(f => String(f).toLowerCase());
+                
+                return searchFields.some(field => field.includes(queryLower));
+              })
+              .slice(0, 10); // Increased limit
+          } catch (err) {
+            console.error('Error searching customers:', err);
+          }
+        }
+
+        // Search employees
+        if (searchType === 'all' || searchType === 'employees') {
+          try {
+            const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
+            const employeesSnapshot = await getDocs(employeesRef);
+            results.employees = employeesSnapshot.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter((employee: any) => {
+                const searchFields = [
+                  employee.id,
+                  employee.name,
+                  employee.fullName,
+                  employee.full_name,
+                  employee.email,
+                  employee.role,
+                  employee.employeeCategory,
+                  employee.employee_category,
+                ].filter(Boolean).map(f => String(f).toLowerCase());
+                
+                return searchFields.some(field => field.includes(queryLower));
+              })
+              .slice(0, 10); // Increased limit
+          } catch (err) {
+            console.error('Error searching employees:', err);
+          }
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+        return { loans: [], customers: [], employees: [] };
       }
 
       return results;
     },
-    enabled: !!profile?.agency_id && searchQuery.trim().length > 0 && open,
+    enabled: !!profile?.agency_id && debouncedQuery.trim().length > 0 && open,
+    staleTime: 0, // Always fetch fresh results
   });
 
   // Reset search when dialog closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('');
+      setDebouncedQuery('');
+      setForceSearch(false);
     }
   }, [open]);
 
@@ -153,7 +230,13 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
                 placeholder="Search loans, customers, employees..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && searchQuery.trim() && searchQuery.trim()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    e.preventDefault();
+                    setForceSearch(true);
+                    setDebouncedQuery(searchQuery.trim());
+                  }
+                }}
                 className="pl-10"
                 autoFocus
               />
@@ -176,12 +259,17 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-[#006BFF]" />
             </div>
-          ) : searchQuery.trim() ? (
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600">Error searching. Please try again.</p>
+            </div>
+          ) : debouncedQuery.trim() ? (
             <>
               {totalResults === 0 ? (
                 <div className="text-center py-12">
                   <Search className="w-12 h-12 mx-auto mb-4 text-neutral-400 opacity-50" />
-                  <p className="text-neutral-600">No results found for "{searchQuery}"</p>
+                  <p className="text-neutral-600">No results found for "{debouncedQuery}"</p>
+                  <p className="text-xs text-neutral-500 mt-2">Try a different search term</p>
                 </div>
               ) : (
                 <div className="space-y-6">

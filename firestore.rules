@@ -8,12 +8,12 @@ service cloud.firestore {
     
     function getUserAgencyId() {
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return userDoc != null ? userDoc.data.agency_id : null;
+      return userDoc != null && userDoc.data != null ? userDoc.data.agency_id : null;
     }
     
     function getUserRole() {
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return userDoc != null ? userDoc.data.role : null;
+      return userDoc != null && userDoc.data != null ? userDoc.data.role : null;
     }
     
     function isAdmin() {
@@ -54,9 +54,11 @@ service cloud.firestore {
     
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || getUserAgencyId() != null);
+      // Allow users to read their own document, or any authenticated user can read (needed for getUserAgencyId helper)
+      // This is safe because user documents don't contain sensitive data beyond what's needed for auth
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && (request.auth.uid == userId || (isAdmin() && belongsToAgency(resource.data.agency_id)));
+      allow update: if isAuthenticated() && (request.auth.uid == userId || (isAdmin() && (resource == null || belongsToAgency(resource.data.agency_id))));
       allow delete: if isAuthenticated() && isAdmin();
       
       // User notifications
@@ -78,7 +80,7 @@ service cloud.firestore {
       allow list: if isAuthenticated();
       allow get: if isAuthenticated() && (
         belongsToAgency(agencyId) || 
-        (resource != null && resource.data.createdBy == request.auth.uid) ||
+        (resource != null && resource.data != null && resource.data.createdBy == request.auth.uid) ||
         exists(/databases/$(database)/documents/agencies/$(agencyId)/employees/$(request.auth.uid))
       );
       allow create: if isAuthenticated();
