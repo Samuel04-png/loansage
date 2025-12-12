@@ -266,3 +266,126 @@ export function detectLoanAnomalies(loanData: {
   };
 }
 
+/**
+ * Predict loan default probability for a specific loan
+ */
+export async function predictLoanDefault(
+  agencyId: string,
+  loanId: string
+): Promise<{
+  defaultProbability: number; // 0-1
+  confidence: number; // 0-1
+  timeframe: string;
+  factors: string[];
+  recommendations: string[];
+}> {
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
+    const loanSnap = await getDoc(loanRef);
+    
+    if (!loanSnap.exists()) {
+      throw new Error('Loan not found');
+    }
+    
+    const loan = { id: loanSnap.id, ...loanSnap.data() };
+    
+    // Get repayment history
+    const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loanId, 'repayments');
+    const repaymentsSnapshot = await getDocs(repaymentsRef);
+    const repayments = repaymentsSnapshot.docs.map(doc => doc.data());
+    
+    // Calculate factors
+    const factors: string[] = [];
+    let defaultProbability = 0.1; // Base 10%
+    
+    // Check for overdue repayments
+    const now = new Date();
+    const overdueRepayments = repayments.filter((r: any) => {
+      if (r.status === 'paid') return false;
+      const dueDate = r.dueDate?.toDate?.() || new Date(r.dueDate);
+      return dueDate < now;
+    });
+    
+    if (overdueRepayments.length > 0) {
+      defaultProbability += 0.3;
+      factors.push(`${overdueRepayments.length} overdue repayment(s)`);
+    }
+    
+    // Check payment history
+    const paidRepayments = repayments.filter((r: any) => r.status === 'paid');
+    const totalRepayments = repayments.length;
+    const paymentRate = totalRepayments > 0 ? paidRepayments.length / totalRepayments : 1;
+    
+    if (paymentRate < 0.7) {
+      defaultProbability += 0.2;
+      factors.push(`Low payment rate: ${Math.round(paymentRate * 100)}%`);
+    }
+    
+    // Check loan risk score
+    const riskScore = loan.riskScore || 50;
+    if (riskScore > 70) {
+      defaultProbability += 0.2;
+      factors.push(`High risk score: ${riskScore}/100`);
+    }
+    
+    // Check loan amount relative to customer income
+    const customerId = loan.customerId || loan.customer_id;
+    if (customerId) {
+      const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
+      const customerSnap = await getDoc(customerRef);
+      if (customerSnap.exists()) {
+        const customer = customerSnap.data();
+        const monthlyIncome = Number(customer.monthlyIncome || 0);
+        const loanAmount = Number(loan.amount || 0);
+        
+        if (monthlyIncome > 0 && loanAmount > monthlyIncome * 12) {
+          defaultProbability += 0.15;
+          factors.push('Loan amount exceeds annual income');
+        }
+      }
+    }
+    
+    // Cap probability
+    defaultProbability = Math.min(0.95, defaultProbability);
+    
+    // Generate recommendations
+    const recommendations: string[] = [];
+    if (defaultProbability > 0.5) {
+      recommendations.push('High default risk. Consider restructuring or early intervention.');
+      recommendations.push('Increase collection efforts immediately.');
+    } else if (defaultProbability > 0.3) {
+      recommendations.push('Moderate default risk. Monitor closely.');
+      recommendations.push('Send payment reminders.');
+    } else {
+      recommendations.push('Low default risk. Continue normal operations.');
+    }
+    
+    return {
+      defaultProbability: Math.round(defaultProbability * 100) / 100,
+      confidence: 0.75,
+      timeframe: '90days',
+      factors,
+      recommendations,
+    };
+  } catch (error: any) {
+    console.error('Error predicting loan default:', error);
+    throw error;
+  }
+}
+
+/**
+ * Predict portfolio default rate
+ */
+export async function predictPortfolioDefaultRate(
+  agencyId: string,
+  timeframe: '30days' | '90days' | '6months' | '1year' = '90days'
+): Promise<{
+  predictedDefaultRate: number;
+  atRiskLoans: number;
+  totalExposure: number;
+  recommendations: string[];
+}> {
+  return predictPortfolioDefaults(agencyId, timeframe);
+}
+

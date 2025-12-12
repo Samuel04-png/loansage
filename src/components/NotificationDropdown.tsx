@@ -71,24 +71,46 @@ export function NotificationDropdown() {
 
       try {
         const notificationsRef = collection(db, 'agencies', profile.agency_id, 'notifications');
-        const q = firestoreQuery(
-          notificationsRef,
-          where('userId', '==', profile.id),
-          orderBy('createdAt', 'desc'),
-          limit(10)
-        );
+        // Try with userId filter first, fallback to all agency notifications
+        let q;
+        try {
+          q = firestoreQuery(
+            notificationsRef,
+            where('userId', '==', profile.id),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+        } catch (error) {
+          // If userId filter fails, try without it (for agency-wide notifications)
+          try {
+            q = firestoreQuery(
+              notificationsRef,
+              orderBy('createdAt', 'desc'),
+              limit(20)
+            );
+          } catch (err) {
+            // If orderBy fails (no index), try without it
+            q = firestoreQuery(notificationsRef, limit(20));
+          }
+        }
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
+        const allNotifications = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate?.() || doc.data().created_at,
         }));
+        
+        // Filter to user-specific or agency-wide notifications
+        return allNotifications.filter((n: any) => 
+          !n.userId || n.userId === profile.id
+        );
       } catch (error) {
         console.warn('Failed to fetch notifications:', error);
         return [];
       }
     },
     enabled: !!profile?.agency_id && !!profile?.id && isOpen,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   // Close dropdown when clicking outside
@@ -123,7 +145,7 @@ export function NotificationDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors"
+        className="relative p-2 text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
         <Bell className="w-5 h-5" />
@@ -138,9 +160,9 @@ export function NotificationDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-[600px] overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-2xl border border-slate-200 dark:border-neutral-800 z-50 max-h-[600px] overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-200 dark:border-neutral-800 flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900 dark:text-neutral-100 flex items-center gap-2">
               <Bell className="w-5 h-5" />
               Notifications
               {totalUnread > 0 && (
@@ -151,7 +173,7 @@ export function NotificationDropdown() {
             </h3>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-slate-600"
+              className="text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300"
             >
               <X className="w-4 h-4" />
             </button>
@@ -160,14 +182,14 @@ export function NotificationDropdown() {
           <div className="overflow-y-auto flex-1">
             {/* Invitations Section */}
             {pendingInvitations.length > 0 && (
-              <div className="border-b border-slate-200">
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
-                  <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+              <div className="border-b border-slate-200 dark:border-neutral-800">
+                <div className="px-4 py-2 bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800">
+                  <h4 className="text-xs font-semibold text-slate-600 dark:text-neutral-400 uppercase tracking-wider flex items-center gap-2">
                     <Mail className="w-3 h-3" />
                     Pending Invitations ({pendingInvitations.length})
                   </h4>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-neutral-800">
                   {pendingInvitations.map((inv: any) => {
                     const expiresAt = inv.expiresAt instanceof Date 
                       ? inv.expiresAt 
@@ -181,20 +203,20 @@ export function NotificationDropdown() {
                         key={inv.id}
                         to="/admin/invitations"
                         onClick={() => setIsOpen(false)}
-                        className="block p-4 hover:bg-slate-50 transition-colors"
+                        className="block p-4 hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                            <Mail className="w-5 h-5 text-primary-600" />
+                          <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                            <Mail className="w-5 h-5 text-primary-600 dark:text-primary-400" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-slate-900">
+                            <p className="font-semibold text-sm text-slate-900 dark:text-neutral-100">
                               Employee Invitation
                             </p>
-                            <p className="text-sm text-slate-600 mt-1">
+                            <p className="text-sm text-slate-600 dark:text-neutral-400 mt-1">
                               Invite sent to <span className="font-medium">{inv.email}</span>
                             </p>
-                            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <p className="text-xs text-slate-500 dark:text-neutral-500 mt-1 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {expiresAt ? (
                                 <>
@@ -219,32 +241,32 @@ export function NotificationDropdown() {
             {/* Notifications Section */}
             {unreadNotifications.length > 0 && (
               <div>
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
-                  <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <div className="px-4 py-2 bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800">
+                  <h4 className="text-xs font-semibold text-slate-600 dark:text-neutral-400 uppercase tracking-wider">
                     System Notifications ({unreadNotifications.length})
                   </h4>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-neutral-800">
                   {unreadNotifications.map((notification: any) => (
                     <Link
                       key={notification.id}
                       to={notification.link || '#'}
                       onClick={() => setIsOpen(false)}
-                      className="block p-4 hover:bg-slate-50 transition-colors"
+                      className="block p-4 hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <Bell className="w-5 h-5 text-blue-600" />
+                        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                          <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-slate-900">
+                          <p className="font-semibold text-sm text-slate-900 dark:text-neutral-100">
                             {notification.title || 'Notification'}
                           </p>
-                          <p className="text-sm text-slate-600 mt-1">
+                          <p className="text-sm text-slate-600 dark:text-neutral-400 mt-1">
                             {notification.message || notification.body || ''}
                           </p>
                           {notification.createdAt && (
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-xs text-slate-500 dark:text-neutral-500 mt-1">
                               {formatDateSafe(notification.createdAt)}
                             </p>
                           )}
@@ -258,8 +280,8 @@ export function NotificationDropdown() {
 
             {/* Empty State */}
             {pendingInvitations.length === 0 && unreadNotifications.length === 0 && (
-              <div className="text-center py-12 text-slate-500">
-                <Bell className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+              <div className="text-center py-12 text-slate-500 dark:text-neutral-500">
+                <Bell className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-neutral-700" />
                 <p>No new notifications</p>
               </div>
             )}
@@ -267,7 +289,7 @@ export function NotificationDropdown() {
 
           {/* Footer */}
           {(pendingInvitations.length > 0 || unreadNotifications.length > 0) && (
-            <div className="p-3 border-t border-slate-200 bg-slate-50">
+            <div className="p-3 border-t border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-800">
               <Link to="/admin/invitations">
                 <Button
                   variant="outline"

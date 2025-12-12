@@ -9,10 +9,12 @@ import { db } from '../lib/firebase/config';
 import { analyzeLoanSystem, AIInsight } from '../lib/ai/intelligence-engine';
 import { useAgency } from './useAgency';
 import { useAuth } from './useAuth';
+import { useAIAlerts } from './useAIAlerts';
 
 export function useAIInsights(enabled: boolean = true) {
   const { agency } = useAgency();
   const { profile } = useAuth();
+  const { addAlert } = useAIAlerts();
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -26,25 +28,34 @@ export function useAIInsights(enabled: boolean = true) {
       if (!profile?.agency_id || !aiEnabled) return null;
 
       const [loansSnapshot, customersSnapshot, paymentsData] = await Promise.all([
-        getDocs(query(collection(db, 'agencies', profile.agency_id, 'loans'), orderBy('createdAt', 'desc'), limit(1000))),
+        // Get all loans (no limit for comprehensive analysis)
+        getDocs(query(collection(db, 'agencies', profile.agency_id, 'loans'), orderBy('createdAt', 'desc'))),
+        // Get all customers
         getDocs(collection(db, 'agencies', profile.agency_id, 'customers')),
-        // Get payments from all loans
+        // Get payments from all loans (comprehensive)
         (async () => {
           const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-          const loansSnap = await getDocs(query(loansRef, limit(100)));
+          const loansSnap = await getDocs(loansRef);
           const allPayments: any[] = [];
           
-          for (const loanDoc of loansSnap.docs) {
-            const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loanDoc.id, 'repayments');
-            const repaymentsSnap = await getDocs(repaymentsRef);
-            repaymentsSnap.docs.forEach(doc => {
-              allPayments.push({
-                id: doc.id,
-                loanId: loanDoc.id,
-                ...doc.data(),
-              });
-            });
-          }
+          // Fetch repayments from all loans in parallel
+          await Promise.all(
+            loansSnap.docs.map(async (loanDoc) => {
+              try {
+                const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loanDoc.id, 'repayments');
+                const repaymentsSnap = await getDocs(repaymentsRef);
+                repaymentsSnap.docs.forEach(doc => {
+                  allPayments.push({
+                    id: doc.id,
+                    loanId: loanDoc.id,
+                    ...doc.data(),
+                  });
+                });
+              } catch (error) {
+                console.warn(`Failed to fetch repayments for loan ${loanDoc.id}:`, error);
+              }
+            })
+          );
           
           return allPayments;
         })(),
@@ -77,14 +88,61 @@ export function useAIInsights(enabled: boolean = true) {
 
     setIsAnalyzing(true);
     try {
-      const newInsights = await analyzeLoanSystem(analysisData);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<AIInsight[]>((_, reject) => {
+        setTimeout(() => reject(new Error('Analysis timeout')), 30000); // 30 second timeout
+      });
+
+      const analysisPromise = analyzeLoanSystem(analysisData);
+      const newInsights = await Promise.race([analysisPromise, timeoutPromise]);
+      
       setInsights(newInsights);
-    } catch (error) {
+      
+      // Convert critical/high severity insights to notifications/alerts
+      const importantInsights = newInsights.filter(
+        insight => insight.severity === 'critical' || insight.severity === 'high'
+      );
+      
+      // Create notifications for important insights (fire and forget)
+      for (const insight of importantInsights) {
+        addAlert({
+          type: insight.severity === 'critical' ? 'critical' : 'warning',
+          title: insight.title,
+          message: insight.message,
+          loanId: insight.loanId,
+          customerId: insight.customerId,
+        }).catch(err => {
+          console.warn('Failed to create alert notification:', err);
+        });
+      }
+    } catch (error: any) {
       console.error('Error analyzing loan system:', error);
+      
+      // Generate fallback insights even if AI fails
+      const fallbackInsights = generateFallbackInsights(analysisData);
+      setInsights(fallbackInsights);
+      
+      // Also convert fallback insights to alerts if they're important
+      const importantFallbacks = fallbackInsights.filter(
+        insight => insight.severity === 'critical' || insight.severity === 'high'
+      );
+      
+      // Create notifications for important fallback insights (fire and forget)
+      for (const insight of importantFallbacks) {
+        addAlert({
+          type: insight.severity === 'critical' ? 'critical' : 'warning',
+          title: insight.title,
+          message: insight.message,
+          loanId: insight.loanId,
+          customerId: insight.customerId,
+        }).catch(err => {
+          console.warn('Failed to create fallback alert notification:', err);
+        });
+      }
     } finally {
       setIsAnalyzing(false);
     }
-  }, [analysisData, aiEnabled, isAnalyzing]);
+  }, [analysisData, aiEnabled, isAnalyzing, addAlert]);
 
   // Auto-analyze when data changes
   useEffect(() => {
@@ -155,5 +213,85 @@ export function useLoanAIInsights(loanId: string | undefined, enabled: boolean =
     isLoading,
     aiEnabled,
   };
+}
+
+/**
+ * Generate fallback insights when AI fails
+ */
+function generateFallbackInsights(analysisData: any): AIInsight[] {
+  const insights: AIInsight[] = [];
+  const now = new Date();
+
+  if (!analysisData || !analysisData.loans) {
+    return insights;
+  }
+
+  const { loans, payments } = analysisData;
+
+  // Check for overdue loans
+  const activeLoans = loans.filter((l: any) => l.status === 'active');
+  for (const loan of activeLoans) {
+    const loanPayments = payments?.filter((p: any) => p.loanId === loan.id) || [];
+    const overduePayments = loanPayments.filter((p: any) => {
+      if (p.status === 'paid') return false;
+      const dueDate = p.dueDate?.toDate?.() || new Date(p.dueDate);
+      return dueDate < now;
+    });
+
+    if (overduePayments.length > 0) {
+      insights.push({
+        type: 'risk',
+        severity: overduePayments.length >= 2 ? 'critical' : 'high',
+        title: `Loan #${loan.id.substring(0, 8)} has overdue payments`,
+        message: `${overduePayments.length} payment(s) are overdue. Action needed.`,
+        loanId: loan.id,
+        timestamp: now,
+        action: {
+          label: 'Review Loan',
+          type: 'review_loan',
+          data: { loanId: loan.id },
+        },
+      });
+    }
+  }
+
+  // Check for pending loans that need review
+  const pendingLoans = loans.filter((l: any) => l.status === 'pending');
+  for (const loan of pendingLoans) {
+    const createdAt = loan.createdAt?.toDate?.() || new Date(loan.createdAt);
+    const daysPending = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysPending > 7) {
+      insights.push({
+        type: 'reminder',
+        severity: 'medium',
+        title: `Loan #${loan.id.substring(0, 8)} needs review`,
+        message: `This loan has been pending for ${daysPending} days.`,
+        loanId: loan.id,
+        timestamp: now,
+        action: {
+          label: 'Review Loan',
+          type: 'review_loan',
+          data: { loanId: loan.id },
+        },
+      });
+    }
+  }
+
+  // Check for high default rate
+  const defaultedLoans = loans.filter((l: any) => l.status === 'defaulted');
+  const defaultRate = loans.length > 0 ? (defaultedLoans.length / loans.length) * 100 : 0;
+  
+  if (defaultRate > 15) {
+    insights.push({
+      type: 'warning',
+      severity: 'high',
+      title: 'High default rate detected',
+      message: `Default rate is ${defaultRate.toFixed(1)}% - above recommended threshold of 15%.`,
+      timestamp: now,
+    });
+  }
+
+  return insights;
 }
 

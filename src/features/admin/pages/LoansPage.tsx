@@ -285,18 +285,18 @@ export function LoansPage() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
-      active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      pending: { label: 'Pending', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-      approved: { label: 'Approved', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-      rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
-      paid: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      settled: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      defaulted: { label: 'Defaulted', className: 'bg-red-50 text-red-700 border-red-200' },
+      active: { label: 'Active', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
+      pending: { label: 'Pending', className: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
+      approved: { label: 'Approved', className: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
+      rejected: { label: 'Rejected', className: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
+      paid: { label: 'Settled', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
+      settled: { label: 'Settled', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
+      defaulted: { label: 'Defaulted', className: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
     };
 
     const config = statusConfig[status] || { 
       label: status, 
-      className: 'bg-neutral-50 text-neutral-700 border-neutral-200' 
+      className: 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700' 
     };
     return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
   };
@@ -456,8 +456,8 @@ export function LoansPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Loans</h1>
-          <p className="text-sm text-neutral-600 mt-1">Manage and track all loans in your portfolio</p>
+          <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Loans</h1>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Manage and track all loans in your portfolio</p>
         </div>
         <div className="flex gap-3">
           <Button
@@ -488,15 +488,15 @@ export function LoansPage() {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-neutral-200">
+          <Card className="border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-neutral-600">Total Portfolio</p>
-                  <p className="text-2xl font-bold text-neutral-900 mt-1">
+                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Portfolio</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
                     {formatCurrency(stats.totalPortfolio, 'ZMW')}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">{stats.total} loans</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{stats.total} loans</p>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-lg">
                   <DollarSign className="w-6 h-6 text-blue-600" />
@@ -505,54 +505,54 @@ export function LoansPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-neutral-200">
+          <Card className="border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-neutral-600">Total Collected</p>
-                  <p className="text-2xl font-bold text-emerald-600 mt-1">
+                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Collected</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                     {formatCurrency(stats.totalCollected, 'ZMW')}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                     {formatCurrency(stats.totalOutstanding, 'ZMW')} outstanding
                   </p>
                 </div>
-                <div className="p-3 bg-emerald-50 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-emerald-600" />
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
+                  <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-neutral-200">
+          <Card className="border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-neutral-600">Expected Profit</p>
-                  <p className="text-2xl font-bold text-purple-600 mt-1">
+                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Expected Profit</p>
+                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
                     {formatCurrency(stats.expectedProfit, 'ZMW')}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">From interest</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">From interest</p>
                 </div>
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <BarChart3 className="w-6 h-6 text-purple-600" />
+                <div className="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-neutral-200">
+          <Card className="border-neutral-200 dark:border-neutral-800">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-neutral-600">Outstanding Balance</p>
-                  <p className="text-2xl font-bold text-red-600 mt-1">
+                  <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Outstanding Balance</p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                     {formatCurrency(stats.totalOutstanding, 'ZMW')}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">Remaining to collect</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Remaining to collect</p>
                 </div>
-                <div className="p-3 bg-red-50 rounded-lg">
-                  <Percent className="w-6 h-6 text-red-600" />
+                <div className="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                  <Percent className="w-6 h-6 text-red-600 dark:text-red-400" />
                 </div>
               </div>
             </CardContent>
@@ -562,7 +562,7 @@ export function LoansPage() {
 
       {/* Main Content with Tabs */}
       <Card className="border-neutral-200">
-        <CardHeader className="border-b border-neutral-200">
+        <CardHeader className="border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex flex-col gap-4">
             {/* Search and Sort */}
             <div className="flex flex-col sm:flex-row gap-4">
@@ -578,7 +578,7 @@ export function LoansPage() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="flex h-10 w-full sm:w-[200px] rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] transition-all"
+                className="flex h-10 w-full sm:w-[200px] rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#006BFF]/20 dark:focus:ring-blue-500/30 focus:border-[#006BFF] dark:focus:border-blue-500 transition-all"
               >
                 <option value="date">Date Issued</option>
                 <option value="repaymentDate">Repayment Date</option>
@@ -599,7 +599,7 @@ export function LoansPage() {
             {/* Filter Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
               <TabsList className="grid w-full grid-cols-7 rounded-lg bg-neutral-100 p-1">
-                <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white">
+                <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800">
                   All
                 </TabsTrigger>
                 <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white">
@@ -627,7 +627,7 @@ export function LoansPage() {
 
         {/* Bulk Actions Bar */}
         {selectedLoans.size > 0 && (
-          <div className="border-b border-neutral-200 bg-blue-50 px-6 py-3 flex items-center justify-between">
+          <div className="border-b border-neutral-200 dark:border-neutral-800 bg-blue-50 dark:bg-blue-900/20 px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-blue-900">
                 {selectedLoans.size} loan{selectedLoans.size > 1 ? 's' : ''} selected
@@ -749,7 +749,7 @@ export function LoansPage() {
                           onClick={() => window.location.href = `/admin/loans/${loan.id}`}
                         >
                           <div className="space-y-1">
-                            <div className="font-semibold text-neutral-900">
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
                               {loan.loanNumber || loan.id.substring(0, 12)}
                             </div>
                             <div className="text-xs text-neutral-500">

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { CreditCard, Check, X, Zap, Crown, Building2, AlertCircle } from 'lucide-react';
+import { CreditCard, Check, X, Zap, Crown, Building2, AlertCircle, Gift } from 'lucide-react';
 import { useAgency } from '../../../hooks/useAgency';
 import { Link } from 'react-router-dom';
 import { CheckoutButton } from '../../../components/stripe/CheckoutButton';
@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { getAgencyPlanStatus, type PlanType } from '../../../lib/firebase/subscription-helpers';
 import { Badge } from '../../../components/ui/badge';
 import toast from 'react-hot-toast';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
 
 const plans = [
   {
@@ -17,15 +18,16 @@ const plans = [
     description: 'Perfect for small agencies',
     icon: Building2,
     features: [
-      'Up to 50 loans',
+      'Unlimited loans',
       'Basic reporting',
       'Email support',
-      '5 team members',
+      'Unlimited team members',
+      'Core loan management',
+      'Customer management',
+      'Mobile app access',
+      'Offline mode',
     ],
-    limitations: [
-      'No advanced analytics',
-      'Limited integrations',
-    ],
+    limitations: [],
     current: false,
   },
   {
@@ -36,11 +38,18 @@ const plans = [
     icon: Zap,
     features: [
       'Unlimited loans',
-      'Advanced analytics',
+      'Advanced analytics & insights',
+      'Real-time collaboration',
       'Priority support',
       'Unlimited team members',
       'API access',
       'Custom integrations',
+      'Advanced reporting',
+      'Full offline sync',
+      'Automated workflows',
+      'Bulk operations',
+      'Advanced search & filters',
+      'Export capabilities (CSV, PDF, Excel)',
     ],
     limitations: [],
     current: true,
@@ -56,9 +65,13 @@ const plans = [
       'Everything in Professional',
       'Dedicated account manager',
       'Custom development',
-      'SLA guarantee',
-      'On-premise deployment',
+      'SLA guarantee (99.9% uptime)',
+      'On-premise deployment option',
       'Training & onboarding',
+      'Advanced security features',
+      'Custom workflows',
+      'Advanced audit logs',
+      'White-label customization',
     ],
     limitations: [],
     current: false,
@@ -67,6 +80,7 @@ const plans = [
 
 export function PlansPage() {
   const { agency } = useAgency();
+  const { isDecemberSpecial, daysUntilGating } = useFeatureGate();
   const [planStatus, setPlanStatus] = useState<{
     planType: PlanType;
     status: string;
@@ -109,6 +123,30 @@ export function PlansPage() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* December Special Banner */}
+      {isDecemberSpecial && (
+        <Card className="border-2 border-primary bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 shadow-lg">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20">
+                <Gift className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                  🎉 December Special - All Features Free!
+                </h3>
+                <p className="text-sm text-neutral-600 mt-1">
+                  Enjoy all premium features at no cost until January 15, 2025. 
+                  {daysUntilGating && daysUntilGating > 0 && (
+                    <span className="font-medium text-primary ml-1"> {daysUntilGating} days remaining!</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       <div>
         <div className="flex items-center justify-between">
           <div>

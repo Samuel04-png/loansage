@@ -339,7 +339,7 @@ export function LoanDetailPage() {
     return (
       <div className="text-center py-16">
         <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
-        <p className="text-lg font-semibold text-neutral-900 mb-2">
+        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
           Authentication Error
         </p>
         <p className="text-sm text-neutral-600 mb-6">
@@ -356,7 +356,7 @@ export function LoanDetailPage() {
     return (
       <div className="text-center py-16">
         <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-red-500" />
-        <p className="text-lg font-semibold text-neutral-900 mb-2">
+        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
           {loanError ? 'Error loading loan' : 'Loan not found'}
         </p>
         <p className="text-sm text-neutral-600 mb-6">
@@ -397,8 +397,8 @@ export function LoanDetailPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-neutral-900">Loan Details</h1>
-            <p className="text-sm text-neutral-600 font-mono mt-1">
+            <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Loan Details</h1>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 font-mono mt-1">
               {loan.loanNumber || loan.id.substring(0, 12)}...
             </p>
           </div>
@@ -477,7 +477,7 @@ export function LoanDetailPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 rounded-lg bg-neutral-100 p-1">
-          <TabsTrigger value="overview" className="rounded-md data-[state=active]:bg-white">
+          <TabsTrigger value="overview" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800">
             Overview
           </TabsTrigger>
           <TabsTrigger value="repayments" className="rounded-md data-[state=active]:bg-white">
@@ -493,9 +493,9 @@ export function LoanDetailPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6 mt-6">
-          {/* AI Insights for this loan */}
-          {loanAIInsights.length > 0 && (
-            <Card className="border-neutral-200">
+          {/* AI Insights for this loan - Only show if there are actual insights (not just loading) */}
+          {!aiLoading && loanAIInsights.length > 0 && (
+            <Card className="border-neutral-200 dark:border-neutral-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-[#006BFF]" />
@@ -503,14 +503,14 @@ export function LoanDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <AIInsightsPanel insights={loanAIInsights} isLoading={aiLoading} maxItems={5} />
+                <AIInsightsPanel insights={loanAIInsights} isLoading={false} maxItems={5} />
               </CardContent>
             </Card>
           )}
 
       <div className="grid gap-6 md:grid-cols-2">
             {/* Customer Overview */}
-            <Card className="border-neutral-200">
+            <Card className="border-neutral-200 dark:border-neutral-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <User className="w-5 h-5 text-[#006BFF]" />
@@ -529,7 +529,7 @@ export function LoanDetailPage() {
                     {loan.customer.nrcNumber && (
               <div>
                         <p className="text-sm font-medium text-neutral-600 mb-1">NRC</p>
-                        <p className="text-base text-neutral-900">{loan.customer.nrcNumber}</p>
+                        <p className="text-base text-neutral-900 dark:text-neutral-100">{loan.customer.nrcNumber}</p>
                       </div>
                     )}
                     {loan.customer.phone && (
@@ -550,9 +550,9 @@ export function LoanDetailPage() {
                         <p className="text-base text-neutral-900">{loan.customer.address}</p>
                       </div>
                     )}
-                    <div className="pt-4 border-t border-neutral-200">
+                    <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
                       <p className="text-sm font-medium text-neutral-600 mb-2">Total Loans</p>
-                      <p className="text-2xl font-bold text-neutral-900">
+                      <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                         {(customerLoans?.length || 0) + 1}
                       </p>
               </div>
@@ -564,11 +564,11 @@ export function LoanDetailPage() {
                             <Link
                               key={otherLoan.id}
                               to={`/admin/loans/${otherLoan.id}`}
-                              className="block p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition-colors"
+                              className="block p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                             >
                               <div className="flex items-center justify-between">
               <div>
-                                  <p className="text-sm font-medium text-neutral-900">
+                                  <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                                     {otherLoan.loanNumber || otherLoan.id.substring(0, 8)}
                                   </p>
                                   <p className="text-xs text-neutral-500">
@@ -609,7 +609,7 @@ export function LoanDetailPage() {
           </Card>
 
             {/* Loan Information */}
-            <Card className="border-neutral-200">
+            <Card className="border-neutral-200 dark:border-neutral-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#006BFF]" />
@@ -620,7 +620,7 @@ export function LoanDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Loan ID</p>
-                    <p className="text-base font-mono text-neutral-900">
+                    <p className="text-base font-mono text-neutral-900 dark:text-neutral-100">
                       {loan.loanNumber || loan.id.substring(0, 12)}
                     </p>
                   </div>
@@ -661,10 +661,10 @@ export function LoanDetailPage() {
                   </p>
                 </div>
               </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200">
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
                   <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Interest Rate</p>
-                    <p className="text-base font-semibold text-neutral-900">{interestRate}%</p>
+                    <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{interestRate}%</p>
                   </div>
                 <div>
                     <p className="text-sm font-medium text-neutral-600 mb-1">Duration</p>

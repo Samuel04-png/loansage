@@ -176,8 +176,12 @@ export function AddPaymentDialog({
       });
 
       toast.success('Payment recorded successfully');
+      
+      // Invalidate all related queries for immediate update
       queryClient.invalidateQueries({ queryKey: ['loan', agencyId, loanId] });
       queryClient.invalidateQueries({ queryKey: ['loans'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-history', agencyId, loanId] });
+      queryClient.invalidateQueries({ queryKey: ['loans', agencyId] });
       
       setAmount('');
       setTransactionId('');

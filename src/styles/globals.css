@@ -109,25 +109,72 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Dark mode backgrounds - deep charcoal */
+    --background: 222.2 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 222.2 47% 13%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222.2 47% 13%;
     --popover-foreground: 210 40% 98%;
+    
+    /* Primary - slightly lighter for dark mode visibility */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
+    --primary-light: 217 91% 70%;
+    --primary-dark: 217 91% 50%;
+    
+    /* Secondary - darker gray for dark mode */
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
+    
+    /* Tertiary - accent color */
+    --tertiary: 262 83% 58%;
+    
+    /* Muted - subtle backgrounds */
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
+    
+    /* Accent */
     --accent: 262 83% 58%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
+    
+    /* Destructive - softer red for dark mode */
+    --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    
+    /* Borders - subtle in dark mode */
+    --border: 217.2 32.6% 20%;
+    --input: 217.2 32.6% 20%;
     --ring: 217 91% 60%;
+    
+    /* Neutral colors for dark mode - deep charcoal */
+    --neutral-900: 210 40% 98%;
+    --neutral-700: 215 20.2% 65.1%;
+    --neutral-500: 215 16% 47%;
+    --neutral-300: 217.2 32.6% 30%;
+    --bg-surface: 222.2 47% 11%;
+    --card-bg: 222.2 47% 13%;
+  }
+  
+  /* Smooth theme transitions - applied globally */
+  * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+  
+  /* Exclude certain elements from transitions for performance */
+  *:not([class*="animate"]):not([class*="transition-none"]):not([class*="no-transition"]) {
+    transition-property: background-color, border-color, color;
+  }
+  
+  /* Ensure smooth transitions for theme changes */
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  body {
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
 

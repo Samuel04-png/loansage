@@ -20,6 +20,7 @@ import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { useAIInsights } from '../../../hooks/useAIInsights';
 import { AIInsightsPanel } from '../../../components/ai/AIInsightsPanel';
+import { useTheme } from '../../../components/providers/ThemeProvider';
 
 // Animated Counter Component
 function AnimatedCounter({ value, className }: { value: number | string; className?: string }) {
@@ -65,21 +66,21 @@ const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }
   >
     <Card 
       className={cn(
-        "h-full cursor-pointer transition-all duration-300 bg-white border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] rounded-2xl overflow-hidden",
-        gradient && "bg-gradient-to-br from-white to-neutral-50/50"
+        "h-full cursor-pointer transition-all duration-300 hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] dark:hover:shadow-[0_12px_40px_rgb(0,0,0,0.4)] rounded-2xl overflow-hidden",
+        gradient && "bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-800/50"
       )}
       onClick={onClick}
     >
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-medium text-neutral-600">{title}</p>
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">{title}</p>
           <div className={cn(
             "p-2 rounded-lg",
-            gradient ? "bg-[#006BFF]/10" : "bg-neutral-100"
+            gradient ? "bg-[#006BFF]/10 dark:bg-[#006BFF]/20" : "bg-neutral-100 dark:bg-neutral-800"
           )}>
             <Icon className={cn(
               "h-4 w-4",
-              gradient ? "text-[#006BFF]" : "text-neutral-500"
+              gradient ? "text-[#006BFF] dark:text-blue-400" : "text-neutral-500 dark:text-neutral-400"
             )} />
           </div>
         </div>
@@ -87,7 +88,7 @@ const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }
           <div className="flex items-baseline gap-2">
             <AnimatedCounter 
               value={value} 
-              className="text-3xl font-bold text-neutral-900"
+              className="text-3xl font-bold text-neutral-900 dark:text-neutral-100"
             />
           </div>
           {change && (
@@ -115,6 +116,7 @@ const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }
 
 export function AdminDashboard() {
   const { profile } = useAuth();
+  const { resolvedTheme } = useTheme();
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
   const [addCustomerDrawerOpen, setAddCustomerDrawerOpen] = useState(false);
   const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
@@ -321,8 +323,8 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* AI Insights Panel */}
-      {aiInsights.length > 0 && (
+      {/* AI Insights Panel - Only show if there are actual insights (not just loading) */}
+      {!aiAnalyzing && aiInsights.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -330,13 +332,13 @@ export function AdminDashboard() {
         >
           <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-[#006BFF]" />
                 AI Intelligence Insights
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <AIInsightsPanel insights={aiInsights} isLoading={aiAnalyzing} maxItems={5} />
+              <AIInsightsPanel insights={aiInsights} isLoading={false} maxItems={5} />
             </CardContent>
           </Card>
         </motion.div>
@@ -350,7 +352,7 @@ export function AdminDashboard() {
       >
         <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
           <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-semibold text-neutral-900">Quick Actions</CardTitle>
+            <CardTitle className="text-xl font-semibold">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-3">
@@ -478,37 +480,42 @@ export function AdminDashboard() {
         >
           <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Disbursement Overview (Last 6 Months)</CardTitle>
+              <CardTitle className="text-lg font-semibold">Disbursement Overview (Last 6 Months)</CardTitle>
             </CardHeader>
             <CardContent className="pl-2">
               {chartData?.chartData && chartData.chartData.length > 0 && chartData.chartData.some((d: any) => d.amount > 0) ? (
                 <div className="w-full overflow-x-auto">
                   <ResponsiveContainer width="100%" height={300} minWidth={300}>
                   <BarChart data={chartData.chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <CartesianGrid 
+                      strokeDasharray="3 3" 
+                      vertical={false} 
+                      stroke={resolvedTheme === 'dark' ? '#374151' : '#E5E7EB'} 
+                    />
                     <XAxis 
                       dataKey="name" 
-                      stroke="#6B7280" 
+                      stroke={resolvedTheme === 'dark' ? '#9CA3AF' : '#6B7280'} 
                       fontSize={12} 
                       tickLine={false} 
                       axisLine={false}
-                      tick={{ fill: '#6B7280' }}
+                      tick={{ fill: resolvedTheme === 'dark' ? '#9CA3AF' : '#6B7280' }}
                     />
                     <YAxis
-                      stroke="#6B7280"
+                      stroke={resolvedTheme === 'dark' ? '#9CA3AF' : '#6B7280'}
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(value) => `K${(value / 1000).toFixed(0)}`}
-                      tick={{ fill: '#6B7280' }}
+                      tick={{ fill: resolvedTheme === 'dark' ? '#9CA3AF' : '#6B7280' }}
                     />
                     <Tooltip
-                      cursor={{ fill: '#F3F4F6' }}
+                      cursor={{ fill: resolvedTheme === 'dark' ? '#1F2937' : '#F3F4F6' }}
                       contentStyle={{
                         borderRadius: '12px',
-                        border: '1px solid #E5E7EB',
-                        boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
-                        backgroundColor: 'white',
+                        border: resolvedTheme === 'dark' ? '1px solid #374151' : '1px solid #E5E7EB',
+                        boxShadow: resolvedTheme === 'dark' ? '0 8px 30px rgb(0,0,0,0.3)' : '0 8px 30px rgb(0,0,0,0.06)',
+                        backgroundColor: resolvedTheme === 'dark' ? '#111827' : 'white',
+                        color: resolvedTheme === 'dark' ? '#F9FAFB' : '#111827',
                       }}
                       formatter={(value: any) => formatCurrency(value, 'ZMW')}
                     />
@@ -543,7 +550,7 @@ export function AdminDashboard() {
         >
           <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Loan Status Distribution</CardTitle>
+              <CardTitle className="text-lg font-semibold">Loan Status Distribution</CardTitle>
             </CardHeader>
             <CardContent>
               {chartData?.statusData && chartData.statusData.length > 0 ? (
@@ -568,22 +575,26 @@ export function AdminDashboard() {
                       formatter={(value: any, name: string) => [`${value} loans`, name]}
                       contentStyle={{
                         borderRadius: '12px',
-                        border: '1px solid #E5E7EB',
-                        boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
-                        backgroundColor: 'white',
+                        border: resolvedTheme === 'dark' ? '1px solid #374151' : '1px solid #E5E7EB',
+                        boxShadow: resolvedTheme === 'dark' ? '0 8px 30px rgb(0,0,0,0.3)' : '0 8px 30px rgb(0,0,0,0.06)',
+                        backgroundColor: resolvedTheme === 'dark' ? '#111827' : 'white',
+                        color: resolvedTheme === 'dark' ? '#F9FAFB' : '#111827',
                       }}
                     />
                     <Legend 
                       verticalAlign="bottom" 
                       height={36}
                       formatter={(value: string) => value}
-                      wrapperStyle={{ fontSize: '12px', color: '#6B7280' }}
+                      wrapperStyle={{ 
+                        fontSize: '12px', 
+                        color: resolvedTheme === 'dark' ? '#9CA3AF' : '#6B7280' 
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-[300px] text-neutral-400">
+                <div className="flex items-center justify-center h-[300px] text-neutral-400 dark:text-neutral-500">
                   <p>No loan status data available</p>
                 </div>
               )}
@@ -601,12 +612,12 @@ export function AdminDashboard() {
         >
           <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Top Performing Officers</CardTitle>
+              <CardTitle className="text-lg font-semibold">Top Performing Officers</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-neutral-600 uppercase bg-neutral-50/50 border-b border-neutral-200">
+                  <thead className="text-xs text-neutral-600 dark:text-neutral-400 uppercase bg-neutral-50/50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-800">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold">Officer</th>
                       <th className="px-4 py-3 text-right font-semibold">Total Loans</th>
@@ -620,10 +631,10 @@ export function AdminDashboard() {
                         key={index} 
                         className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
                       >
-                        <td className="px-4 py-3 font-medium text-neutral-900">{officer.name}</td>
-                        <td className="px-4 py-3 text-right text-neutral-700">{officer.totalLoans}</td>
-                        <td className="px-4 py-3 text-right text-neutral-700">{officer.activeLoans}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-neutral-900">
+                        <td className="px-4 py-3 font-medium text-neutral-900 dark:text-neutral-100">{officer.name}</td>
+                        <td className="px-4 py-3 text-right text-neutral-700 dark:text-neutral-300">{officer.totalLoans}</td>
+                        <td className="px-4 py-3 text-right text-neutral-700 dark:text-neutral-300">{officer.activeLoans}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-neutral-900 dark:text-neutral-100">
                           {formatCurrency(officer.totalAmount, 'ZMW')}
                         </td>
                       </tr>

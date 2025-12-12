@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
+import { useTheme } from '../../../components/providers/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -36,6 +37,7 @@ ChartJS.register(
 
 export function ReportsPage() {
   const { profile } = useAuth();
+  const { resolvedTheme } = useTheme();
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
 
   const { data: stats, isLoading } = useQuery({
@@ -112,8 +114,8 @@ export function ReportsPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Reports & Analytics</h2>
-          <p className="text-slate-600">Comprehensive insights into your loan portfolio</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">Reports & Analytics</h2>
+          <p className="text-slate-600 dark:text-neutral-400">Comprehensive insights into your loan portfolio</p>
         </div>
         <div className="flex gap-2">
           <select
@@ -139,8 +141,8 @@ export function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600">Total Loans</p>
-                <p className="text-2xl font-bold">{stats?.loans?.length || 0}</p>
+                <p className="text-sm text-slate-600 dark:text-neutral-400">Total Loans</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-neutral-100">{stats?.loans?.length || 0}</p>
               </div>
               <FileText className="w-8 h-8 text-primary-600" />
             </div>
@@ -151,8 +153,8 @@ export function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600">Total Portfolio</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalLoanAmount, 'ZMW')}</p>
+                <p className="text-sm text-slate-600 dark:text-neutral-400">Total Portfolio</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-neutral-100">{formatCurrency(totalLoanAmount, 'ZMW')}</p>
               </div>
               <DollarSign className="w-8 h-8 text-emerald-600" />
             </div>
@@ -163,8 +165,8 @@ export function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600">Total Repayments</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalRepayments, 'ZMW')}</p>
+                <p className="text-sm text-slate-600 dark:text-neutral-400">Total Repayments</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-neutral-100">{formatCurrency(totalRepayments, 'ZMW')}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-blue-600" />
             </div>
@@ -175,8 +177,8 @@ export function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-600">Active Customers</p>
-                <p className="text-2xl font-bold">{stats?.customers?.length || 0}</p>
+                <p className="text-sm text-slate-600 dark:text-neutral-400">Active Customers</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-neutral-100">{stats?.customers?.length || 0}</p>
               </div>
               <Users className="w-8 h-8 text-purple-600" />
             </div>
@@ -207,8 +209,8 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <span className="font-medium">Approval Rate</span>
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-neutral-800 rounded-lg">
+                <span className="font-medium text-slate-900 dark:text-neutral-100">Approval Rate</span>
                 <Badge variant="success">
                   {stats?.loans?.length
                     ? Math.round(
@@ -220,8 +222,8 @@ export function ReportsPage() {
                   %
                 </Badge>
               </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <span className="font-medium">Default Rate</span>
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-neutral-800 rounded-lg">
+                <span className="font-medium text-slate-900 dark:text-neutral-100">Default Rate</span>
                 <Badge variant="destructive">
                   {stats?.loans?.length
                     ? Math.round(
@@ -233,8 +235,8 @@ export function ReportsPage() {
                   %
                 </Badge>
               </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                <span className="font-medium">Collection Rate</span>
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-neutral-800 rounded-lg">
+                <span className="font-medium text-slate-900 dark:text-neutral-100">Collection Rate</span>
                 <Badge variant="default">
                   {totalLoanAmount > 0
                     ? Math.round(((totalRepayments / totalLoanAmount) * 100) as number)

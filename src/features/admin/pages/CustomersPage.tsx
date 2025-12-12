@@ -87,8 +87,8 @@ export function CustomersPage() {
         className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Customers</h2>
-          <p className="text-sm text-neutral-600">Manage your agency customers</p>
+          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Customers</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Manage your agency customers</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
@@ -170,7 +170,7 @@ export function CustomersPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+        <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
           <CardHeader className="pb-4 border-b border-neutral-200/50">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
@@ -226,7 +226,7 @@ export function CustomersPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-semibold text-neutral-900">
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
                               {cust.fullName || 'N/A'}
                             </div>
                             <div className="text-xs text-neutral-500">{cust.email || cust.phone}</div>

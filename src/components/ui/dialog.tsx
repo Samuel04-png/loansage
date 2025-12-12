@@ -42,7 +42,7 @@ export function DialogContent({ className, children, ...props }: DialogContentPr
       />
       <div
         className={cn(
-          'relative z-50 w-full max-w-lg bg-white rounded-lg shadow-lg p-6',
+          'relative z-50 w-full max-w-lg bg-white dark:bg-neutral-900 rounded-lg shadow-lg dark:shadow-2xl p-6 border border-neutral-200 dark:border-neutral-800',
           className
         )}
         {...props}
@@ -66,14 +66,14 @@ export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLD
 }
 
 export function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn('text-lg font-semibold', className)} {...props} />;
+  return <h2 className={cn('text-lg font-semibold text-neutral-900 dark:text-neutral-100', className)} {...props} />;
 }
 
 export function DialogDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-sm text-slate-600', className)} {...props} />;
+  return <p className={cn('text-sm text-slate-600 dark:text-neutral-400', className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

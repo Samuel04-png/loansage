@@ -12,6 +12,7 @@ interface Agency {
   company_profile_url?: string | null;
   primary_color?: string;
   secondary_color?: string;
+  tertiary_color?: string;
   theme_mode?: 'light' | 'dark' | 'auto';
   email?: string;
   phone?: string;

@@ -23,12 +23,14 @@ export function ThemesPage() {
   const [saving, setSaving] = useState(false);
   const [primaryColor, setPrimaryColor] = useState(agency?.primary_color || '#006BFF');
   const [secondaryColor, setSecondaryColor] = useState(agency?.secondary_color || '#3B82FF');
+  const [tertiaryColor, setTertiaryColor] = useState(agency?.tertiary_color || '#4F46E5');
 
   // Update local state when agency changes
   useEffect(() => {
     if (agency?.primary_color) setPrimaryColor(agency.primary_color);
     if (agency?.secondary_color) setSecondaryColor(agency.secondary_color);
-  }, [agency?.primary_color, agency?.secondary_color]);
+    if (agency?.tertiary_color) setTertiaryColor(agency.tertiary_color);
+  }, [agency?.primary_color, agency?.secondary_color, agency?.tertiary_color]);
 
   const handleThemeChange = async (newTheme: 'light' | 'dark' | 'auto') => {
     setTheme(newTheme);
@@ -51,13 +53,14 @@ export function ThemesPage() {
   };
 
   const handleColorSave = async () => {
-    if (!profile?.role === 'admin' || !agency?.id) return;
+    if (profile?.role !== 'admin' || !agency?.id) return;
     
     setSaving(true);
     try {
       await updateAgency({
         primary_color: primaryColor,
         secondary_color: secondaryColor,
+        tertiary_color: tertiaryColor,
       });
       toast.success('Brand colors saved successfully!');
     } catch (error: any) {
@@ -165,7 +168,7 @@ export function ThemesPage() {
             <CardDescription>Customize your agency's brand colors</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="primaryColor">Primary Color</Label>
                 <div className="flex items-center gap-3">
@@ -174,7 +177,7 @@ export function ThemesPage() {
                     id="primaryColor"
                     value={primaryColor}
                     onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border border-neutral-300 cursor-pointer"
+                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
                   />
                   <Input
                     type="text"
@@ -184,7 +187,7 @@ export function ThemesPage() {
                     className="flex-1"
                   />
                 </div>
-                <p className="text-xs text-neutral-500">Used for primary buttons and accents</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for primary buttons and accents</p>
               </div>
 
               <div className="space-y-2">
@@ -195,7 +198,7 @@ export function ThemesPage() {
                     id="secondaryColor"
                     value={secondaryColor}
                     onChange={(e) => setSecondaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border border-neutral-300 cursor-pointer"
+                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
                   />
                   <Input
                     type="text"
@@ -205,29 +208,56 @@ export function ThemesPage() {
                     className="flex-1"
                   />
                 </div>
-                <p className="text-xs text-neutral-500">Used for secondary elements and gradients</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for secondary elements</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tertiaryColor">Tertiary Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    id="tertiaryColor"
+                    value={tertiaryColor}
+                    onChange={(e) => setTertiaryColor(e.target.value)}
+                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                  />
+                  <Input
+                    type="text"
+                    value={tertiaryColor}
+                    onChange={(e) => setTertiaryColor(e.target.value)}
+                    placeholder="#4F46E5"
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for accents and highlights</p>
               </div>
             </div>
 
             {/* Color Preview */}
-            <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-              <p className="text-sm font-semibold text-neutral-700 mb-3">Preview</p>
+            <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+              <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">Preview</p>
               <div className="flex gap-2">
                 <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
                   style={{ backgroundColor: primaryColor }}
                 >
                   Primary
                 </div>
                 <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
                   style={{ backgroundColor: secondaryColor }}
                 >
                   Secondary
                 </div>
                 <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold"
-                  style={{ background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor})` }}
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                  style={{ backgroundColor: tertiaryColor }}
+                >
+                  Tertiary
+                </div>
+                <div 
+                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                  style={{ background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor}, ${tertiaryColor})` }}
                 >
                   Gradient
                 </div>

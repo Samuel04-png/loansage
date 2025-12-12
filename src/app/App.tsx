@@ -57,6 +57,14 @@ import { OutstandingBorrowersPage } from '../features/admin/pages/OutstandingBor
 import { CRMPage } from '../features/admin/pages/CRMPage';
 import { CompliancePage } from '../features/admin/pages/CompliancePage';
 import { CurrencySettingsPage } from '../features/admin/pages/CurrencySettingsPage';
+import { SecuritySettingsPage } from '../features/admin/pages/SecuritySettingsPage';
+import { LoanProductsPage } from '../features/admin/pages/LoanProductsPage';
+import { NotificationsPage as NotificationsManagementPage } from '../features/admin/pages/NotificationsPage';
+import { MobileMoneyPage } from '../features/admin/pages/MobileMoneyPage';
+import { CreditScoringPage } from '../features/admin/pages/CreditScoringPage';
+import { AnalyticsPage } from '../features/admin/pages/AnalyticsPage';
+import { BranchesPage } from '../features/admin/pages/BranchesPage';
+import { CollectionsPage as AdminCollectionsPage } from '../features/admin/pages/CollectionsPage';
 
 // Employee pages
 import { EmployeeLayout } from '../features/employee/components/EmployeeLayout';
@@ -168,6 +176,14 @@ function AppContent() {
                 <Route path="crm" element={<CRMPage />} />
                 <Route path="compliance" element={<CompliancePage />} />
                 <Route path="settings/currency" element={<CurrencySettingsPage />} />
+                <Route path="settings/security" element={<SecuritySettingsPage />} />
+                <Route path="loan-products" element={<LoanProductsPage />} />
+                <Route path="notifications-management" element={<NotificationsManagementPage />} />
+                <Route path="mobile-money/:loanId" element={<MobileMoneyPage />} />
+                <Route path="credit-scoring/:customerId" element={<CreditScoringPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="branches" element={<BranchesPage />} />
+                <Route path="collections" element={<AdminCollectionsPage />} />
                 <Route index element={<AdminDashboard />} />
               </Route>
 

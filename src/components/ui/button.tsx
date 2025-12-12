@@ -15,9 +15,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           {
             'bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white shadow-md hover:shadow-lg': variant === 'default',
             'bg-[#EF4444] text-white hover:bg-[#DC2626] shadow-md hover:shadow-lg': variant === 'destructive',
-            'border border-neutral-200 bg-white hover:bg-neutral-50 hover:border-neutral-300 text-neutral-900': variant === 'outline',
-            'bg-neutral-100 text-neutral-900 hover:bg-neutral-200': variant === 'secondary',
-            'hover:bg-neutral-100 hover:text-neutral-900 text-neutral-700': variant === 'ghost',
+            'border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100': variant === 'outline',
+            'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700': variant === 'secondary',
+            'hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100 text-neutral-700 dark:text-neutral-300': variant === 'ghost',
             'text-[#006BFF] underline-offset-4 hover:underline hover:text-[#0052CC]': variant === 'link',
             'h-10 px-4 py-2': size === 'default',
             'h-9 px-3 text-xs': size === 'sm',

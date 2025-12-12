@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, doc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -38,13 +39,22 @@ interface PaymentHistoryEntry {
 
 export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
-  // Fetch all payment history from all repayments
-  const { data: paymentHistory, isLoading: historyLoading } = useQuery({
-    queryKey: ['payment-history', agencyId, loan.id],
-    queryFn: async () => {
-      if (!loan.id || !agencyId) return [];
+  // Real-time listener for payment history updates
+  useEffect(() => {
+    if (!loan.id || !agencyId) {
+      setHistoryLoading(false);
+      return;
+    }
 
+    setHistoryLoading(true);
+    const unsubscribeFunctions: (() => void)[] = [];
+
+    // Function to fetch all payment history
+    const fetchAllPaymentHistory = async () => {
       try {
         const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loan.id, 'repayments');
         const repaymentsSnapshot = await getDocs(repaymentsRef);
@@ -63,10 +73,10 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
             repaymentId,
             'paymentHistory'
           );
-          
+
           try {
             const paymentHistorySnapshot = await getDocs(paymentHistoryRef);
-            paymentHistorySnapshot.docs.forEach(paymentDoc => {
+            paymentHistorySnapshot.docs.forEach((paymentDoc) => {
               const paymentData = paymentDoc.data();
               allPayments.push({
                 id: paymentDoc.id,
@@ -85,18 +95,71 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
         }
 
         // Sort by date (newest first)
-        return allPayments.sort((a, b) => {
+        const sorted = allPayments.sort((a, b) => {
           const dateA = a.recordedAt?.toDate?.() || a.recordedAt || new Date(0);
           const dateB = b.recordedAt?.toDate?.() || b.recordedAt || new Date(0);
           return dateB.getTime() - dateA.getTime();
         });
+
+        setPaymentHistory(sorted);
+        setHistoryLoading(false);
       } catch (error) {
         console.error('Error fetching payment history:', error);
-        return [];
+        setHistoryLoading(false);
       }
-    },
-    enabled: !!loan.id && !!agencyId,
-  });
+    };
+
+    // Initial fetch
+    fetchAllPaymentHistory();
+
+    // Set up real-time listeners for all repayment payment histories
+    const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loan.id, 'repayments');
+    
+    // Listen to repayments collection changes
+    const unsubscribeRepayments = onSnapshot(repaymentsRef, async (snapshot) => {
+      // When repayments change, re-fetch all payment history
+      await fetchAllPaymentHistory();
+      
+      // Set up listeners for each repayment's payment history
+      snapshot.docs.forEach((repaymentDoc) => {
+        const repaymentId = repaymentDoc.id;
+        const paymentHistoryRef = collection(
+          db,
+          'agencies',
+          agencyId,
+          'loans',
+          loan.id,
+          'repayments',
+          repaymentId,
+          'paymentHistory'
+        );
+
+        // Real-time listener for payment history changes
+        const unsubscribe = onSnapshot(
+          paymentHistoryRef,
+          () => {
+            // Re-fetch all payment history when any payment history changes
+            fetchAllPaymentHistory();
+          },
+          (error) => {
+            console.warn(`Failed to listen to payment history for repayment ${repaymentId}:`, error);
+          }
+        );
+
+        unsubscribeFunctions.push(unsubscribe);
+      });
+    }, (error) => {
+      console.error('Error setting up repayment listeners:', error);
+      setHistoryLoading(false);
+    });
+
+    unsubscribeFunctions.push(unsubscribeRepayments);
+
+    // Cleanup function
+    return () => {
+      unsubscribeFunctions.forEach((unsub) => unsub());
+    };
+  }, [loan.id, agencyId]);
 
   // Fetch staff member names
   const { data: staffNames } = useQuery({

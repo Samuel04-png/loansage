@@ -49,3 +49,12 @@ export { generateThumbnail } from './thumbnail-generator';
 export { createCheckoutSession, stripeWebhook } from './stripe-checkout';
 export { deepseekProxy } from './deepseek-proxy';
 
+// Export advanced automation functions
+export {
+  dailyInterestAccrual,
+  paymentReminders,
+  overdueLoanChecker,
+  generateRepaymentSchedule,
+  dailyBackup,
+} from './advanced-automation';
+

@@ -3,6 +3,7 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
+import { getDatabase, Database } from 'firebase/database';
 
 // Get environment variables with fallbacks
 const getEnvVar = (key: string, defaultValue: string = ''): string => {
@@ -108,6 +109,19 @@ if (getApps().length === 0) {
 export const auth: Auth = getAuth(app);
 export const storage: FirebaseStorage = getStorage(app);
 export const functions: Functions = getFunctions(app);
+
+// Initialize Realtime Database (lazy initialization)
+let realtimeDB: Database | null = null;
+export function getRealtimeDatabase(): Database {
+  if (!realtimeDB && !isDemoMode) {
+    try {
+      realtimeDB = getDatabase(app);
+    } catch (error) {
+      console.error('Failed to initialize Realtime Database:', error);
+    }
+  }
+  return realtimeDB as Database;
+}
 
 // Initialize Firestore
 // Note: Persistence must be enabled before any Firestore operations

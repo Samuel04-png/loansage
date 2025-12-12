@@ -5,6 +5,7 @@
  */
 
 import { callDeepSeekAPI } from './deepseek-client';
+import { formatCurrency } from '../utils';
 
 export interface AIInsight {
   type: 'risk' | 'reminder' | 'insight' | 'suggestion' | 'warning';
@@ -249,10 +250,17 @@ Example: "insight|medium|Revenue increased|Your revenue increased by 12% this mo
 Keep each message under 100 characters.`;
 
   try {
-    const response = await callDeepSeekAPI([
+    // Add timeout to prevent hanging - increased to 25 seconds
+    const timeoutPromise = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error('AI request timeout')), 25000); // 25 second timeout
+    });
+
+    const aiPromise = callDeepSeekAPI([
       { role: 'system', content: 'You are an embedded intelligence system. Provide only short, actionable insights. Never act like a chatbot.' },
       { role: 'user', content: analysisPrompt },
     ], { temperature: 0.3, maxTokens: 500 });
+
+    const response = await Promise.race([aiPromise, timeoutPromise]);
 
     // Parse AI response
     const lines = response.split('\n').filter(line => line.trim());
@@ -269,9 +277,14 @@ Keep each message under 100 characters.`;
         });
       }
     }
-  } catch (error) {
-    console.error('Error generating financial insights:', error);
-    // Fallback insights if AI fails
+  } catch (error: any) {
+    // Only log non-timeout errors as warnings, timeouts are expected and handled gracefully
+    if (error?.message?.includes('timeout')) {
+      // Timeout is expected - silently use fallback insights
+    } else {
+      console.warn('AI insights unavailable, using fallback:', error?.message || 'Unknown error');
+    }
+    // Always provide fallback insights if AI fails
     if (defaultRate > 20) {
       insights.push({
         type: 'warning',
@@ -280,6 +293,29 @@ Keep each message under 100 characters.`;
         message: `Default rate is ${defaultRate.toFixed(1)}% - above recommended threshold.`,
         timestamp: new Date(),
       });
+    }
+    
+    if (activeLoans.length > 0) {
+      insights.push({
+        type: 'insight',
+        severity: 'low',
+        title: 'Portfolio overview',
+        message: `You have ${activeLoans.length} active loans with a total portfolio value of ${formatCurrency(totalPortfolio, 'ZMW')}.`,
+        timestamp: new Date(),
+      });
+    }
+    
+    if (totalCollected > 0) {
+      const collectionRate = totalDisbursed > 0 ? (totalCollected / totalDisbursed) * 100 : 0;
+      if (collectionRate < 70) {
+        insights.push({
+          type: 'warning',
+          severity: 'medium',
+          title: 'Low collection rate',
+          message: `Collection rate is ${collectionRate.toFixed(1)}% - consider increasing collection efforts.`,
+          timestamp: new Date(),
+        });
+      }
     }
   }
 
@@ -400,24 +436,55 @@ export async function generateActionSuggestions(context: AnalysisContext): Promi
 export async function analyzeLoanSystem(context: AnalysisContext): Promise<AIInsight[]> {
   const allInsights: AIInsight[] = [];
 
-  // Risk monitoring
-  const riskInsights = await analyzeRiskMonitoring(context);
-  allInsights.push(...riskInsights);
+  try {
+    // Risk monitoring (always runs, doesn't require AI)
+    try {
+      const riskInsights = await analyzeRiskMonitoring(context);
+      allInsights.push(...riskInsights);
+    } catch (error) {
+      console.warn('Risk monitoring failed:', error);
+    }
 
-  // Financial insights
-  const financialInsights = await generateFinancialInsights(context);
-  allInsights.push(...financialInsights);
+    // Financial insights (uses AI but has fallback)
+    try {
+      const financialInsights = await generateFinancialInsights(context);
+      allInsights.push(...financialInsights);
+    } catch (error) {
+      console.warn('Financial insights failed, using fallback:', error);
+      // Fallback insights are already added in generateFinancialInsights catch block
+    }
 
-  // Payment health for each active loan
-  for (const loan of context.loans.filter(l => l.status === 'active')) {
-    const loanPayments = context.payments.filter(p => p.loanId === loan.id);
-    const paymentInsights = await analyzePaymentHealth(loan, loanPayments);
-    allInsights.push(...paymentInsights);
+    // Payment health for each active loan (doesn't require AI)
+    for (const loan of context.loans.filter(l => l.status === 'active')) {
+      try {
+        const loanPayments = context.payments.filter(p => p.loanId === loan.id);
+        const paymentInsights = await analyzePaymentHealth(loan, loanPayments);
+        allInsights.push(...paymentInsights);
+      } catch (error) {
+        console.warn(`Payment health analysis failed for loan ${loan.id}:`, error);
+      }
+    }
+
+    // Action suggestions (doesn't require AI)
+    try {
+      const actionInsights = await generateActionSuggestions(context);
+      allInsights.push(...actionInsights);
+    } catch (error) {
+      console.warn('Action suggestions failed:', error);
+    }
+  } catch (error) {
+    console.error('Error in analyzeLoanSystem:', error);
+    // Even if everything fails, return basic insights
+    if (allInsights.length === 0) {
+      allInsights.push({
+        type: 'insight',
+        severity: 'low',
+        title: 'System Analysis',
+        message: 'AI analysis is temporarily unavailable. Basic insights are still available.',
+        timestamp: new Date(),
+      });
+    }
   }
-
-  // Action suggestions
-  const actionInsights = await generateActionSuggestions(context);
-  allInsights.push(...actionInsights);
 
   // Sort by severity and timestamp
   const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };

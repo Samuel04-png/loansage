@@ -24,6 +24,7 @@ import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import { FinancialHealthDashboard } from '../../../components/customer/FinancialHealthDashboard';
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -238,7 +239,7 @@ export function CustomerDetailPage() {
         className="text-center py-16"
       >
         <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-[#EF4444]" />
-        <p className="text-lg font-semibold text-neutral-900 mb-2">Error loading customer</p>
+        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">Error loading customer</p>
         <p className="text-sm text-neutral-600 mb-6">
           {customerError instanceof Error ? customerError.message : 'Unknown error'}
         </p>
@@ -288,14 +289,14 @@ export function CustomerDetailPage() {
             </Button>
           </Link>
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-4 border-neutral-200">
+            <Avatar className="h-16 w-16 border-4 border-neutral-200 dark:border-neutral-700">
               <AvatarImage src={customer.profilePhotoURL} />
               <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-lg font-semibold">
                 {getInitials(customer.fullName || 'Customer')}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-2xl font-bold text-neutral-900 mb-1">{customer.fullName || 'Customer'}</h2>
+              <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">{customer.fullName || 'Customer'}</h2>
               <p className="text-sm text-neutral-600">{customer.email || customer.phone || 'No contact info'}</p>
             </div>
           </div>
@@ -315,9 +316,9 @@ export function CustomerDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+        <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold text-neutral-900">Customer Information</CardTitle>
+            <CardTitle className="text-lg font-semibold">Customer Information</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-8">
@@ -325,7 +326,7 @@ export function CustomerDetailPage() {
                 <div className="space-y-5">
                   <div>
                     <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Full Name</p>
-                    <p className="text-base font-semibold text-neutral-900">{customer.fullName || 'N/A'}</p>
+                    <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{customer.fullName || 'N/A'}</p>
                   </div>
                   {customer.email && (
                     <div>
@@ -348,7 +349,7 @@ export function CustomerDetailPage() {
                   {customer.nrc && (
                     <div>
                       <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">NRC/ID Number</p>
-                      <p className="font-mono text-sm text-neutral-900">{customer.nrc}</p>
+                      <p className="font-mono text-sm text-neutral-900 dark:text-neutral-100">{customer.nrc}</p>
                     </div>
                   )}
                 </div>
@@ -367,7 +368,7 @@ export function CustomerDetailPage() {
                   {customer.employer && (
                     <div>
                       <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Employer</p>
-                      <p className="text-base font-semibold text-neutral-900">{customer.employer}</p>
+                      <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100">{customer.employer}</p>
                     </div>
                   )}
                   <div>
@@ -387,6 +388,22 @@ export function CustomerDetailPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Financial Health Dashboard */}
+      {customer && loans && loans.length > 0 && profile?.agency_id && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <FinancialHealthDashboard
+            customerId={customerId!}
+            agencyId={profile.agency_id}
+            customer={customer}
+            loans={loans}
+          />
+        </motion.div>
+      )}
 
       {/* Statistics - Reference Style */}
       {stats && (
@@ -408,7 +425,7 @@ export function CustomerDetailPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
-                      <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
+                      <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stat.value}</p>
                     </div>
                     <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
                       <stat.icon className="h-5 w-5" />
@@ -428,7 +445,7 @@ export function CustomerDetailPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Risk Score</p>
-                    <p className="text-2xl font-bold text-neutral-900">{stats.riskScore}/100</p>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stats.riskScore}/100</p>
                     <p className="text-xs text-neutral-500 mt-1">
                       {stats.riskScore < 30 ? 'Low Risk' : stats.riskScore < 70 ? 'Medium Risk' : 'High Risk'}
                     </p>
@@ -460,7 +477,7 @@ export function CustomerDetailPage() {
           transition={{ duration: 0.3, delay: 0.2 }}
           className="grid gap-6 md:grid-cols-2"
         >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold text-neutral-900">Loan Status Distribution</CardTitle>
             </CardHeader>
@@ -502,7 +519,7 @@ export function CustomerDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.3 }}
       >
-        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+        <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg font-semibold text-neutral-900">Loan History</CardTitle>
           </CardHeader>

@@ -555,8 +555,8 @@ export function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Settings</h2>
-          <p className="text-sm text-neutral-600">Loading settings...</p>
+          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Settings</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Loading settings...</p>
         </motion.div>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
@@ -573,51 +573,51 @@ export function SettingsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h2 className="text-2xl font-bold text-neutral-900 mb-1">Settings</h2>
-        <p className="text-sm text-neutral-600">Manage your agency and account settings</p>
+        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Settings</h2>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">Manage your agency and account settings</p>
       </motion.div>
 
       {/* Tabs - Reference Style with ShadCN Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-6 rounded-xl bg-neutral-100 p-1">
+        <TabsList className="grid w-full max-w-4xl grid-cols-6 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1">
           <TabsTrigger 
             value="agency" 
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <Building2 className="w-4 h-4 mr-2" />
             Agency
           </TabsTrigger>
           <TabsTrigger 
             value="loans"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <Calculator className="w-4 h-4 mr-2" />
             Loan Settings
           </TabsTrigger>
           <TabsTrigger 
             value="employees"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <Users className="w-4 h-4 mr-2" />
             Employees
           </TabsTrigger>
           <TabsTrigger 
             value="account"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <User className="w-4 h-4 mr-2" />
             Account
           </TabsTrigger>
           <TabsTrigger 
             value="data"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <Database className="w-4 h-4 mr-2" />
             Data
           </TabsTrigger>
           <TabsTrigger 
             value="ai"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#006BFF] data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             AI Settings
@@ -632,16 +632,16 @@ export function SettingsPage() {
             transition={{ duration: 0.3, delay: 0.1 }}
           >
             <form onSubmit={agencyForm.handleSubmit(handleAgencySubmit)}>
-              <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-neutral-900">Organization Settings</CardTitle>
+                  <CardTitle className="text-lg font-semibold">Organization Settings</CardTitle>
                   <CardDescription className="text-sm text-neutral-600">
                     {agency ? 'Update your agency information' : 'Create your agency organization'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-semibold text-neutral-900">Agency Name *</Label>
+                    <Label htmlFor="name" className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Agency Name *</Label>
                     <Input
                       id="name"
                       {...agencyForm.register('name')}
@@ -790,7 +790,7 @@ export function SettingsPage() {
             transition={{ duration: 0.3, delay: 0.1 }}
           >
             <form onSubmit={loanSettingsForm.handleSubmit(handleLoanSettingsSubmit)}>
-              <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
                     <Calculator className="w-5 h-5 text-[#006BFF]" />

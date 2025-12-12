@@ -65,6 +65,9 @@ import {
 } from 'lucide-react';
 import { NotificationDropdown } from '../../../components/NotificationDropdown';
 import { GlobalSearchDialog } from '../../../components/search/GlobalSearchDialog';
+import { AIFloatingIndicator } from '../../../components/ai/AIFloatingIndicator';
+import { AIChatPanel } from '../../../components/ai/AIChatPanel';
+import { ThemeToggle } from '../../../components/ThemeToggle';
 import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import toast from 'react-hot-toast';
@@ -98,6 +101,18 @@ export function AdminLayout() {
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  
+  // Persist AI chat panel state in localStorage (workspace-like behavior)
+  const [aiChatPanelOpen, setAiChatPanelOpen] = useState(() => {
+    const saved = localStorage.getItem('ai-chat-panel-open');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [aiChatPanelWidth, setAiChatPanelWidth] = useState(0);
+
+  // Save panel open state to localStorage
+  useEffect(() => {
+    localStorage.setItem('ai-chat-panel-open', JSON.stringify(aiChatPanelOpen));
+  }, [aiChatPanelOpen]);
   
   // Persist expanded sections state in localStorage
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
@@ -239,8 +254,8 @@ export function AdminLayout() {
           'flex items-center w-full px-3 py-2 rounded-lg transition-colors duration-200 group relative',
           collapsed ? 'justify-center' : '',
           isActive
-            ? 'bg-white text-[#006BFF] font-medium shadow-sm border border-neutral-200/50'
-            : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+            ? 'bg-white dark:bg-neutral-800 text-[#006BFF] dark:text-blue-400 font-medium shadow-sm border border-neutral-200/50 dark:border-neutral-700/50'
+            : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
         )}
         onClick={(e) => {
           // Prevent navigation if already on this page to avoid flickering
@@ -352,31 +367,31 @@ export function AdminLayout() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen flex bg-[#F8FAFC]">
+      <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-[#0F172A]">
         {/* Premium Sidebar - Reference Style */}
         <aside
           className={cn(
-            'hidden md:flex flex-col bg-white fixed inset-y-0 z-30 shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-[width] duration-300 ease-in-out',
+            'hidden md:flex flex-col bg-white dark:bg-[#1E293B] fixed inset-y-0 z-30 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] transition-[width] duration-300 ease-in-out',
             sidebarCollapsed ? 'w-16' : 'w-64'
           )}
         >
           {/* Top Section - Logo/Company Name */}
           {!sidebarCollapsed && (
-            <div className="h-16 flex items-center px-4 border-b border-neutral-200/50">
+            <div className="h-16 flex items-center px-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
               <div className="flex items-center flex-1 min-w-0">
                 <Logo size="sm" showText={false} className="mr-3 flex-shrink-0" />
                 <DropdownMenu open={showAccountSwitcher} onOpenChange={setShowAccountSwitcher}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center flex-1 min-w-0 group">
-                      <span className="text-sm font-semibold text-neutral-900 truncate">
+                      <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                         {agencyName || 'LoanSage'}
                       </span>
-                      <ChevronDown className="w-4 h-4 ml-1.5 text-neutral-400 group-hover:text-neutral-600 transition-colors flex-shrink-0" />
+                      <ChevronDown className="w-4 h-4 ml-1.5 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors flex-shrink-0" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-64 ml-2">
-                    <div className="flex items-center justify-between px-2 py-1.5 border-b border-neutral-200">
-                      <span className="text-xs font-medium text-neutral-600">{profile?.email}</span>
+                    <div className="flex items-center justify-between px-2 py-1.5 border-b border-neutral-200 dark:border-neutral-800">
+                      <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">{profile?.email}</span>
                       <Button variant="ghost" size="icon" className="h-6 w-6">
                         <RefreshCw className="w-3 h-3" />
                       </Button>
@@ -392,7 +407,7 @@ export function AdminLayout() {
                             key={workspace.id}
                             className={cn(
                               'flex items-center px-3 py-2 cursor-pointer',
-                              workspace.active && 'bg-neutral-50'
+                              workspace.active && 'bg-neutral-50 dark:bg-neutral-800'
                             )}
                             onClick={async () => {
                               if (!workspace.active && profile?.id) {
@@ -422,11 +437,11 @@ export function AdminLayout() {
                               <workspace.icon className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm text-neutral-900 block truncate">{workspace.name}</span>
-                              <span className="text-xs text-neutral-500">{workspace.memberCount || 0} members</span>
+                              <span className="text-sm text-neutral-900 dark:text-neutral-100 block truncate">{workspace.name}</span>
+                              <span className="text-xs text-neutral-500 dark:text-neutral-400">{workspace.memberCount || 0} members</span>
                             </div>
                             {workspace.active && (
-                              <Check className="w-4 h-4 text-[#006BFF] ml-2 flex-shrink-0" />
+                              <Check className="w-4 h-4 text-[#006BFF] dark:text-blue-400 ml-2 flex-shrink-0" />
                             )}
                           </DropdownMenuItem>
                         ))
@@ -440,16 +455,16 @@ export function AdminLayout() {
                         setAddAgencyDialogOpen(true);
                       }}
                     >
-                      <Plus className="w-4 h-4 mr-3 text-neutral-400" />
-                      <span className="text-sm text-neutral-600">Add agency</span>
-                      <span className="ml-auto text-xs text-neutral-400">⌘A</span>
+                      <Plus className="w-4 h-4 mr-3 text-neutral-400 dark:text-neutral-500" />
+                      <span className="text-sm text-neutral-600 dark:text-neutral-300">Add agency</span>
+                      <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">⌘A</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="ml-2 text-xs text-neutral-500">
+                <div className="ml-2 text-xs text-neutral-500 dark:text-neutral-400">
                   {workspaces.find(w => w.active)?.memberCount || 0} members
                 </div>
-                <ExternalLink className="w-3.5 h-3.5 ml-2 text-neutral-400 flex-shrink-0" />
+                <ExternalLink className="w-3.5 h-3.5 ml-2 text-neutral-400 dark:text-neutral-500 flex-shrink-0" />
               </div>
             </div>
           )}
@@ -467,7 +482,7 @@ export function AdminLayout() {
                     type="text"
                     placeholder="Search loans, customers, employees..."
                     readOnly
-                    className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 cursor-pointer hover:border-[#006BFF] transition-all"
+                    className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 cursor-pointer hover:border-[#006BFF] dark:hover:border-blue-500 transition-all"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-neutral-400 font-mono">
                     ⌘K
@@ -528,21 +543,21 @@ export function AdminLayout() {
           </div>
 
           {/* Bottom Section */}
-          <div className="p-4 border-t border-neutral-200/50 space-y-3">
+          <div className="p-4 border-t border-neutral-200/50 dark:border-neutral-800/50 space-y-3">
             {/* New Version Banner */}
             {!sidebarCollapsed && !updateNotificationDismissed && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="bg-white border border-neutral-200 rounded-lg p-3 shadow-sm relative"
+                className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 shadow-sm dark:shadow-lg relative"
               >
                 <button
                   onClick={() => {
                     setUpdateNotificationDismissed(true);
                     localStorage.setItem('update-notification-dismissed', 'true');
                   }}
-                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-neutral-600 rounded transition-colors"
+                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 rounded transition-colors"
                   aria-label="Dismiss update notification"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -552,13 +567,13 @@ export function AdminLayout() {
                     <Sparkles className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-semibold text-neutral-900 mb-1">New version available</h4>
-                    <p className="text-xs text-neutral-600 mb-2">
+                    <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mb-1">New version available</h4>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
                       An improved version of LoanSage is available. Please restart now to upgrade.
                     </p>
                     <button 
                       onClick={() => setUpdateModalOpen(true)}
-                      className="text-xs font-medium text-[#006BFF] hover:text-[#0052CC] transition-colors"
+                      className="text-xs font-medium text-[#006BFF] dark:text-blue-400 hover:text-[#0052CC] dark:hover:text-blue-300 transition-colors"
                     >
                       View Update →
                     </button>
@@ -570,8 +585,8 @@ export function AdminLayout() {
             {/* User Profile */}
             <DropdownMenu open={showUserMenu} onOpenChange={setShowUserMenu}>
               <DropdownMenuTrigger asChild>
-                <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 transition-colors group">
-                  <Avatar className="h-8 w-8 border-2 border-neutral-200">
+                <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors group">
+                  <Avatar className="h-8 w-8 border-2 border-neutral-200 dark:border-neutral-700">
                     <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
                       {getUserInitials()}
@@ -580,53 +595,53 @@ export function AdminLayout() {
                   {!sidebarCollapsed && (
                     <>
                       <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-neutral-900 truncate">
+                        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
                           {profile?.full_name || 'Admin User'}
                         </p>
-                        <p className="text-xs text-neutral-500 truncate">{profile?.email}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{profile?.email}</p>
             </div>
-                      <ChevronDown className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 transition-colors flex-shrink-0" />
+                      <ChevronDown className="w-4 h-4 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors flex-shrink-0" />
                     </>
                   )}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 ml-2">
-                <div className="px-3 py-3 border-b border-neutral-200">
+                <div className="px-3 py-3 border-b border-neutral-200 dark:border-neutral-800">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border-2 border-neutral-200">
+                    <Avatar className="h-10 w-10 border-2 border-neutral-200 dark:border-neutral-700">
                       <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-sm font-semibold">
                         {getUserInitials()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-neutral-900 truncate">
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                 {profile?.full_name || 'Admin User'}
               </p>
-                      <p className="text-xs text-neutral-500">Online</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Online</p>
                     </div>
             </div>
           </div>
                 <div className="py-1">
                   <DropdownMenuItem asChild>
                     <Link to="/admin/themes" className="px-3 py-2 cursor-pointer">
-                      <Palette className="w-4 h-4 mr-3 text-neutral-400" />
-                      <span className="text-sm text-neutral-900">Themes</span>
-                      <span className="ml-auto text-xs text-neutral-400">⌘T</span>
+                      <Palette className="w-4 h-4 mr-3 text-neutral-400 dark:text-neutral-500" />
+                      <span className="text-sm text-neutral-900 dark:text-neutral-100">Themes</span>
+                      <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">⌘T</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/admin/settings" className="px-3 py-2 cursor-pointer">
-                      <Settings className="w-4 h-4 mr-3 text-neutral-400" />
-                      <span className="text-sm text-neutral-900">Settings</span>
-                      <span className="ml-auto text-xs text-neutral-400">⌘S</span>
+                      <Settings className="w-4 h-4 mr-3 text-neutral-400 dark:text-neutral-500" />
+                      <span className="text-sm text-neutral-900 dark:text-neutral-100">Settings</span>
+                      <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">⌘S</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/admin/notifications" className="px-3 py-2 cursor-pointer">
-                      <Bell className="w-4 h-4 mr-3 text-neutral-400" />
-                      <span className="text-sm text-neutral-900">Notification</span>
-                      <span className="ml-auto text-xs text-neutral-400">⌘N</span>
+                      <Bell className="w-4 h-4 mr-3 text-neutral-400 dark:text-neutral-500" />
+                      <span className="text-sm text-neutral-900 dark:text-neutral-100">Notification</span>
+                      <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500">⌘N</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -789,16 +804,20 @@ export function AdminLayout() {
           </SheetContent>
         </Sheet>
 
-      {/* Main Content */}
+      {/* Main Content Area with AI Panel - Fixed height container */}
+      <div className={cn(
+        'flex-1 flex h-screen overflow-hidden transition-[margin-left] duration-300 ease-in-out',
+        sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
+      )}>
+        {/* Main Content - Shrinks when panel is open */}
         <main className={cn(
-          'flex-1 flex flex-col min-h-0 overflow-hidden transition-[margin-left] duration-300 ease-in-out',
-          sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
+          'flex-1 flex flex-col min-h-0 overflow-hidden transition-all duration-300 ease-in-out'
         )}>
         {/* Header */}
           <header
             className={cn(
-              'h-16 bg-white border-b border-neutral-200/50 flex items-center justify-between px-4 sm:px-8 z-20 sticky top-0 transition-all duration-300',
-              scrolled && 'bg-white/95 backdrop-blur-sm shadow-sm'
+              'h-16 bg-white dark:bg-[#1E293B] border-b border-neutral-200/50 dark:border-neutral-800/50 flex items-center justify-between px-4 sm:px-8 z-20 sticky top-0 transition-all duration-300',
+              scrolled && 'bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur-sm shadow-sm'
             )}
           >
             <div className="flex items-center gap-4">
@@ -827,10 +846,17 @@ export function AdminLayout() {
                   ⌘K
                 </kbd>
               </button>
+              
+              {/* AI Floating Indicator - Cursor/VSCode Style */}
+              <AIFloatingIndicator onChatOpen={() => setAiChatPanelOpen(!aiChatPanelOpen)} />
+              
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               <NotificationDropdown />
               <Link
                 to="/admin/settings"
-                className="p-2 text-neutral-400 hover:text-neutral-600 transition-colors rounded-lg hover:bg-neutral-50"
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
               <Settings className="w-5 h-5" />
               </Link>
@@ -869,14 +895,29 @@ export function AdminLayout() {
           </div>
         </header>
 
-          {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          {/* Scrollable Content Area - Independent scroll */}
+          <div 
+            className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A]"
+            style={{ 
+              overscrollBehavior: 'contain',
+              // Preserve scroll position when panel opens/closes
+              scrollBehavior: 'auto'
+            }}
+          >
             <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
             <Outlet />
           </div>
         </div>
       </main>
-    </div>
+
+      {/* AI Chat Panel - Side Panel */}
+      <AIChatPanel 
+        open={aiChatPanelOpen} 
+        onOpenChange={setAiChatPanelOpen}
+        onWidthChange={setAiChatPanelWidth}
+      />
+      </div>
+      </div>
 
       {/* Update Details Modal */}
       <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>

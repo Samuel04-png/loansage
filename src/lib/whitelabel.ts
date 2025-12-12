@@ -28,7 +28,11 @@ export function useWhitelabel() {
   };
 }
 
-export function applyWhitelabelStyles(primaryColor: string, secondaryColor: string) {
+export function applyWhitelabelStyles(
+  primaryColor: string, 
+  secondaryColor: string,
+  tertiaryColor?: string
+) {
   if (typeof document === 'undefined') return;
   
   const root = document.documentElement;
@@ -36,15 +40,28 @@ export function applyWhitelabelStyles(primaryColor: string, secondaryColor: stri
     // Convert hex to HSL and set CSS variables
     const primaryHsl = hexToHsl(primaryColor);
     const secondaryHsl = hexToHsl(secondaryColor);
+    const tertiaryHsl = tertiaryColor ? hexToHsl(tertiaryColor) : secondaryHsl;
     
+    // Set HSL values for Tailwind
     root.style.setProperty('--primary', primaryHsl);
     root.style.setProperty('--primary-foreground', '0 0% 100%');
     root.style.setProperty('--secondary', secondaryHsl);
+    root.style.setProperty('--tertiary', tertiaryHsl);
+    root.style.setProperty('--accent', tertiaryHsl);
     root.style.setProperty('--ring', primaryHsl);
     
-    // Also set as CSS custom properties for direct use
+    // Also set as hex values for direct use
     root.style.setProperty('--agency-primary', primaryColor);
     root.style.setProperty('--agency-secondary', secondaryColor);
+    root.style.setProperty('--agency-tertiary', tertiaryColor || secondaryColor);
+    
+    // Generate lighter/darker variants for dark mode
+    const primaryHslValues = primaryHsl.split(' ');
+    const primaryLight = `${primaryHslValues[0]} ${primaryHslValues[1]} ${Math.min(95, parseInt(primaryHslValues[2]) + 10)}%`;
+    const primaryDark = `${primaryHslValues[0]} ${primaryHslValues[1]} ${Math.max(20, parseInt(primaryHslValues[2]) - 10)}%`;
+    
+    root.style.setProperty('--primary-light', primaryLight);
+    root.style.setProperty('--primary-dark', primaryDark);
   } catch (error) {
     console.warn('Failed to apply whitelabel styles:', error);
   }
