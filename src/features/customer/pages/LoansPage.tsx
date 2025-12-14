@@ -131,12 +131,12 @@ export function CustomerLoansPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">My Loans</h2>
-        <p className="text-slate-600">View and manage your loan applications</p>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">My Loans</h2>
+        <p className="text-slate-600 dark:text-neutral-400">View and manage your loan applications</p>
       </div>
 
       <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
+        <CardHeader className="p-4 border-b border-slate-100 dark:border-neutral-700">
           <div className="relative w-full max-w-md">
             <Input
               placeholder="Search loans..."
@@ -144,7 +144,7 @@ export function CustomerLoansPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400 dark:text-neutral-500" />
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -162,40 +162,40 @@ export function CustomerLoansPage() {
                   <Link
                     key={loan.id}
                     to={`/customer/loans/${loan.id}`}
-                    className="block p-6 hover:bg-slate-50 transition-colors"
+                    className="block p-6 hover:bg-slate-50 dark:hover:bg-neutral-800/50 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-slate-900">{loan.id}</h3>
+                          <h3 className="font-semibold text-slate-900 dark:text-neutral-100">{loan.id}</h3>
                           {getStatusBadge(loan.status)}
                         </div>
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
-                            <p className="text-slate-500">Loan Amount</p>
-                            <p className="font-semibold text-slate-900">
+                            <p className="text-slate-500 dark:text-neutral-400">Loan Amount</p>
+                            <p className="font-semibold text-slate-900 dark:text-neutral-100">
                               {formatCurrency(Number(loan.amount || 0), 'ZMW')}
                             </p>
                           </div>
                           <div>
-                            <p className="text-slate-500">Outstanding</p>
-                            <p className="font-semibold text-slate-900">
+                            <p className="text-slate-500 dark:text-neutral-400">Outstanding</p>
+                            <p className="font-semibold text-slate-900 dark:text-neutral-100">
                               {formatCurrency(outstanding, 'ZMW')}
                             </p>
                           </div>
                           {nextPayment && (
                             <div>
-                              <p className="text-slate-500">Next Payment</p>
-                              <p className="font-semibold text-slate-900">
+                              <p className="text-slate-500 dark:text-neutral-400">Next Payment</p>
+                              <p className="font-semibold text-slate-900 dark:text-neutral-100">
                                 {formatCurrency(Number(nextPayment.amountDue || 0), 'ZMW')}
                               </p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-slate-500 dark:text-neutral-400">
                                 Due: {formatDateSafe(nextPayment.dueDate)}
                               </p>
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 dark:text-neutral-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {loan.durationMonths} months
@@ -206,15 +206,15 @@ export function CustomerLoansPage() {
                           </span>
                         </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-slate-300" />
+                      <ChevronRight className="w-5 h-5 text-slate-300 dark:text-neutral-600" />
                     </div>
                   </Link>
                 );
               })}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+            <div className="text-center py-12 text-slate-500 dark:text-neutral-400">
+              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-neutral-600" />
               <p>No loans found</p>
             </div>
           )}

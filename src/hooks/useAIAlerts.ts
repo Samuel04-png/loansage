@@ -78,18 +78,32 @@ export function useAIAlerts() {
     // Also create Firestore notification so it appears in NotificationDropdown
     if (profile?.agency_id && profile?.id) {
       try {
-        await createNotification({
+        // Build notification data, only including defined fields
+        const notificationData: any = {
           agencyId: profile.agency_id,
           userId: profile.id,
           type: 'system',
           title: alert.title,
           message: alert.message,
-          loanId: alert.loanId,
-          customerId: alert.customerId,
           priority: alert.type === 'critical' ? 'urgent' : alert.type === 'warning' ? 'high' : 'medium',
           read: false,
-          actionUrl: alert.loanId ? `/admin/loans/${alert.loanId}` : alert.customerId ? `/admin/customers/${alert.customerId}` : undefined,
-        });
+        };
+
+        // Only include loanId if it's defined
+        if (alert.loanId) {
+          notificationData.loanId = alert.loanId;
+          notificationData.actionUrl = `/admin/loans/${alert.loanId}`;
+        }
+        
+        // Only include customerId if it's defined
+        if (alert.customerId) {
+          notificationData.customerId = alert.customerId;
+          if (!notificationData.actionUrl) {
+            notificationData.actionUrl = `/admin/customers/${alert.customerId}`;
+          }
+        }
+
+        await createNotification(notificationData);
       } catch (error) {
         console.warn('Failed to create Firestore notification:', error);
         // Continue even if Firestore notification fails - localStorage alert still works

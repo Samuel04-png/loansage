@@ -120,8 +120,8 @@ export function EmployeeLoansPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Loan Pipeline</h2>
-          <p className="text-slate-600">Manage your loan applications</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">Loan Pipeline</h2>
+          <p className="text-slate-600 dark:text-neutral-400">Manage your loan applications</p>
         </div>
         <Link to="/employee/loans/create">
           <Button>
@@ -132,7 +132,7 @@ export function EmployeeLoansPage() {
       </div>
 
       <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
+        <CardHeader className="p-4 border-b border-slate-100 dark:border-neutral-700">
           <div className="flex gap-4">
             <div className="relative flex-1 max-w-md">
               <Input
@@ -141,7 +141,7 @@ export function EmployeeLoansPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400 dark:text-neutral-500" />
             </div>
             <select
               className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -169,41 +169,41 @@ export function EmployeeLoansPage() {
                 <Link
                   key={loan.id}
                   to={`/employee/loans/${loan.id}`}
-                  className="block p-6 hover:bg-slate-50 transition-colors"
+                  className="block p-6 hover:bg-slate-50 dark:hover:bg-neutral-800/50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-slate-900">{loan.loanNumber || loan.id}</h3>
+                        <h3 className="font-semibold text-slate-900 dark:text-neutral-100">{loan.loanNumber || loan.id}</h3>
                         {getStatusBadge(loan.status)}
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
-                          <p className="text-slate-500">Customer</p>
-                          <p className="font-medium text-slate-900">
+                          <p className="text-slate-500 dark:text-neutral-400">Customer</p>
+                          <p className="font-medium text-slate-900 dark:text-neutral-100">
                             {loan.customer?.fullName || loan.customer?.name || 'N/A'}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Amount</p>
-                          <p className="font-semibold text-slate-900">
+                          <p className="text-slate-500 dark:text-neutral-400">Amount</p>
+                          <p className="font-semibold text-slate-900 dark:text-neutral-100">
                             {formatCurrency(Number(loan.amount || 0), loan.currency || 'ZMW')}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-500">Created</p>
-                          <p className="text-slate-600">{formatDateSafe(loan.createdAt)}</p>
+                          <p className="text-slate-500 dark:text-neutral-400">Created</p>
+                          <p className="text-slate-600 dark:text-neutral-400">{formatDateSafe(loan.createdAt)}</p>
                         </div>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300" />
+                    <ChevronRight className="w-5 h-5 text-slate-300 dark:text-neutral-600" />
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+            <div className="text-center py-12 text-slate-500 dark:text-neutral-400">
+              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-neutral-600" />
               <p>No loans found</p>
               <Link to="/employee/loans/create">
                 <Button variant="outline" className="mt-4">

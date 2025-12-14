@@ -140,8 +140,8 @@ export function CustomerDashboard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h2 className="text-2xl font-bold text-neutral-900 mb-2">Welcome back!</h2>
-        <p className="text-neutral-600">Here's an overview of your loans.</p>
+        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Welcome back!</h2>
+        <p className="text-neutral-600 dark:text-neutral-400">Here's an overview of your loans.</p>
       </motion.div>
 
       <div className="grid gap-6 md:grid-cols-4">
@@ -157,14 +157,14 @@ export function CustomerDashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + index * 0.05 }}
           >
-            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+            <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-700/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] bg-white dark:bg-neutral-800 hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] dark:hover:shadow-[0_12px_40px_rgb(0,0,0,0.4)] transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">{stat.label}</p>
-                    <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
+                    <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">{stat.label}</p>
+                    <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{stat.value}</p>
                   </div>
-                  <div className={cn("p-3 rounded-xl bg-neutral-50", stat.color)}>
+                  <div className={cn("p-3 rounded-xl bg-neutral-50 dark:bg-neutral-700", stat.color)}>
                     <stat.icon className="h-5 w-5" />
                   </div>
                 </div>
@@ -181,9 +181,9 @@ export function CustomerDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+          <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-700/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] bg-white dark:bg-neutral-800">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Loan History</CardTitle>
+              <CardTitle className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Loan History</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -196,10 +196,10 @@ export function CustomerDashboard() {
                   >
                     <Link
                       to={`/customer/loans/${loan.id}`}
-                      className="flex items-center justify-between p-4 border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-[#006BFF]/20 transition-all duration-300"
+                      className="flex items-center justify-between p-4 border border-neutral-200 dark:border-neutral-700 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-700/50 hover:border-[#006BFF]/20 dark:hover:border-blue-500/30 transition-all duration-300"
                     >
                       <div>
-                        <p className="font-semibold text-neutral-900 mb-1">Loan #{loan.id.substring(0, 8)}</p>
+                        <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Loan #{loan.id.substring(0, 8)}</p>
                         <p className="text-sm text-neutral-600">
                           {formatCurrency(Number(loan.amount || 0), 'ZMW')} • {loan.loanType || 'Personal Loan'} • {formatDateSafe(loan.createdAt)}
                         </p>

@@ -31,6 +31,7 @@ interface DashboardStats {
 
 /**
  * Get optimized dashboard stats with real-time updates
+ * Uses debouncing to prevent excessive reads
  */
 export function subscribeToDashboardStats(
   agencyId: string,
@@ -69,89 +70,100 @@ export function subscribeToDashboardStats(
   let customersData: any[] = [];
   let employeesData: any[] = [];
 
+  // Debounced update function to prevent excessive reads
+  let updateTimeout: NodeJS.Timeout | null = null;
+  
   const updateStats = async () => {
-    // Filter out deleted loans
-    const activeLoansData = loansData.filter((l: any) => !l.deleted);
-    
-    // Calculate stats from current data
-    const activeLoans = activeLoansData.filter((l: any) => l.status === 'active');
-    const totalLoans = activeLoansData.length;
-    
-    // Total disbursed this month
-    const thisMonthLoans = activeLoansData.filter((l: any) => {
-      const disbursementDate = l.disbursementDate?.toDate?.() || 
-                               (l.disbursementDate instanceof Timestamp ? l.disbursementDate.toDate() : null) ||
-                               (l.disbursementDate ? new Date(l.disbursementDate) : null);
-      return disbursementDate && disbursementDate >= startOfMonth;
-    });
-    const totalDisbursedThisMonth = thisMonthLoans.reduce(
-      (sum, l: any) => sum + Number(l.amount || 0), 
-      0
-    );
-
-    // Repayments due - optimized query
-    let repaymentsDue = 0;
-    let repaymentsDueCount = 0;
-    const nowTimestamp = Timestamp.now();
-    
-    for (const loan of activeLoans.slice(0, 50)) { // Limit to prevent too many queries
-      try {
-        const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loan.id, 'repayments');
-        const dueQuery = query(
-          repaymentsRef,
-          where('status', '==', 'pending'),
-          where('dueDate', '<=', nowTimestamp),
-          limit(10)
-        );
-        const dueSnapshot = await getDocs(dueQuery);
-        repaymentsDueCount += dueSnapshot.size;
-        repaymentsDue += dueSnapshot.docs.reduce(
-          (sum, doc) => sum + Number(doc.data().amountDue || 0), 
-          0
-        );
-      } catch (error) {
-        console.warn(`Error fetching repayments for loan ${loan.id}:`, error);
-      }
+    // Clear existing timeout
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
     }
-
-    // Overdue loans
-    const overdueLoans = activeLoansData.filter((l: any) => {
-      return l.status === 'overdue' || l.status === 'defaulted';
-    });
-
-    // Active customers (customers with at least one active loan)
-    const activeCustomerIds = new Set(activeLoans.map((l: any) => l.customerId).filter(Boolean));
-    const activeCustomers = activeCustomerIds.size;
-    const totalCustomers = customersData.length;
-
-    // Total portfolio value (sum of all active loan amounts)
-    const totalPortfolioValue = activeLoans.reduce(
-      (sum, l: any) => sum + Number(l.amount || 0),
-      0
-    );
-
-    // Approval rate - exclude deleted loans
-    const approvedLoans = activeLoansData.filter((l: any) => 
-      ['active', 'completed', 'paid'].includes(l.status)
-    );
-    const approvalRate = totalLoans > 0 ? (approvedLoans.length / totalLoans) * 100 : 0;
-
-    const stats = {
-      totalActiveLoans: activeLoans.length,
-      totalDisbursedThisMonth,
-      repaymentsDue,
-      repaymentsDueCount,
-      activeCustomers,
-      totalCustomers,
-      totalEmployees: employeesData.length,
-      approvalRate,
-      overdueLoans: overdueLoans.length,
-      totalLoans,
-      totalPortfolioValue,
-    };
     
-    console.log('Dashboard stats updated:', stats);
-    callback(stats);
+    // Set new timeout for debouncing
+    updateTimeout = setTimeout(async () => {
+      // Filter out deleted loans
+      const activeLoansData = loansData.filter((l: any) => !l.deleted);
+      
+      // Calculate stats from current data
+      const activeLoans = activeLoansData.filter((l: any) => l.status === 'active');
+      const totalLoans = activeLoansData.length;
+      
+      // Total disbursed this month
+      const thisMonthLoans = activeLoansData.filter((l: any) => {
+        const disbursementDate = l.disbursementDate?.toDate?.() || 
+                                 (l.disbursementDate instanceof Timestamp ? l.disbursementDate.toDate() : null) ||
+                                 (l.disbursementDate ? new Date(l.disbursementDate) : null);
+        return disbursementDate && disbursementDate >= startOfMonth;
+      });
+      const totalDisbursedThisMonth = thisMonthLoans.reduce(
+        (sum, l: any) => sum + Number(l.amount || 0), 
+        0
+      );
+
+      // Repayments due - optimized query
+      let repaymentsDue = 0;
+      let repaymentsDueCount = 0;
+      const nowTimestamp = Timestamp.now();
+      
+      for (const loan of activeLoans.slice(0, 50)) { // Limit to prevent too many queries
+        try {
+          const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loan.id, 'repayments');
+          const dueQuery = query(
+            repaymentsRef,
+            where('status', '==', 'pending'),
+            where('dueDate', '<=', nowTimestamp),
+            limit(10)
+          );
+          const dueSnapshot = await getDocs(dueQuery);
+          repaymentsDueCount += dueSnapshot.size;
+          repaymentsDue += dueSnapshot.docs.reduce(
+            (sum, doc) => sum + Number(doc.data().amountDue || 0), 
+            0
+          );
+        } catch (error) {
+          console.warn(`Error fetching repayments for loan ${loan.id}:`, error);
+        }
+      }
+
+      // Overdue loans
+      const overdueLoans = activeLoansData.filter((l: any) => {
+        return l.status === 'overdue' || l.status === 'defaulted';
+      });
+
+      // Active customers (customers with at least one active loan)
+      const activeCustomerIds = new Set(activeLoans.map((l: any) => l.customerId).filter(Boolean));
+      const activeCustomers = activeCustomerIds.size;
+      const totalCustomers = customersData.length;
+
+      // Total portfolio value (sum of all active loan amounts)
+      const totalPortfolioValue = activeLoans.reduce(
+        (sum, l: any) => sum + Number(l.amount || 0),
+        0
+      );
+
+      // Approval rate - exclude deleted loans
+      const approvedLoans = activeLoansData.filter((l: any) => 
+        ['active', 'completed', 'paid'].includes(l.status)
+      );
+      const approvalRate = totalLoans > 0 ? (approvedLoans.length / totalLoans) * 100 : 0;
+
+      const stats = {
+        totalActiveLoans: activeLoans.length,
+        totalDisbursedThisMonth,
+        repaymentsDue,
+        repaymentsDueCount,
+        activeCustomers,
+        totalCustomers,
+        totalEmployees: employeesData.length,
+        approvalRate,
+        overdueLoans: overdueLoans.length,
+        totalLoans,
+        totalPortfolioValue,
+      };
+      
+      console.log('Dashboard stats updated:', stats);
+      callback(stats);
+    }, 1000); // 1 second debounce
   };
 
   // Set up listeners with fallback

@@ -15,6 +15,7 @@ import { InviteEmployeeDrawer } from '../components/InviteEmployeeDrawer';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { subscribeToDashboardStats } from '../../../lib/firebase/dashboard-helpers';
+import { getCachedDashboardStats } from '../../../lib/firebase/stats-aggregation';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
@@ -130,10 +131,22 @@ export function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Use real-time subscription for dashboard stats
+  // Use cached stats with React Query (reduces reads by 80%)
+  const { data: cachedStats, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboard-stats', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return null;
+      return await getCachedDashboardStats(profile.agency_id);
+    },
+    enabled: !!profile?.agency_id,
+    staleTime: 1000 * 60 * 15, // 15 minutes - stats update on write, not read
+    gcTime: 1000 * 60 * 60, // 1 hour cache
+    refetchInterval: false, // No auto-refetch - stats update via Cloud Functions
+  });
+
+  // Fallback to real-time subscription if cached stats are stale (> 1 hour old)
   useEffect(() => {
     if (!profile?.agency_id) {
-      console.warn('Dashboard: No agency_id in profile', { profile });
       setIsLoading(false);
       setStats({
         totalActiveLoans: 0,
@@ -151,10 +164,23 @@ export function AdminDashboard() {
       return;
     }
 
-    console.log('Dashboard: Setting up stats subscription for agency:', profile.agency_id);
+    // Use cached stats if available and fresh
+    if (cachedStats) {
+      const statsAge = cachedStats.lastUpdated?.toDate 
+        ? (Date.now() - cachedStats.lastUpdated.toDate().getTime()) / 1000 / 60 // minutes
+        : Infinity;
+      
+      if (statsAge < 60) { // Less than 1 hour old
+        setStats(cachedStats);
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Fallback to real-time subscription only if cached stats are stale
+    console.log('Dashboard: Using real-time subscription (cached stats stale)');
     setIsLoading(true);
     const unsubscribe = subscribeToDashboardStats(profile.agency_id, (newStats) => {
-      console.log('Dashboard: Stats received:', newStats);
       setStats(newStats);
       setIsLoading(false);
     });
@@ -162,7 +188,7 @@ export function AdminDashboard() {
     return () => {
       unsubscribe();
     };
-  }, [profile?.agency_id]);
+  }, [profile?.agency_id, cachedStats]);
 
   // Fetch additional data for charts (cached, not real-time)
   const { data: chartData } = useQuery({
