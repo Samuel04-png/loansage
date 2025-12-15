@@ -1,5 +1,5 @@
 // Service Worker for PWA
-const CACHE_NAME = 'loansage-v1';
+const CACHE_NAME = 'tengaloans-v1';
 const urlsToCache = [
   '/',
   '/index.html',

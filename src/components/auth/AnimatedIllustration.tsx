@@ -171,7 +171,7 @@ export function AnimatedIllustration({ variant = 'signup' }: AnimatedIllustratio
             transition={{ delay: 1.2 }}
             className="text-2xl font-bold text-slate-800 mb-2"
           >
-            {variant === 'signup' && 'Welcome to LoanSage 🚀'}
+            {variant === 'signup' && 'Welcome to TengaLoans 🚀'}
             {variant === 'login' && 'Welcome Back! 👋'}
             {variant === 'forgot' && 'Reset Your Password 🔐'}
             {variant === 'reset' && 'Create New Password ✨'}

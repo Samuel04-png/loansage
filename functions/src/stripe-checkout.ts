@@ -79,8 +79,8 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
         },
       ],
       mode: 'subscription',
-      success_url: successUrl || `${process.env.APP_URL || 'https://loansage.com'}/admin/settings?payment=success`,
-      cancel_url: cancelUrl || `${process.env.APP_URL || 'https://loansage.com'}/admin/plans?payment=cancelled`,
+      success_url: successUrl || `${process.env.APP_URL || 'https://tengaloans.com'}/admin/settings?payment=success`,
+      cancel_url: cancelUrl || `${process.env.APP_URL || 'https://tengaloans.com'}/admin/plans?payment=cancelled`,
       metadata: {
         agencyId,
         userId: context.auth.uid,

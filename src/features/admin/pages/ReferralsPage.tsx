@@ -13,7 +13,7 @@ export function ReferralsPage() {
   const [copied, setCopied] = useState(false);
   
   // Generate referral code from user ID
-  const referralCode = profile?.id ? `LOANSAGE-${profile.id.slice(0, 8).toUpperCase()}` : 'LOANSAGE-XXXX';
+  const referralCode = profile?.id ? `TENGALOANS-${profile.id.slice(0, 8).toUpperCase()}` : 'TENGALOANS-XXXX';
   const referralLink = `${window.location.origin}/auth/signup?ref=${referralCode}`;
 
   // Fetch referral stats
@@ -67,8 +67,8 @@ export function ReferralsPage() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join LoanSage',
-          text: 'Check out LoanSage - the best loan management system!',
+          title: 'Join TengaLoans',
+          text: 'Check out TengaLoans - the best loan management system!',
           url: referralLink,
         });
         toast.success('Shared successfully!');

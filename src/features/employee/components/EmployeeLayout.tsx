@@ -136,9 +136,9 @@ export function EmployeeLayout() {
         {/* Logo Section */}
         <div className="h-16 flex items-center px-6 border-b border-neutral-200/50 dark:border-neutral-800/50">
           <img 
-            src={logoUrl || '/logo/loansagelogo.png'} 
+            src={logoUrl || '/logo/tengaloanlogo.png'} 
             alt={agencyName} 
-            className="h-8 w-auto mr-3 max-h-8 object-contain"
+            className="h-20 w-auto mr-3 max-h-20 object-contain"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
@@ -231,9 +231,9 @@ export function EmployeeLayout() {
             <SheetTitle className="text-left">
               <div className="flex items-center">
                 <img 
-                  src={logoUrl || '/logo/loansagelogo.png'} 
+                  src={logoUrl || '/logo/tengaloanlogo.png'} 
                   alt={agencyName} 
-                  className="h-8 w-auto mr-3 max-h-8 object-contain"
+                  className="h-12 w-auto mr-3 max-h-12 object-contain"
                 />
                 <span className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{agencyName}</span>
               </div>

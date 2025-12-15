@@ -11,7 +11,7 @@ export function PrivacyPage() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <ShieldAlert className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LoanSage</span>
+              <span className="text-xl font-bold text-slate-900">TengaLoans</span>
             </Link>
             <Link to="/auth/login">
               <button className="text-sm text-slate-600 hover:text-slate-900">Sign In</button>
@@ -26,7 +26,7 @@ export function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">1. Introduction</h2>
             <p className="text-slate-700">
-              LoanSage ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy 
+              TengaLoans ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy 
               explains how we collect, use, disclose, and safeguard your information when you use our 
               microfinance management platform.
             </p>
@@ -94,7 +94,7 @@ export function PrivacyPage() {
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">7. Contact Us</h2>
             <p className="text-slate-700">
               If you have questions about this Privacy Policy, please contact us at 
-              privacy@loansage.com
+              privacy@tengaloans.com
             </p>
           </section>
 

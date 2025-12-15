@@ -171,9 +171,9 @@ export function SignUpPage() {
                 className="flex justify-center mb-4"
               >
                 <img 
-                  src="/logo/loansagelogo.png" 
-                  alt="LoanSage" 
-                  className="h-10 w-auto"
+                  src="/logo/tengaloanlogo.png" 
+                  alt="TengaLoans" 
+                  className="h-36 w-auto"
                 />
               </motion.div>
 
@@ -185,7 +185,7 @@ export function SignUpPage() {
                 className="text-center mb-6"
               >
                 <h1 className="text-2xl font-bold text-slate-900 mb-1">
-                  Welcome to LoanSage 🚀
+                  Welcome to TengaLoans 🚀
                 </h1>
                 <p className="text-sm text-slate-600">
                   Create your account to get started

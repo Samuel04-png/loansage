@@ -57,7 +57,7 @@ export function HelpPage() {
           <HelpCircle className="w-8 h-8 text-[#006BFF]" />
           Help Center
         </h1>
-        <p className="text-neutral-600 mt-2">Find answers and learn how to use LoanSage</p>
+        <p className="text-neutral-600 mt-2">Find answers and learn how to use TengaLoans</p>
       </div>
 
       <Card>
@@ -111,7 +111,7 @@ export function HelpPage() {
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full" asChild>
-              <a href="https://docs.loansage.com" target="_blank" rel="noopener noreferrer">
+              <a href="https://docs.tengaloans.com" target="_blank" rel="noopener noreferrer">
                 View Docs
               </a>
             </Button>
@@ -125,7 +125,7 @@ export function HelpPage() {
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full" asChild>
-              <a href="https://youtube.com/loansage" target="_blank" rel="noopener noreferrer">
+              <a href="https://youtube.com/tengaloans" target="_blank" rel="noopener noreferrer">
                 Watch Videos
               </a>
             </Button>
@@ -139,7 +139,7 @@ export function HelpPage() {
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full" asChild>
-              <a href="mailto:support@loansage.com">
+              <a href="mailto:support@tengaloans.com">
                 Email Support
               </a>
             </Button>

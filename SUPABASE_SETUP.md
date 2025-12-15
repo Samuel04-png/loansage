@@ -1,6 +1,6 @@
-# Supabase Setup Guide for LoanSage
+# Supabase Setup Guide for TengaLoans
 
-This guide will walk you through setting up Supabase for your LoanSage project.
+This guide will walk you through setting up Supabase for your TengaLoans project.
 
 ## ⚡ Quick Start Checklist
 
@@ -24,7 +24,7 @@ This guide will walk you through setting up Supabase for your LoanSage project.
 
 ## 🎯 What Supabase Features Are Used?
 
-Your LoanSage project uses the following Supabase services:
+Your TengaLoans project uses the following Supabase services:
 
 1. **🔐 Authentication (Supabase Auth)**
    - User registration and login
@@ -58,7 +58,7 @@ All of these are included in Supabase's free tier, which is perfect for getting 
 1. Go to [https://app.supabase.com](https://app.supabase.com)
 2. Click **"New Project"**
 3. Fill in the details:
-   - **Name**: `loansage` (or your preferred name)
+   - **Name**: `tengaloans` (or your preferred name)
    - **Database Password**: Choose a strong password (save it securely!)
    - **Region**: Choose the closest region to your users
    - **Pricing Plan**: Free tier is fine to start

@@ -52,7 +52,7 @@ export function ContactPage() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <ShieldAlert className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LoanSage</span>
+              <span className="text-xl font-bold text-slate-900">TengaLoans</span>
             </Link>
             <div className="flex items-center gap-4">
               <Link to="/" className="text-sm text-slate-600 hover:text-slate-900">
@@ -159,7 +159,7 @@ export function ContactPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-slate-900 mb-1">Email</h3>
-                      <p className="text-slate-600">support@loansage.com</p>
+                      <p className="text-slate-600">support@tengaloans.com</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">

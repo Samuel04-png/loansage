@@ -2,7 +2,7 @@
 
 ## ✅ All Firestore Collections Covered
 
-This document confirms that all Firestore collections used in the LoanSage application are properly covered by the security rules.
+This document confirms that all Firestore collections used in the TengaLoans application are properly covered by the security rules.
 
 ### Top-Level Collections
 
@@ -222,5 +222,5 @@ These features use Supabase PostgreSQL, not Firestore, so they don't need Firest
 ✅ **Role-based access control is implemented.**
 ✅ **Customer ownership is properly checked.**
 
-The Firestore rules are comprehensive and account for all pages and features in the LoanSage application.
+The Firestore rules are comprehensive and account for all pages and features in the TengaLoans application.
 

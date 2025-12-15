@@ -60,7 +60,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
              <ShieldAlert className="text-white w-5 h-5" />
           </div>
           <div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight block leading-none">LoanSage</span>
+            <span className="text-lg font-bold text-slate-900 tracking-tight block leading-none">TengaLoans</span>
             <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">{userRole} PORTAL</span>
           </div>
         </div>
@@ -125,7 +125,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
          <div className="h-16 flex items-center px-6 border-b border-slate-100 justify-between">
-          <span className="text-lg font-bold text-slate-900">LoanSage</span>
+          <span className="text-lg font-bold text-slate-900">TengaLoans</span>
           <button onClick={() => setMobileMenuOpen(false)}><X className="w-5 h-5 text-slate-500" /></button>
         </div>
         <div className="p-4 space-y-1">

@@ -716,7 +716,7 @@ export function SettingsPage() {
                     <Label className="text-sm font-semibold text-neutral-900">Company Logo</Label>
                     <div className="flex items-center gap-4">
                       {agency?.logo_url && (
-                        <img src={agency.logo_url} alt="Current logo" className="h-16 w-auto rounded-lg border border-neutral-200" />
+                        <img src={agency.logo_url} alt="Current logo" className="h-24 w-auto rounded-lg border border-neutral-200" />
                       )}
                       <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-neutral-300 rounded-xl cursor-pointer hover:bg-neutral-50 transition-colors">
                         <Upload className="w-8 h-8 text-neutral-400 mb-2" />

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authService } from '../../../lib/supabase/auth';
-import { getInvitationByToken, acceptInvitation, createEmployee } from '../../../lib/firebase/firestore-helpers';
+import { getInvitationByToken, acceptInvitation, createEmployee, linkCustomerToUser } from '../../../lib/firebase/firestore-helpers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -89,13 +89,16 @@ export function AcceptInvitePage() {
 
     setLoading(true);
     try {
+      const isCustomer = invitation.role === 'customer';
+      const isEmployee = invitation.role && invitation.role !== 'customer';
+
       // Create auth user
       const { user, session } = await authService.signUp({
         email: data.email,
         password: data.password,
         fullName: data.fullName,
         role: invitation.role,
-        employeeCategory: invitation.role,
+        employeeCategory: isEmployee ? invitation.role : undefined,
       });
 
       if (!user || !session) throw new Error('Failed to create user');
@@ -109,18 +112,23 @@ export function AcceptInvitePage() {
           email: data.email,
           full_name: data.fullName,
           role: invitation.role,
-          employee_category: invitation.role,
+          employee_category: isEmployee ? invitation.role : null,
           agency_id: invitation.agencyId,
         });
 
-      // Create employee record in Firestore
-      if (invitation.role && invitation.agencyId) {
+      // Handle employee invitations
+      if (isEmployee && invitation.agencyId) {
         await createEmployee(invitation.agencyId, {
           userId: user.id,
           email: data.email,
           name: data.fullName,
           role: invitation.role as any,
         });
+      }
+
+      // Handle customer invitations - link customer record to user
+      if (isCustomer && invitation.customerId && invitation.agencyId) {
+        await linkCustomerToUser(invitation.agencyId, invitation.customerId, user.id);
       }
 
       // Mark invitation as accepted
@@ -157,14 +165,14 @@ export function AcceptInvitePage() {
           </div>
           <CardTitle className="text-2xl font-bold">Accept Invitation</CardTitle>
           <CardDescription>
-            You've been invited to join this agency as {invitation.role?.replace('_', ' ')}
+            You've been invited to join this agency as {invitation.role === 'customer' ? 'a Customer' : invitation.role?.replace('_', ' ')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-primary-900">
-                <strong>Role:</strong> {invitation.role?.replace('_', ' ') || 'Employee'}
+                <strong>Role:</strong> {invitation.role === 'customer' ? 'Customer' : invitation.role?.replace('_', ' ') || 'Employee'}
               </p>
               {invitation.note && (
                 <p className="text-sm text-primary-700 mt-1">

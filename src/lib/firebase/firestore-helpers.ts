@@ -283,6 +283,51 @@ export async function createEmployeeInvitation(
   return { id: inviteId, token, ...data };
 }
 
+// Customer invitation helper
+export async function createCustomerInvitation(
+  agencyId: string,
+  customerId: string,
+  data: {
+    email: string;
+    note?: string;
+    createdBy: string;
+  }
+) {
+  if (isDemoMode) {
+    return { id: 'demo-invite-id', token: 'demo-token', ...data };
+  }
+
+  const inviteId = generateId();
+  const token = `${Date.now()}-${Math.random().toString(36).substr(2, 16)}`;
+  const inviteRef = doc(db, 'agencies', agencyId, 'invitations', inviteId);
+  
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+  // Add timeout to prevent hanging
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('Invitation creation timeout')), 10000)
+  );
+
+  await Promise.race([
+    setDoc(inviteRef, {
+      id: inviteId,
+      email: data.email,
+      role: 'customer',
+      customerId: customerId,
+      note: data.note || null,
+      token,
+      createdBy: data.createdBy,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiresAt),
+    }),
+    timeoutPromise
+  ]);
+
+  return { id: inviteId, token, ...data };
+}
+
 export async function getInvitationByToken(token: string) {
   if (isDemoMode) return null;
 
@@ -394,6 +439,21 @@ export async function createCustomer(
   });
 
   return { id: customerId, ...data };
+}
+
+// Link customer to user after invitation acceptance
+export async function linkCustomerToUser(
+  agencyId: string,
+  customerId: string,
+  userId: string
+) {
+  if (isDemoMode) return;
+
+  const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
+  await updateDoc(customerRef, {
+    userId: userId,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function uploadCustomerDocument(

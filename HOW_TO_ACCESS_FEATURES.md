@@ -2,7 +2,7 @@
 
 ## 🎯 Quick Access Guide
 
-All the new features have been integrated into the LoanSage platform. Here's how to access them:
+All the new features have been integrated into the TengaLoans platform. Here's how to access them:
 
 ---
 

@@ -1,6 +1,6 @@
 # Migration from Supabase to Firebase
 
-This document explains the changes made to migrate the LoanSage project from Supabase to Firebase.
+This document explains the changes made to migrate the TengaLoans project from Supabase to Firebase.
 
 ## ✅ What Was Changed
 

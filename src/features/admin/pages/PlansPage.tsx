@@ -236,7 +236,7 @@ export function PlansPage() {
                       className="w-full mt-6"
                       asChild
                     >
-                      <a href="mailto:sales@loansage.com">Contact Sales</a>
+                      <a href="mailto:sales@tengaloans.com">Contact Sales</a>
                     </Button>
                   ) : (
                     <CheckoutButton className="w-full mt-6">

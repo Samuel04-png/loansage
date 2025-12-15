@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-Google and Apple OAuth authentication have been fully implemented and integrated into the LoanSage application.
+Google and Apple OAuth authentication have been fully implemented and integrated into the TengaLoans application.
 
 ## Features Implemented
 

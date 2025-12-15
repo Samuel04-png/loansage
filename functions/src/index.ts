@@ -1,5 +1,5 @@
 /**
- * Cloud Functions for LoanSage
+ * Cloud Functions for TengaLoans
  * Automatic backend calculations and scheduled jobs
  */
 
@@ -57,4 +57,7 @@ export {
   generateRepaymentSchedule,
   dailyBackup,
 } from './advanced-automation';
+
+// Export welcome email functions
+export { sendWelcomeEmail, sendAnnouncementEmail } from './welcome-email';
 

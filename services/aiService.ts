@@ -5,7 +5,7 @@ import { Loan, Borrower } from '../types';
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SYSTEM_INSTRUCTION_UNDERWRITER = `
-You are the LoanSage AI Chief Risk Officer. Your goal is to analyze loan applications, borrower profiles, and collateral to assess risk.
+You are the TengaLoans AI Chief Risk Officer. Your goal is to analyze loan applications, borrower profiles, and collateral to assess risk.
 Be professional, concise, and extremely prudent. 
 Focus on:
 1. Debt-to-Income ratios (inferred).

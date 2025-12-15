@@ -35,7 +35,7 @@ export function LandingPage() {
       {/* Navigation */}
       <nav className="border-b border-slate-200/50 bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
+          <div className="flex justify-between items-center h-32">
             <Link to="/" className="flex items-center gap-3 group">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -43,9 +43,9 @@ export function LandingPage() {
                 className="relative"
               >
                 <img 
-                  src="/logo/loansagelogo.png" 
-                  alt="LoanSage" 
-                  className="h-12 w-auto transition-all duration-300 group-hover:drop-shadow-lg"
+                  src="/logo/tengaloanlogo.png" 
+                  alt="TengaLoans" 
+                  className="h-32 w-auto transition-all duration-300 group-hover:drop-shadow-lg"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                     const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
@@ -58,7 +58,7 @@ export function LandingPage() {
               </motion.div>
               <div className="flex flex-col">
                 <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
-                  LoanSage
+                  TengaLoans
                 </span>
                 <span className="hidden sm:block text-xs text-slate-500 font-medium">AI-Powered Loan Management</span>
               </div>
@@ -134,8 +134,7 @@ export function LandingPage() {
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-lg sm:text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed px-4"
             >
-              Complete loan management solution with multi-tenant support, white-labeling, 
-              and AI-driven risk assessment. Built for modern microfinance institutions.
+              AI-Powered Loan Management
             </motion.p>
 
             <motion.div
@@ -408,7 +407,7 @@ export function LandingPage() {
               {
                 name: 'Sarah Mumba',
                 role: 'CEO, ABC Microfinance',
-                content: 'LoanSage transformed how we manage our loan portfolio. The AI features are incredible and have reduced our default rate by 40%.',
+                content: 'TengaLoans transformed how we manage our loan portfolio. The AI features are incredible and have reduced our default rate by 40%.',
                 rating: 5,
                 avatar: 'SM',
               },
@@ -604,7 +603,7 @@ export function LandingPage() {
               Perfect for Every Microfinance Need
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Whether you're a startup or an established institution, LoanSage scales with you
+              Whether you're a startup or an established institution, TengaLoans scales with you
             </p>
           </motion.div>
 
@@ -670,7 +669,7 @@ export function LandingPage() {
             transition={{ delay: 0.1 }}
             className="text-xl text-primary-100 mb-8"
           >
-            Join leading microfinance institutions using LoanSage. Start your free trial today.
+            Join leading microfinance institutions using TengaLoans. Start your free trial today.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -701,11 +700,11 @@ export function LandingPage() {
             <div>
               <div className="flex items-center gap-3 mb-6">
                 <img 
-                  src="/logo/loansagelogo.png" 
-                  alt="LoanSage" 
-                  className="h-10 w-auto"
+                  src="/logo/tengaloanlogo.png" 
+                  alt="TengaLoans" 
+                  className="h-20 w-auto"
                 />
-                <span className="text-2xl font-bold text-white">LoanSage</span>
+                <span className="text-2xl font-bold text-white">TengaLoans</span>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed mb-4">
                 Enterprise microfinance platform powered by AI. Transform your loan management with intelligent automation.
@@ -742,7 +741,7 @@ export function LandingPage() {
           </div>
           <div className="border-t border-slate-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-400">
-              &copy; {new Date().getFullYear()} LoanSage. All rights reserved.
+              &copy; {new Date().getFullYear()} TengaLoans. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm text-slate-400">
               <span>Made with ❤️ for microfinance</span>

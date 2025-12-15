@@ -78,7 +78,7 @@ export function ThemesPage() {
           <Palette className="w-8 h-8 text-[#006BFF]" />
           Themes
         </h1>
-        <p className="text-neutral-600 mt-2">Customize the appearance of your LoanSage interface</p>
+        <p className="text-neutral-600 mt-2">Customize the appearance of your TengaLoans interface</p>
       </div>
 
       <Card>

@@ -1,6 +1,6 @@
-# Firebase Setup Guide for LoanSage
+# Firebase Setup Guide for TengaLoans
 
-This guide will walk you through setting up Firebase for your LoanSage project.
+This guide will walk you through setting up Firebase for your TengaLoans project.
 
 ## 📋 Prerequisites
 
@@ -31,7 +31,7 @@ This guide will walk you through setting up Firebase for your LoanSage project.
 1. Go to [https://console.firebase.google.com](https://console.firebase.google.com)
 2. Click **"Add project"** or **"Create a project"**
 3. Fill in the details:
-   - **Project name**: `loansage` (or your preferred name)
+   - **Project name**: `tengaloans` (or your preferred name)
    - **Google Analytics**: Optional (you can enable it later)
 4. Click **"Continue"** and follow the prompts
 5. Wait for the project to be created
@@ -68,7 +68,7 @@ This guide will walk you through setting up Firebase for your LoanSage project.
 2. Scroll down to **"Your apps"** section
 3. Click the **Web icon** (`</>`) to add a web app
 4. Register your app:
-   - **App nickname**: `LoanSage Web`
+   - **App nickname**: `TengaLoans Web`
    - **Firebase Hosting**: Optional (check if you plan to use it)
 5. Click **"Register app"**
 6. Copy the `firebaseConfig` object - you'll need these values:

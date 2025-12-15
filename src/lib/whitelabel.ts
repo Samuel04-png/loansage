@@ -12,11 +12,11 @@ export function useWhitelabel() {
   };
 
   const getLogoUrl = () => {
-    return agency?.logo_url || agency?.logoURL || '/logo/loansagelogo.png';
+    return agency?.logo_url || agency?.logoURL || '/logo/tengaloanlogo.png';
   };
 
   const getAgencyName = () => {
-    return agency?.name || 'LoanSage';
+    return agency?.name || 'TengaLoans';
   };
 
   return {

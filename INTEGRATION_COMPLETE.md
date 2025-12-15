@@ -2,7 +2,7 @@
 
 ## Summary
 
-All remaining integrations have been completed. The LoanSage application now has full integration with Cloud Functions, Risk Assessment, Repayment Helpers, and all other Blaze Plan features.
+All remaining integrations have been completed. The TengaLoans application now has full integration with Cloud Functions, Risk Assessment, Repayment Helpers, and all other Blaze Plan features.
 
 ## ✅ Completed Integrations
 

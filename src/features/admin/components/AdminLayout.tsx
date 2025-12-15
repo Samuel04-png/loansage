@@ -384,7 +384,7 @@ export function AdminLayout() {
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center flex-1 min-w-0 group">
                       <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                        {agencyName || 'LoanSage'}
+                        {agencyName || 'TengaLoans'}
                       </span>
                       <ChevronDown className="w-4 h-4 ml-1.5 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-colors flex-shrink-0" />
                     </button>
@@ -569,7 +569,7 @@ export function AdminLayout() {
                   <div className="flex-1 min-w-0">
                     <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mb-1">New version available</h4>
                     <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-                      An improved version of LoanSage is available. Please restart now to upgrade.
+                      An improved version of TengaLoans is available. Please restart now to upgrade.
                     </p>
                     <button 
                       onClick={() => setUpdateModalOpen(true)}
@@ -928,7 +928,7 @@ export function AdminLayout() {
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">What's New in LoanSage</h2>
+                <h2 className="text-2xl font-bold text-slate-900">What's New in TengaLoans</h2>
                 <p className="text-sm text-slate-600">Version 2.2.0 - Latest Updates</p>
               </div>
             </div>

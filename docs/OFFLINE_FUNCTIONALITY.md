@@ -1,6 +1,6 @@
 # Offline Functionality
 
-LoanSage now supports full offline functionality! Users can continue working even when their internet connection is lost. All data changes are automatically saved locally and synced when the connection is restored.
+TengaLoans now supports full offline functionality! Users can continue working even when their internet connection is lost. All data changes are automatically saved locally and synced when the connection is restored.
 
 ## How It Works
 

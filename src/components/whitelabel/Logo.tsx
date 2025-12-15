@@ -10,12 +10,12 @@ export function Logo({ className = '', size = 'md' }: LogoProps) {
   const { logoUrl, agencyName } = useWhitelabel();
 
   const sizeClasses = {
-    sm: 'h-6 w-6',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
+    sm: 'h-14 w-14',
+    md: 'h-20 w-20',
+    lg: 'h-24 w-24',
   };
 
-  const defaultLogo = '/logo/loansagelogo.png';
+  const defaultLogo = '/logo/tengaloanlogo.png';
   const finalLogoUrl = logoUrl || defaultLogo;
   
   return (

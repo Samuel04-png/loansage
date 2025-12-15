@@ -2,7 +2,7 @@
 
 ## ✅ Upgrade Status: COMPLETE
 
-The LoanSage application has been fully refactored to remove all Spark plan restrictions and enable all features available on Firebase Blaze Plan.
+The TengaLoans application has been fully refactored to remove all Spark plan restrictions and enable all features available on Firebase Blaze Plan.
 
 ## Files Modified
 

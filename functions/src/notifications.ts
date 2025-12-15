@@ -49,7 +49,7 @@ export const sendNotifications = functions.https.onCall(
       if (email) {
         const subject = getEmailSubject(type);
         await transporter.sendMail({
-          from: functions.config().email?.user || 'noreply@loansage.com',
+          from: functions.config().email?.user || 'noreply@tengaloans.com',
           to: email,
           subject,
           html: getEmailTemplate(type, message),
@@ -185,7 +185,7 @@ async function sendNotificationForRepayment(
   if (email && functions.config().email?.user) {
     try {
       await transporter.sendMail({
-        from: functions.config().email?.user || 'noreply@loansage.com',
+        from: functions.config().email?.user || 'noreply@tengaloans.com',
         to: email,
         subject: getEmailSubject(type),
         html: getEmailTemplate(type, message),
@@ -198,15 +198,15 @@ async function sendNotificationForRepayment(
 
 function getEmailSubject(type: string): string {
   const subjects: Record<string, string> = {
-    payment_reminder: 'Payment Reminder - LoanSage',
-    payment_due: 'Payment Due Today - LoanSage',
-    overdue: 'Overdue Payment Notice - LoanSage',
-    defaulted: 'Loan Defaulted - LoanSage',
-    payment_received: 'Payment Received - LoanSage',
-    loan_approved: 'Loan Approved - LoanSage',
-    loan_rejected: 'Loan Application Update - LoanSage',
+    payment_reminder: 'Payment Reminder - TengaLoans',
+    payment_due: 'Payment Due Today - TengaLoans',
+    overdue: 'Overdue Payment Notice - TengaLoans',
+    defaulted: 'Loan Defaulted - TengaLoans',
+    payment_received: 'Payment Received - TengaLoans',
+    loan_approved: 'Loan Approved - TengaLoans',
+    loan_rejected: 'Loan Application Update - TengaLoans',
   };
-  return subjects[type] || 'Notification from LoanSage';
+  return subjects[type] || 'Notification from TengaLoans';
 }
 
 function getEmailTemplate(type: string, message: string): string {
@@ -215,7 +215,7 @@ function getEmailTemplate(type: string, message: string): string {
       <body style="font-family: Arial, sans-serif; padding: 20px;">
         <h2>${getEmailSubject(type)}</h2>
         <p>${message}</p>
-        <p>Thank you for using LoanSage.</p>
+        <p>Thank you for using TengaLoans.</p>
       </body>
     </html>
   `;
@@ -247,6 +247,6 @@ function getNotificationMessage(type: string, loan: any, repayment: any): string
     loan_approved: `Congratulations! Your loan application has been approved.`,
     loan_rejected: `Your loan application has been reviewed. Please contact us for details.`,
   };
-  return messages[type] || 'You have a new notification from LoanSage';
+  return messages[type] || 'You have a new notification from TengaLoans';
 }
 

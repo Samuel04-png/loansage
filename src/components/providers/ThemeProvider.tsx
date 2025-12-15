@@ -23,7 +23,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Initialize theme from localStorage or agency settings
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('loansage-theme') as Theme;
+      const stored = localStorage.getItem('tengaloans-theme') as Theme;
       if (stored && ['light', 'dark', 'auto'].includes(stored)) {
         return stored;
       }
@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (agency?.theme_mode) {
       setThemeState(agency.theme_mode as Theme);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('loansage-theme', agency.theme_mode);
+        localStorage.setItem('tengaloans-theme', agency.theme_mode);
       }
     }
   }, [agency?.theme_mode]);
@@ -91,7 +91,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('loansage-theme', newTheme);
+      localStorage.setItem('tengaloans-theme', newTheme);
     }
   }, []);
 

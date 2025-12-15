@@ -1,7 +1,7 @@
 {
-  "name": "loansage-functions",
+  "name": "tengaloans-functions",
   "version": "1.0.0",
-  "description": "Cloud Functions for LoanSage",
+  "description": "Cloud Functions for TengaLoans",
   "scripts": {
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",

@@ -19,7 +19,7 @@ import {
 import { Loader2, Upload, X, Search } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
-import { createCustomer, uploadCustomerDocument, createCollateral } from '../../../lib/firebase/firestore-helpers';
+import { createCustomer, uploadCustomerDocument, createCollateral, createCustomerInvitation } from '../../../lib/firebase/firestore-helpers';
 import { uploadCustomerDocument as uploadDoc } from '../../../lib/firebase/storage-helpers';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { NRCLookupDialog } from '../../../components/nrc/NRCLookupDialog';
@@ -213,11 +213,38 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
         // Ignore audit log errors
       });
 
-      // TODO: Send customer invite email if email exists
-      if (data.email && !data.collateralDetails) {
-        // Trigger email send (would be done via Cloud Function)
-        toast.success('Customer created! Invitation email will be sent.');
-      } else if (!data.collateralDetails) {
+      // Create customer invitation if email is provided
+      if (data.email) {
+        try {
+          const invitation = await createCustomerInvitation(profile.agency_id, customer.id, {
+            email: data.email,
+            note: `You've been invited to join ${agency?.name || 'our agency'} as a customer.`,
+            createdBy: user.id,
+          });
+
+          // Show invitation link in toast
+          const inviteUrl = `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
+          toast.success(
+            <div>
+              <p className="font-semibold">Customer created!</p>
+              <p className="text-xs mt-1">Invitation link: <a href={inviteUrl} className="text-blue-600 underline break-all" target="_blank" rel="noopener noreferrer">{inviteUrl}</a></p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(inviteUrl);
+                  toast.success('Invitation link copied to clipboard!');
+                }}
+                className="text-xs mt-2 text-blue-600 underline"
+              >
+                Copy link
+              </button>
+            </div>,
+            { duration: 15000 }
+          );
+        } catch (error: any) {
+          console.warn('Failed to create customer invitation:', error);
+          toast.success('Customer created successfully! (Invitation creation failed)');
+        }
+      } else {
         toast.success('Customer created successfully!');
       }
 

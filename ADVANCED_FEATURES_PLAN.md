@@ -3,7 +3,7 @@
 
 ## 🎯 Overview
 
-This document outlines advanced features to enhance LoanSage using:
+This document outlines advanced features to enhance TengaLoans using:
 - **Cloud Functions**: Backend automation, scheduled jobs, webhooks
 - **Realtime Database**: Live collaboration, presence, real-time updates
 - **Offline Persistence**: Enhanced sync, conflict resolution, queue management

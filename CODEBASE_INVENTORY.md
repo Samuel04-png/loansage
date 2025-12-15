@@ -1,4 +1,4 @@
-# LoanSage Codebase Inventory
+# TengaLoans Codebase Inventory
 
 ## Complete Page & Component Analysis
 

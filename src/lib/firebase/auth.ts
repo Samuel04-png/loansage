@@ -210,9 +210,9 @@ export const authService = {
       let referredByUserId: string | null = null;
       if (data.referralCode) {
         try {
-          // Extract user ID from referral code (format: LOANSAGE-XXXXXXXX)
+          // Extract user ID from referral code (format: TENGALOANS-XXXXXXXX)
           const codeParts = data.referralCode.split('-');
-          if (codeParts.length === 2 && codeParts[0] === 'LOANSAGE') {
+          if (codeParts.length === 2 && codeParts[0] === 'TENGALOANS') {
             // Search for user with matching ID prefix
             const usersRef = collection(db, 'users');
             const usersSnapshot = await getDocs(usersRef);
@@ -249,6 +249,7 @@ export const authService = {
         employee_category: data.employeeCategory || null,
         agency_id: null, // Will be set when organization is created
         is_active: true,
+        welcomeEmailSent: false, // Will be set to true by welcome email function
         referred_by: referredByUserId,
         referral_code: data.referralCode || null,
         created_at: new Date().toISOString(),

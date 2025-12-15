@@ -2,7 +2,7 @@
 
 ## ✅ Project Status: BLAZE PLAN (Upgraded)
 
-**The LoanSage project has been upgraded to Firebase Blaze Plan. All features are now fully enabled!**
+**The TengaLoans project has been upgraded to Firebase Blaze Plan. All features are now fully enabled!**
 
 ## What's Enabled on Blaze Plan
 

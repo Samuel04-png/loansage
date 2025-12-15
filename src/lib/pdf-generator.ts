@@ -532,7 +532,7 @@ export async function generateLoanSummaryPDF(data: LoanSummaryPDFData): Promise<
       doc.setPage(i);
       doc.setFontSize(8);
       doc.text(
-        `Page ${i} of ${pageCount} • LoanSage Loan Management System • Generated ${new Date().toLocaleString()}`,
+        `Page ${i} of ${pageCount} • TengaLoans Loan Management System • Generated ${new Date().toLocaleString()}`,
         105,
         285,
         { align: 'center' }

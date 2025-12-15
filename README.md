@@ -1,4 +1,4 @@
-# LoanSage - Multi-Tenant Loan Management SaaS Platform
+# TengaLoans - Multi-Tenant Loan Management SaaS Platform
 
 Enterprise-grade microfinance SaaS platform with AI-driven underwriting, multi-tenant architecture, and comprehensive role-based access control.
 
@@ -39,7 +39,7 @@ Enterprise-grade microfinance SaaS platform with AI-driven underwriting, multi-t
 1. Clone the repository
 ```bash
 git clone <repository-url>
-cd loansage
+cd tengaloans
 ```
 
 2. Install dependencies
@@ -80,7 +80,7 @@ The app will be available at `http://localhost:3000`
 ## Project Structure
 
 ```
-loansage/
+tengaloans/
 ├── src/
 │   ├── app/                  # App entry and routing
 │   ├── features/            # Feature modules
@@ -184,4 +184,4 @@ Private - All rights reserved
 
 ## Support
 
-For support, email support@loansage.com or visit our documentation.
+For support, email support@tengaloans.com or visit our documentation.

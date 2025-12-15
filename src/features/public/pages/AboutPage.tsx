@@ -9,12 +9,12 @@ export function AboutPage() {
       {/* Navigation */}
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-24">
             <Link to="/" className="flex items-center gap-2">
               <img 
-                src="/logo/loansagelogo.png" 
-                alt="LoanSage" 
-                className="h-8 w-auto"
+                src="/logo/tengaloanlogo.png" 
+                alt="TengaLoans" 
+                className="h-24 w-auto"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                   const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
@@ -24,7 +24,7 @@ export function AboutPage() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center hidden">
                 <ShieldAlert className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LoanSage</span>
+              <span className="text-xl font-bold text-slate-900">TengaLoans</span>
             </Link>
             <div className="flex items-center gap-4">
               <Link to="/" className="text-sm text-slate-600 hover:text-slate-900">
@@ -49,7 +49,7 @@ export function AboutPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-5xl font-bold text-slate-900 mb-6"
           >
-            About LoanSage
+            About TengaLoans
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -145,7 +145,7 @@ export function AboutPage() {
             Ready to get started?
           </h2>
           <p className="text-lg text-slate-600 mb-8">
-            Join the microfinance institutions using LoanSage
+            Join the microfinance institutions using TengaLoans
           </p>
           <Link to="/auth/signup">
             <Button size="lg">Get Started Free</Button>

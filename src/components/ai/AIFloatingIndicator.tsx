@@ -90,7 +90,7 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
     if (status === 'task-running') {
       return `Running tasks... ${taskProgress || ''}`;
     }
-    return 'LoanSage AI - Click to open chat';
+    return 'TengaLoans AI - Click to open chat';
   };
 
   const criticalAlerts = alerts.filter(a => a.type === 'critical' && !a.dismissed);

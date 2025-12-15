@@ -1,4 +1,4 @@
-# LoanSage Revenue & Firebase Cost Analysis
+# TengaLoans Revenue & Firebase Cost Analysis
 
 ## 📊 Revenue Projections
 

@@ -85,7 +85,7 @@ export function PWAInstallPrompt() {
                   <Smartphone className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-sm mb-1">Install LoanSage</h3>
+                  <h3 className="font-semibold text-sm mb-1">Install TengaLoans</h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
                     Install our app for a better experience with offline support
                   </p>

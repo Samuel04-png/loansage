@@ -6,8 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     // For GitHub Pages, use repository name as base path
-    // Change 'loansage' to your repository name if different
-    const base = process.env.GITHUB_PAGES === 'true' ? '/loansage/' : '/';
+    // Change 'tengaloans' to your repository name if different
+    const base = process.env.GITHUB_PAGES === 'true' ? '/tengaloans/' : '/';
     return {
       base,
       server: {
@@ -18,10 +18,10 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'prompt',
-          includeAssets: ['logo/loansagelogo.png'],
+          includeAssets: ['logo/tengaloanlogo.png', 'favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
           manifest: {
-            name: 'LoanSage - Microfinance Platform',
-            short_name: 'LoanSage',
+            name: 'TengaLoans - Microfinance Platform',
+            short_name: 'TengaLoans',
             description: 'Enterprise-grade microfinance SaaS platform',
             theme_color: '#006BFF',
             background_color: '#ffffff',
@@ -31,52 +31,28 @@ export default defineConfig(({ mode }) => {
             scope: '/',
             icons: [
               {
-                src: '/logo/loansagelogo.png',
-                sizes: '72x72',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/logo/loansagelogo.png',
-                sizes: '96x96',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/logo/loansagelogo.png',
-                sizes: '128x128',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/logo/loansagelogo.png',
-                sizes: '144x144',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/logo/loansagelogo.png',
-                sizes: '152x152',
-                type: 'image/png',
-                purpose: 'any',
-              },
-              {
-                src: '/logo/loansagelogo.png',
+                src: '/android-chrome-192x192.png',
                 sizes: '192x192',
                 type: 'image/png',
-                purpose: 'any maskable',
+                purpose: 'any',
               },
               {
-                src: '/logo/loansagelogo.png',
-                sizes: '384x384',
+                src: '/android-chrome-192x192.png',
+                sizes: '192x192',
                 type: 'image/png',
-                purpose: 'any maskable',
+                purpose: 'maskable',
               },
               {
-                src: '/logo/loansagelogo.png',
+                src: '/android-chrome-512x512.png',
                 sizes: '512x512',
                 type: 'image/png',
-                purpose: 'any maskable',
+                purpose: 'any',
+              },
+              {
+                src: '/android-chrome-512x512.png',
+                sizes: '512x512',
+                type: 'image/png',
+                purpose: 'maskable',
               },
             ],
           },
@@ -84,7 +60,9 @@ export default defineConfig(({ mode }) => {
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
             additionalManifestEntries: [
-              { url: '/logo/loansagelogo.png', revision: null },
+              { url: '/logo/tengaloanlogo.png', revision: null },
+              { url: '/android-chrome-192x192.png', revision: null },
+              { url: '/android-chrome-512x512.png', revision: null },
             ],
             runtimeCaching: [
               {

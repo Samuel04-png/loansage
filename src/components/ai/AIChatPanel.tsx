@@ -231,7 +231,7 @@ export function AIChatPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `loansage-ai-chat-${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `tengaloans-ai-chat-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Chat exported');
@@ -345,7 +345,7 @@ export function AIChatPanel({
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white dark:border-[#1E293B] animate-pulse" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">LoanSage AI</h3>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">TengaLoans AI</h3>
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Always here to help</p>
               </div>
             </div>
@@ -416,7 +416,7 @@ export function AIChatPanel({
                         </div>
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-[#1E293B] animate-pulse" />
                       </div>
-                      <h4 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-2">LoanSage AI Assistant</h4>
+                      <h4 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-2">TengaLoans AI Assistant</h4>
                       <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-sm leading-relaxed">
                         Ask me anything about your loan portfolio. I can analyze loans, customers, payments, and provide insights on demand.
                       </p>
@@ -658,7 +658,7 @@ function ChatMessageComponent({
         {/* Header with timestamp */}
         <div className="flex items-center gap-2 mb-1.5">
           <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-            {isUser ? 'You' : 'LoanSage AI'}
+            {isUser ? 'You' : 'TengaLoans AI'}
           </span>
           {showTimestamp && (
             <motion.span

@@ -11,9 +11,9 @@ export function Logo({ className, showText = true, size = 'md' }: LogoProps) {
   const { logoUrl, agencyName } = useWhitelabel();
 
   const sizeClasses = {
-    sm: 'h-6 w-6',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
+    sm: 'h-14 w-14',
+    md: 'h-20 w-20',
+    lg: 'h-24 w-24',
   };
 
   const textSizeClasses = {
@@ -35,8 +35,8 @@ export function Logo({ className, showText = true, size = 'md' }: LogoProps) {
         onError={(e) => {
           // Fallback to default logo if custom logo fails to load
           const target = e.target as HTMLImageElement;
-          if (!target.src.includes('/logo/loansagelogo.png')) {
-            target.src = '/logo/loansagelogo.png';
+          if (!target.src.includes('/logo/tengaloanlogo.png')) {
+            target.src = '/logo/tengaloanlogo.png';
           }
         }}
       />

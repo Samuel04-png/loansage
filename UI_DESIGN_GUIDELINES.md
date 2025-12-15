@@ -1,6 +1,6 @@
 # UI Design Guidelines - Reference Style Implementation
 
-This document contains the detailed design specifications for the LoanSage UI overhaul, based on the YowStay reference screenshot and modern SaaS design principles.
+This document contains the detailed design specifications for the TengaLoans UI overhaul, based on the YowStay reference screenshot and modern SaaS design principles.
 
 ## 🎨 1. DESIGN STYLE GUIDELINES (REFERENCE-DRIVEN)
 

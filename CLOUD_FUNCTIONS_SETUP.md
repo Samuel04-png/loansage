@@ -2,7 +2,7 @@
 
 ## Overview
 
-LoanSage now includes comprehensive Cloud Functions for automatic backend calculations, scheduled jobs, and notifications.
+TengaLoans now includes comprehensive Cloud Functions for automatic backend calculations, scheduled jobs, and notifications.
 
 ## Functions Created
 

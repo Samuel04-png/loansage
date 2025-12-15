@@ -177,9 +177,9 @@ export function ResetPasswordPage() {
               className="flex justify-center mb-6"
             >
               <img 
-                src="/logo/loansagelogo.png" 
-                alt="LoanSage" 
-                className="h-12 w-auto"
+                src="/logo/tengaloanlogo.png" 
+                alt="TengaLoans" 
+                className="h-36 w-auto"
               />
             </motion.div>
 

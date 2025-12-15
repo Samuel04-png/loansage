@@ -48,7 +48,7 @@ export async function askLoanOfficerAssistant(
     const data = await fetchRelevantData(question, context);
     
     // Use AI to generate answer
-    const systemPrompt = `You are an AI loan officer assistant for LoanSage. 
+    const systemPrompt = `You are an AI loan officer assistant for TengaLoans. 
 You help loan officers understand their portfolio, find loans, analyze performance, and get insights.
 Be concise, professional, and data-driven. Always provide actionable insights.
 

@@ -11,7 +11,7 @@ export function UnderwriterPage() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello. I am the LoanSage Risk Officer. Upload a borrower document or ask me to evaluate a specific loan case.',
+      content: 'Hello. I am the TengaLoans Risk Officer. Upload a borrower document or ask me to evaluate a specific loan case.',
       timestamp: new Date()
     }
   ]);

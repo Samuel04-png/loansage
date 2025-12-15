@@ -11,7 +11,7 @@ export function TermsPage() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <ShieldAlert className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-900">LoanSage</span>
+              <span className="text-xl font-bold text-slate-900">TengaLoans</span>
             </Link>
             <Link to="/auth/login">
               <button className="text-sm text-slate-600 hover:text-slate-900">Sign In</button>
@@ -26,7 +26,7 @@ export function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">1. Acceptance of Terms</h2>
             <p className="text-slate-700">
-              By accessing and using LoanSage, you accept and agree to be bound by the terms and 
+              By accessing and using TengaLoans, you accept and agree to be bound by the terms and 
               provision of this agreement. If you do not agree to these terms, please do not use 
               our service.
             </p>
@@ -34,7 +34,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">2. Use License</h2>
-            <p className="text-slate-700 mb-2">Permission is granted to temporarily use LoanSage for:</p>
+            <p className="text-slate-700 mb-2">Permission is granted to temporarily use TengaLoans for:</p>
             <ul className="list-disc list-inside text-slate-700 space-y-2">
               <li>Personal or commercial microfinance management</li>
               <li>Loan origination and portfolio management</li>
@@ -55,7 +55,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">4. Prohibited Uses</h2>
-            <p className="text-slate-700 mb-2">You may not use LoanSage:</p>
+            <p className="text-slate-700 mb-2">You may not use TengaLoans:</p>
             <ul className="list-disc list-inside text-slate-700 space-y-2">
               <li>For any unlawful purpose or to solicit others to perform unlawful acts</li>
               <li>To violate any international, federal, provincial, or state regulations, rules, or laws</li>
@@ -68,7 +68,7 @@ export function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">5. Service Availability</h2>
             <p className="text-slate-700">
-              We strive to ensure LoanSage is available 24/7, but we do not guarantee uninterrupted 
+              We strive to ensure TengaLoans is available 24/7, but we do not guarantee uninterrupted 
               access. We reserve the right to modify, suspend, or discontinue the service at any 
               time with or without notice.
             </p>
@@ -77,16 +77,16 @@ export function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">6. Limitation of Liability</h2>
             <p className="text-slate-700">
-              In no event shall LoanSage or its suppliers be liable for any damages (including, 
+              In no event shall TengaLoans or its suppliers be liable for any damages (including, 
               without limitation, damages for loss of data or profit, or due to business interruption) 
-              arising out of the use or inability to use LoanSage.
+              arising out of the use or inability to use TengaLoans.
             </p>
           </section>
 
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">7. Indemnification</h2>
             <p className="text-slate-700">
-              You agree to indemnify and hold harmless LoanSage, its officers, directors, employees, 
+              You agree to indemnify and hold harmless TengaLoans, its officers, directors, employees, 
               and agents from any claims, damages, losses, liabilities, and expenses arising out of 
               your use of the service or violation of these terms.
             </p>
@@ -96,7 +96,7 @@ export function TermsPage() {
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">8. Changes to Terms</h2>
             <p className="text-slate-700">
               We reserve the right to modify these terms at any time. We will notify users of any 
-              material changes via email or through the service. Your continued use of LoanSage 
+              material changes via email or through the service. Your continued use of TengaLoans 
               after such modifications constitutes acceptance of the updated terms.
             </p>
           </section>
@@ -105,7 +105,7 @@ export function TermsPage() {
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">9. Contact Information</h2>
             <p className="text-slate-700">
               If you have any questions about these Terms of Service, please contact us at 
-              legal@loansage.com
+              legal@tengaloans.com
             </p>
           </section>
 

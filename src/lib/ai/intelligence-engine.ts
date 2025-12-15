@@ -1,5 +1,5 @@
 /**
- * LoanSage AI Intelligence Engine
+ * TengaLoans AI Intelligence Engine
  * Embedded background intelligence that analyzes system data and provides insights
  * NOT a chatbot - provides actionable system messages and warnings
  */
@@ -225,7 +225,7 @@ export async function generateFinancialInsights(context: AnalysisContext): Promi
     : 0;
 
   // Prepare data for AI analysis
-  const analysisPrompt = `You are an embedded intelligence system for LoanSage loan management. Analyze this data and provide SHORT, ACTIONABLE insights. Do NOT act like a chatbot. Be direct and professional.
+  const analysisPrompt = `You are an embedded intelligence system for TengaLoans loan management. Analyze this data and provide SHORT, ACTIONABLE insights. Do NOT act like a chatbot. Be direct and professional.
 
 Loan Statistics:
 - Total Loans: ${context.loans.length}
