@@ -95,9 +95,9 @@ git remote -v
 ## Next Steps
 
 After authenticating:
-1. Make sure your git email is added to your GitHub account
+1. Make sure `skamanga85@gmail.com` is added to your GitHub account
    - Go to: https://github.com/settings/emails
-   - Add your email if it's not there
+   - Add the email if it's not there
    - Verify it if needed
 
 2. Test by pushing a commit:

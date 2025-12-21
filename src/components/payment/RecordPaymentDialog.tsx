@@ -55,13 +55,6 @@ export function RecordPaymentDialog({
 
     setLoading(true);
     try {
-      // Generate deterministic transaction ID for idempotency based on payment context
-      // This ensures the same payment attempt (same amount, method, repayment) always uses the same ID, preventing duplicates
-      // Removed Date.now() and Math.random() to achieve true determinism - same form values = same ID
-      const deterministicId = transactionId?.trim() || 
-        `payment-${loanId}-${repaymentId}-${paymentAmount.toFixed(2)}-${paymentMethod}`;
-      const paymentTransactionId = deterministicId;
-      
       // Use Firestore transaction for atomic updates
       await runTransaction(db, async (transaction) => {
         const repaymentRef = doc(
@@ -74,7 +67,7 @@ export function RecordPaymentDialog({
           repaymentId
         );
 
-        // Read current repayment state
+        // Read current repayment state first to get accurate amountPaid
         const repaymentSnap = await transaction.get(repaymentRef);
         if (!repaymentSnap.exists()) {
           throw new Error('Repayment not found');
@@ -83,6 +76,14 @@ export function RecordPaymentDialog({
         const currentRepayment = repaymentSnap.data();
         const currentAmountPaid = Number(currentRepayment.amountPaid || 0);
         const currentAmountDue = Number(currentRepayment.amountDue || 0);
+        
+        // Generate deterministic transaction ID for idempotency based on payment context + current state
+        // Include currentAmountPaid so legitimate subsequent payments get different IDs
+        // Same form values + same current state = same ID (prevents duplicate submission)
+        // Different current state = different ID (allows legitimate new payment)
+        const deterministicId = transactionId?.trim() || 
+          `payment-${loanId}-${repaymentId}-${currentAmountPaid.toFixed(2)}-${paymentAmount.toFixed(2)}-${paymentMethod}`;
+        const paymentTransactionId = deterministicId;
         
         // Check if this payment transaction already exists (idempotency check)
         const paymentHistoryRef = doc(
