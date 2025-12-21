@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { doc, updateDoc, serverTimestamp, Timestamp, collection } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, Timestamp, collection, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
@@ -55,57 +55,76 @@ export function RecordPaymentDialog({
 
     setLoading(true);
     try {
-      const repaymentRef = doc(
-        db,
-        'agencies',
-        agencyId,
-        'loans',
-        loanId,
-        'repayments',
-        repaymentId
-      );
+      // Generate unique transaction ID for idempotency
+      const paymentTransactionId = transactionId?.trim() || `payment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Use Firestore transaction for atomic updates
+      await runTransaction(db, async (transaction) => {
+        const repaymentRef = doc(
+          db,
+          'agencies',
+          agencyId,
+          'loans',
+          loanId,
+          'repayments',
+          repaymentId
+        );
 
-      const newAmountPaid = amountPaid + paymentAmount;
-      const isFullyPaid = newAmountPaid >= amountDue;
+        // Read current repayment state
+        const repaymentSnap = await transaction.get(repaymentRef);
+        if (!repaymentSnap.exists()) {
+          throw new Error('Repayment not found');
+        }
 
-      await updateDoc(repaymentRef, {
-        amountPaid: newAmountPaid,
-        status: isFullyPaid ? 'paid' : repayment.status,
-        paidAt: isFullyPaid ? serverTimestamp() : repayment.paidAt,
-        paymentMethod: paymentMethod || null,
-        transactionId: transactionId || null,
-        lastPaymentDate: serverTimestamp(),
-        lastPaymentAmount: paymentAmount,
-        updatedAt: serverTimestamp(),
+        const currentRepayment = repaymentSnap.data();
+        const currentAmountPaid = Number(currentRepayment.amountPaid || 0);
+        const currentAmountDue = Number(currentRepayment.amountDue || 0);
+        
+        // Check if this payment transaction already exists (idempotency check)
+        const paymentHistoryRef = doc(
+          db,
+          'agencies',
+          agencyId,
+          'loans',
+          loanId,
+          'repayments',
+          repaymentId,
+          'paymentHistory',
+          paymentTransactionId
+        );
+        
+        const paymentHistorySnap = await transaction.get(paymentHistoryRef);
+        if (paymentHistorySnap.exists()) {
+          // Payment already recorded - idempotent operation
+          throw new Error('This payment has already been recorded');
+        }
+
+        const newAmountPaid = currentAmountPaid + paymentAmount;
+        const isFullyPaid = newAmountPaid >= currentAmountDue;
+
+        // Update repayment atomically
+        transaction.update(repaymentRef, {
+          amountPaid: newAmountPaid,
+          status: isFullyPaid ? 'paid' : currentRepayment.status,
+          paidAt: isFullyPaid ? serverTimestamp() : currentRepayment.paidAt,
+          paymentMethod: paymentMethod || null,
+          transactionId: transactionId?.trim() || null,
+          lastPaymentDate: serverTimestamp(),
+          lastPaymentAmount: paymentAmount,
+          updatedAt: serverTimestamp(),
+        });
+
+        // Create payment history entry with transaction ID as document ID for idempotency
+        const paymentHistoryData: any = {
+          amount: paymentAmount,
+          paymentMethod: paymentMethod || 'cash',
+          recordedBy: user?.id || '',
+          recordedAt: serverTimestamp(),
+          transactionId: paymentTransactionId,
+        };
+        
+        transaction.set(paymentHistoryRef, paymentHistoryData);
       });
-
-      // Create payment history entry
-      const paymentHistoryRef = doc(
-        db,
-        'agencies',
-        agencyId,
-        'loans',
-        loanId,
-        'repayments',
-        repaymentId,
-        'paymentHistory',
-        `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      );
-
-      const { setDoc } = await import('firebase/firestore');
-      const paymentHistoryData: any = {
-        amount: paymentAmount,
-        paymentMethod: paymentMethod || 'cash',
-        recordedBy: user?.id || '',
-        recordedAt: serverTimestamp(),
-      };
-      
-      // Only add transactionId if provided
-      if (transactionId && transactionId.trim()) {
-        paymentHistoryData.transactionId = transactionId.trim();
-      }
-      
-      await setDoc(paymentHistoryRef, paymentHistoryData);
 
       // Create audit log
       createAuditLog(agencyId, {

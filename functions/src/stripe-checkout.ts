@@ -21,9 +21,16 @@ const getStripeSecretKey = () => {
   return '';
 };
 
-const stripe = new Stripe(getStripeSecretKey(), {
-  apiVersion: '2023-10-16',
-});
+// Lazy Stripe initialization to avoid deployment timeouts
+const getStripe = () => {
+  const secretKey = getStripeSecretKey();
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY not configured');
+  }
+  return new Stripe(secretKey, {
+    apiVersion: '2023-10-16',
+  });
+};
 
 /**
  * Create Stripe Checkout Session
@@ -53,6 +60,7 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
     let customerId = agencyData?.stripeCustomerId;
     
     if (!customerId) {
+      const stripe = getStripe();
       const customer = await stripe.customers.create({
         email: customerEmail,
         metadata: {
@@ -69,6 +77,7 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
     }
 
     // Create checkout session
+    const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
@@ -114,6 +123,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   let event: Stripe.Event;
 
   try {
+    const stripe = getStripe();
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: any) {
     console.error('Webhook signature verification failed:', err.message);

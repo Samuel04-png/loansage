@@ -1,6 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
 import type { Loan, Borrower } from '../types';
 
+// Helper to get loan type category for AI context
+function getLoanTypeCategory(loanType: string): string {
+  const securedTypes = ['collateral_based', 'asset_financing', 'equipment', 'trade_finance', 'construction'];
+  const unsecuredTypes = ['salary_based', 'personal_unsecured', 'education', 'medical', 'emergency', 'microfinance'];
+  const conditionalTypes = ['sme_business', 'group', 'working_capital', 'invoice_financing', 'refinancing'];
+  
+  if (securedTypes.includes(loanType.toLowerCase())) return 'Secured';
+  if (unsecuredTypes.includes(loanType.toLowerCase())) return 'Unsecured';
+  if (conditionalTypes.includes(loanType.toLowerCase())) return 'Conditional';
+  return 'Standard';
+}
+
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: import.meta.env.GEMINI_API_KEY || import.meta.env.API_KEY || '' });
 
@@ -17,13 +29,22 @@ Focus on:
 export const analyzeLoanRisk = async (loan: Loan, borrower: Borrower): Promise<string> => {
   const model = "gemini-2.5-flash"; 
   
+  const loanType = (loan as any).loanType || (loan as any).loan_type || 'Standard';
+  const loanTypeInfo = loanType !== 'Standard' ? `\nLoan Type: ${loanType} (${getLoanTypeCategory(loanType)})` : '';
+  
   const prompt = `
     Analyze this loan application for risk:
-    Borrower: ${borrower.name} (Score: ${borrower.riskScore})
-    Loan: ${loan.currency} ${loan.amount} for ${loan.durationMonths} months @ ${loan.interestRate}% interest.
-    Collateral: ${loan.collateral.map(c => `${c.type} worth ${c.currency} ${c.value}`).join(', ')}.
+    Borrower: ${borrower.name} (Risk Score: ${borrower.riskScore}/100)
+    Loan: ${loan.currency} ${loan.amount} for ${loan.durationMonths} months @ ${loan.interestRate}% interest.${loanTypeInfo}
+    Collateral: ${loan.collateral && loan.collateral.length > 0 
+      ? loan.collateral.map((c: any) => `${c.type} worth ${c.currency || 'ZMW'} ${c.value || c.estimated_value || 0}`).join(', ')
+      : 'No collateral provided'}.
     
-    Calculate LTV. Provide a verdict (APPROVE/REJECT/REVIEW) and 3 key reasons.
+    Consider the loan type's specific risk profile and requirements. Calculate LTV if collateral exists. 
+    Provide a verdict (APPROVE/REJECT/REVIEW) and 3 key reasons based on:
+    1. Loan type appropriateness for borrower profile
+    2. Risk factors specific to this loan type
+    3. Overall creditworthiness assessment
   `;
 
   try {

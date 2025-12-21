@@ -152,8 +152,32 @@ export function CollateralsPage() {
       'Created Date': coll.createdAt?.toDate?.()?.toLocaleDateString() || coll.createdAt || 'N/A',
     }));
 
-    const { exportToCSV } = require('../../../lib/data-export');
-    exportToCSV(data, headers, { filename: `collaterals-export-${Date.now()}.csv` });
+    // Convert to CSV format manually since exportData is not exported
+    const csvRows = [];
+    csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header] || '';
+        const stringValue = String(value);
+        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+      });
+      csvRows.push(values.join(','));
+    });
+    
+    const csv = csvRows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `collaterals-export-${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast.success('Collaterals exported successfully');
   };
 

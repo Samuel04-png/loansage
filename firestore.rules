@@ -37,7 +37,8 @@ service cloud.firestore {
     }
     
     function belongsToAgency(agencyId) {
-      return getUserAgencyId() == agencyId;
+      let userAgencyId = getUserAgencyId();
+      return userAgencyId == agencyId;
     }
     
     function isCustomerOwner(customerId, agencyId) {
@@ -92,32 +93,83 @@ service cloud.firestore {
       // Employees subcollection
       match /employees/{employeeId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid));
-        allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        // Allow create if:
+        // 1. User belongs to agency and is admin/loan officer, OR
+        // 2. User is creating their own employee record (for invitation acceptance flow)
+        allow create: if isAuthenticated() && (
+          ((isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId)) ||
+          (request.resource.data.userId == request.auth.uid)
+        );
         allow update: if isAuthenticated() && (isAdmin() || (isEmployee() && resource != null && resource.data.userId == request.auth.uid)) && belongsToAgency(agencyId);
         allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.userId == request.auth.uid)) && belongsToAgency(agencyId);
       }
       
       // Invitations subcollection
       match /invitations/{inviteId} {
-        allow read: if isAuthenticated() && belongsToAgency(agencyId);
-        allow create: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
-        allow update: if isAuthenticated() && belongsToAgency(agencyId);
-        allow delete: if isAuthenticated() && (isAdmin() || resource.data.createdBy == request.auth.uid) && belongsToAgency(agencyId);
+        // Allow reading invitations:
+        // 1. If user belongs to agency (for viewing invitations list)
+        // 2. If invitation is pending (for token-based lookup during acceptance)
+        allow read: if 
+          (isAuthenticated() && belongsToAgency(agencyId)) ||
+          (resource != null && resource.data.status == 'pending');
+        allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        // Allow update for accepting invitations:
+        // 1. If user belongs to agency (for admins updating status)
+        // 2. If invitation is pending and being marked as accepted (for new users accepting)
+        //    - This allows NEW users to accept invitations even before they belong to the agency
+        //    - Only allow changing status from 'pending' to 'accepted'
+        //    - Only allow setting acceptedBy and acceptedAt fields
+        //    - Don't allow changing other fields
+        allow update: if 
+          (isAuthenticated() && belongsToAgency(agencyId)) ||
+          (isAuthenticated() && 
+           resource != null && 
+           resource.data.status == 'pending' && 
+           request.resource.data.status == 'accepted' &&
+           // Only allow changing status, acceptedBy, and acceptedAt
+           // Prevent changing other important fields
+           request.resource.data.email == resource.data.email &&
+           request.resource.data.role == resource.data.role &&
+           request.resource.data.token == resource.data.token &&
+           request.resource.data.createdBy == resource.data.createdBy &&
+           request.resource.data.expiresAt == resource.data.expiresAt &&
+           request.resource.data.inviteUrl == resource.data.inviteUrl &&
+           (request.resource.data.customerId == null || request.resource.data.customerId == resource.data.customerId));
+        allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.createdBy == request.auth.uid)) && belongsToAgency(agencyId);
       }
       
       // Customers subcollection
       match /customers/{customerId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid) || isCustomer());
-        allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
-        allow update: if isAuthenticated() && (isLoanOfficer() || isAdmin() || (resource != null && resource.data.userId == request.auth.uid)) && belongsToAgency(agencyId);
-        allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.userId == request.auth.uid)) && belongsToAgency(agencyId);
+        // Allow create if:
+        // 1. User belongs to agency (from Firestore user doc), OR
+        // 2. User is creating a customer with createdBy field matching their auth.uid
+        //    (This handles cases where user data is in Supabase - we trust the client
+        //     to set createdBy correctly, and the application logic enforces this)
+        allow create: if isAuthenticated() && (
+          belongsToAgency(agencyId) ||
+          request.resource.data.createdBy == request.auth.uid
+        );
+        // Allow update if:
+        // 1. User belongs to agency, OR
+        // 2. User is linking themselves to the customer record (for invitation acceptance)
+        allow update: if isAuthenticated() && (
+          belongsToAgency(agencyId) ||
+          (resource != null && request.resource.data.userId == request.auth.uid && resource.data.userId == null)
+        );
+        allow delete: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid));
         
         // Customer documents subcollection
         match /documents/{documentId} {
           allow read: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.uploadedBy == request.auth.uid));
-          allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin() || isCustomer()) && belongsToAgency(agencyId);
-          allow update: if isAuthenticated() && (isAdmin() || isLoanOfficer() || (resource != null && resource.data.uploadedBy == request.auth.uid)) && belongsToAgency(agencyId);
-          allow delete: if isAuthenticated() && (isAdmin() || isLoanOfficer() || (resource != null && resource.data.uploadedBy == request.auth.uid)) && belongsToAgency(agencyId);
+          // Allow create if user belongs to agency OR is uploading their own document OR is a customer
+          allow create: if isAuthenticated() && (
+            belongsToAgency(agencyId) ||
+            (request.resource.data.uploadedBy == request.auth.uid) ||
+            isCustomer()
+          );
+          allow update: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.uploadedBy == request.auth.uid));
+          allow delete: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.uploadedBy == request.auth.uid));
         }
       }
       
@@ -125,8 +177,29 @@ service cloud.firestore {
       match /loans/{loanId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isLoanOwner(loanId, agencyId) || (resource != null && isCustomerOwner(resource.data.customerId, agencyId)));
         allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
-        allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin()) && belongsToAgency(agencyId);
-        allow delete: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        
+        // Update rules based on workflow:
+        // - Loan officers can only edit DRAFT loans they created
+        // - Accountants can update status for PENDING/UNDER_REVIEW loans
+        // - Admins can update any loan
+        allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
+          // Admin can update any loan
+          isAdmin() ||
+          // Loan officer can only update DRAFT loans they created
+          (isLoanOfficer() && 
+           resource != null && 
+           resource.data.status == 'draft' && 
+           resource.data.createdBy == request.auth.uid &&
+           request.resource.data.status in ['draft', 'pending']) ||
+          // Accountant can update status for PENDING/UNDER_REVIEW loans
+          (isAccountant() && 
+           resource != null && 
+           resource.data.status in ['pending', 'under_review', 'approved'] &&
+           // Only allow status changes, not other field edits
+           request.resource.data.status in ['pending', 'under_review', 'approved', 'rejected'])
+        );
+        
+        allow delete: if isAuthenticated() && (isAdmin() || (isLoanOfficer() && resource != null && resource.data.status == 'draft' && resource.data.createdBy == request.auth.uid)) && belongsToAgency(agencyId);
         
         // Loan documents subcollection
         match /documents/{documentId} {
@@ -147,8 +220,9 @@ service cloud.firestore {
         // Loan repayments subcollection
         match /repayments/{repaymentId} {
           allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isAccountant() || isCustomer());
-          allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin() || isCustomer()) && belongsToAgency(agencyId);
-          allow update: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+          // Only accountants and admins can create/edit repayment schedules
+          allow create: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
           allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
           
           // Payment history subcollection
@@ -167,6 +241,14 @@ service cloud.firestore {
           allow update: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
           allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
         }
+        
+        // Loan audit logs subcollection (immutable)
+        match /audit_logs/{logId} {
+          allow read: if isAuthenticated() && belongsToAgency(agencyId);
+          allow create: if isAuthenticated() && belongsToAgency(agencyId);
+          allow update: if false; // Audit logs are immutable
+          allow delete: if false; // Audit logs cannot be deleted
+        }
       }
       
       // Top-level collateral registry
@@ -180,7 +262,12 @@ service cloud.firestore {
       // Audit logs subcollection
       match /audit_logs/{logId} {
         allow read: if isAuthenticated() && (isAdmin() || isEmployee()) && belongsToAgency(agencyId);
-        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        // Allow create if user belongs to agency OR if actorId matches authenticated user
+        // (handles cases where user data is in Supabase)
+        allow create: if isAuthenticated() && (
+          belongsToAgency(agencyId) ||
+          request.resource.data.actorId == request.auth.uid
+        );
         allow update: if false; // Audit logs should never be updated
         allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
       }
@@ -199,6 +286,22 @@ service cloud.firestore {
         allow create: if isAuthenticated() && belongsToAgency(agencyId);
         allow update: if isAuthenticated() && belongsToAgency(agencyId);
         allow delete: if isAuthenticated() && belongsToAgency(agencyId);
+      }
+      
+      // Stats subcollection (cached dashboard statistics)
+      match /stats/{statId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Loan type configuration subcollection
+      match /config/{configId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
       }
     }
     

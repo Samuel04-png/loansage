@@ -9,14 +9,22 @@ import nodemailer from 'nodemailer';
 
 const db = admin.firestore();
 
-// Email transporter (configure with your email service)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: functions.config().email?.user || '',
-    pass: functions.config().email?.password || '',
-  },
-});
+// Email transporter - lazy initialization to avoid deployment timeouts
+const getTransporter = () => {
+  const emailConfig = functions.config().email;
+  if (!emailConfig?.user || !emailConfig?.password) {
+    console.warn('Email configuration not set. Email sending will be disabled.');
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailConfig.user,
+      pass: emailConfig.password,
+    },
+  });
+};
 
 interface NotificationData {
   userId: string;
@@ -47,13 +55,21 @@ export const sendNotifications = functions.https.onCall(
 
       // Send email if email provided
       if (email) {
-        const subject = getEmailSubject(type);
-        await transporter.sendMail({
-          from: functions.config().email?.user || 'noreply@tengaloans.com',
-          to: email,
-          subject,
-          html: getEmailTemplate(type, message),
-        });
+        const transporter = getTransporter();
+        if (transporter) {
+          const emailConfig = functions.config().email;
+          const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
+          const fromName = emailConfig?.name || 'TengaLoans';
+          const fromAddress = `${fromName} <${fromEmail}>`;
+          const subject = getEmailSubject(type);
+          
+          await transporter.sendMail({
+            from: fromAddress,
+            to: email,
+            subject,
+            html: getEmailTemplate(type, message),
+          });
+        }
       }
 
       // Send FCM notification if token exists
@@ -182,14 +198,22 @@ async function sendNotificationForRepayment(
   });
 
   // Send email if available
-  if (email && functions.config().email?.user) {
+  if (email) {
     try {
-      await transporter.sendMail({
-        from: functions.config().email?.user || 'noreply@tengaloans.com',
-        to: email,
-        subject: getEmailSubject(type),
-        html: getEmailTemplate(type, message),
-      });
+      const transporter = getTransporter();
+      if (transporter) {
+        const emailConfig = functions.config().email;
+        const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
+        const fromName = emailConfig?.name || 'TengaLoans';
+        const fromAddress = `${fromName} <${fromEmail}>`;
+        
+        await transporter.sendMail({
+          from: fromAddress,
+          to: email,
+          subject: getEmailSubject(type),
+          html: getEmailTemplate(type, message),
+        });
+      }
     } catch (error) {
       console.error('Email send error:', error);
     }

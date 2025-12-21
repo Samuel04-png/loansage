@@ -33,6 +33,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
+import { TableCard, TableCardRow } from '../../../components/ui/responsive-table';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { Breadcrumbs } from '../../../components/ui/breadcrumbs';
 
 export function CustomersPage() {
   const { profile, user } = useAuth();
@@ -79,6 +82,9 @@ export function CustomersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs />
+      
       {/* Header - Reference Style */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -87,8 +93,8 @@ export function CustomersPage() {
         className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Customers</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">Manage your agency customers</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Customers</h1>
+          <p className="helper-text">Manage your agency customers</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
@@ -196,96 +202,175 @@ export function CustomersPage() {
                 ))}
               </div>
             ) : filteredCustomers.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">ID</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">NRC</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Risk Score</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent border-b border-neutral-200">
+                        <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
+                        <TableHead className="font-semibold text-neutral-700">ID</TableHead>
+                        <TableHead className="font-semibold text-neutral-700">NRC</TableHead>
+                        <TableHead className="font-semibold text-neutral-700">Risk Score</TableHead>
+                        <TableHead className="font-semibold text-neutral-700">Status</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCustomers.map((cust: any, index: number) => (
+                        <motion.tr
+                          key={cust.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="border-b border-neutral-100 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                        >
+                          <TableCell>
+                            <Link to={`/admin/customers/${cust.id}`} className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10 border-2 border-neutral-200">
+                                <AvatarImage src={cust.profilePhotoURL} />
+                                <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                                  {getInitials(cust.fullName || 'Customer')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                  {cust.fullName || 'N/A'}
+                                </div>
+                                <div className="text-xs text-neutral-500">{cust.email || cust.phone}</div>
+                              </div>
+                            </Link>
+                          </TableCell>
+                          <TableCell className="font-medium text-neutral-700 dark:text-neutral-300">{cust.id}</TableCell>
+                          <TableCell className="text-neutral-600 dark:text-neutral-400">{cust.nrc || '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-[#22C55E]"></div>
+                              <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">-</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {cust.status === 'active' ? (
+                              <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
+                            ) : (
+                              <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Inactive</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
+                                    View Details
+                                  </Link>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </motion.tr>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card Layout */}
+                <div className="md:hidden space-y-3">
                   {filteredCustomers.map((cust: any, index: number) => (
-                    <motion.tr
+                    <motion.div
                       key={cust.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors cursor-pointer"
                     >
-                      <TableCell>
-                        <Link to={`/admin/customers/${cust.id}`} className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 border-2 border-neutral-200">
-                            <AvatarImage src={cust.profilePhotoURL} />
-                            <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
-                              {getInitials(cust.fullName || 'Customer')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-                              {cust.fullName || 'N/A'}
+                      <TableCard
+                        onClick={() => window.location.href = `/admin/customers/${cust.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <Link 
+                            to={`/admin/customers/${cust.id}`}
+                            className="flex items-center gap-3 flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Avatar className="h-12 w-12 border-2 border-neutral-200 dark:border-neutral-700 flex-shrink-0">
+                              <AvatarImage src={cust.profilePhotoURL} />
+                              <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-sm font-semibold">
+                                {getInitials(cust.fullName || 'Customer')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                                {cust.fullName || 'N/A'}
+                              </div>
+                              <div className="text-sm text-neutral-500 dark:text-neutral-400 truncate">
+                                {cust.email || cust.phone}
+                              </div>
                             </div>
-                            <div className="text-xs text-neutral-500">{cust.email || cust.phone}</div>
-                          </div>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="font-medium text-neutral-700">{cust.id}</TableCell>
-                      <TableCell className="text-neutral-600">{cust.nrc || '-'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-[#22C55E]"></div>
-                          <span className="text-sm font-medium text-neutral-600">-</span>
+                          </Link>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0">
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {cust.status === 'active' ? (
-                          <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
-                        ) : (
-                          <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Inactive</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
-                                View Details
-                              </Link>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </motion.tr>
+                        
+                        <div className="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-700">
+                          <TableCardRow 
+                            label="Customer ID" 
+                            value={<span className="font-medium text-neutral-900 dark:text-neutral-100">{cust.id}</span>}
+                          />
+                          {cust.nrc && (
+                            <TableCardRow 
+                              label="NRC" 
+                              value={<span className="text-neutral-600 dark:text-neutral-400">{cust.nrc}</span>}
+                            />
+                          )}
+                          <TableCardRow 
+                            label="Status" 
+                            value={
+                              cust.status === 'active' ? (
+                                <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
+                              ) : (
+                                <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Inactive</Badge>
+                              )
+                            }
+                          />
+                        </div>
+                      </TableCard>
+                    </motion.div>
                   ))}
-                </TableBody>
-              </Table>
-              </div>
+                </div>
+              </>
             ) : (
-              <div className="text-center py-16 text-neutral-500">
-                <Users className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
-                <p className="text-lg font-medium mb-2">No customers found</p>
-                <p className="text-sm text-neutral-400 mb-6">
-                  {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first customer'}
-                </p>
-                {!searchTerm && (
-                  <Button
-                    onClick={() => setAddCustomerDrawerOpen(true)}
-                    className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Customer
-                  </Button>
-                )}
-              </div>
+              <EmptyState
+                icon={Users}
+                title="No customers found"
+                description={
+                  searchTerm 
+                    ? 'Try adjusting your search terms to find customers'
+                    : 'Get started by adding your first customer to the system'
+                }
+                action={
+                  !searchTerm ? {
+                    label: 'Add Customer',
+                    onClick: () => setAddCustomerDrawerOpen(true),
+                    icon: Plus,
+                  } : undefined
+                }
+              />
             )}
           </CardContent>
         </Card>

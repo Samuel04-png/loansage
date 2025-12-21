@@ -6,7 +6,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { Mail, Copy, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react';
+import { Mail, Copy, CheckCircle2, XCircle, Loader2, Trash2, Send } from 'lucide-react';
 import { formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { InviteEmployeeDrawer } from '../components/InviteEmployeeDrawer';
@@ -49,10 +49,43 @@ export function InvitationsPage() {
     },
   });
 
-  const copyInviteLink = (token: string) => {
-    const inviteUrl = `${window.location.origin}/auth/accept-invite?token=${token}`;
+  const copyInviteLink = (inv: any) => {
+    // Use stored inviteUrl if available, otherwise generate from token
+    const inviteUrl = inv.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${inv.token}`;
     navigator.clipboard.writeText(inviteUrl);
     toast.success('Invite link copied to clipboard!');
+  };
+
+  const resendInviteEmail = async (inv: any) => {
+    if (!profile?.agency_id) {
+      toast.error('Agency not found');
+      return;
+    }
+
+    try {
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const functions = getFunctions();
+      const sendInvitationEmail = httpsCallable(functions, 'sendInvitationEmail');
+      
+      const inviteUrl = inv.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${inv.token}`;
+      
+      await sendInvitationEmail({
+        agencyId: profile.agency_id,
+        invitationId: inv.id,
+        email: inv.email,
+        role: inv.role,
+        inviteUrl: inviteUrl,
+        note: inv.note,
+      });
+      
+      toast.success('Invitation email sent successfully!');
+    } catch (error: any) {
+      console.error('Failed to send invitation email:', error);
+      // Fallback to copying link
+      const inviteUrl = inv.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${inv.token}`;
+      navigator.clipboard.writeText(inviteUrl);
+      toast.error(`Email sending failed: ${error.message || 'Unknown error'}. Link copied to clipboard.`);
+    }
   };
 
   return (
@@ -60,7 +93,7 @@ export function InvitationsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Invitations</h2>
-          <p className="text-slate-600">Manage employee invitations</p>
+          <p className="text-slate-600">Manage employee and customer invitations</p>
         </div>
         <Button 
           onClick={(e) => {
@@ -94,6 +127,7 @@ export function InvitationsPage() {
                     <th className="px-6 py-3">Category</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3">Expires</th>
+                    <th className="px-6 py-3">Invite URL</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -143,22 +177,48 @@ export function InvitationsPage() {
                         <td className="px-6 py-4 text-slate-500">
                           {formatDateSafe(expiresAt)}
                         </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-2">
+                            {!isAccepted && !isExpired && inv.inviteUrl && (
+                              <div className="flex items-center gap-2">
+                                <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded break-all max-w-xs truncate">
+                                  {inv.inviteUrl}
+                                </code>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => copyInviteLink(inv)}
+                                  title="Copy invite link"
+                                  className="flex-shrink-0"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => resendInviteEmail(inv)}
+                                  title="Resend email invitation"
+                                  className="flex-shrink-0"
+                                >
+                                  <Send className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            )}
+                            {(!inv.inviteUrl || isAccepted || isExpired) && (
+                              <span className="text-xs text-slate-400">
+                                {isAccepted ? 'Accepted' : isExpired ? 'Expired' : 'No URL'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {!isAccepted && !isExpired && inv.token && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => copyInviteLink(inv.token)}
-                              >
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                            )}
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => deleteInvitation.mutate(inv.id)}
                               disabled={deleteInvitation.isPending}
+                              title="Delete invitation"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

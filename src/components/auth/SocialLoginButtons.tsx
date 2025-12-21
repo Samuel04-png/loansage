@@ -71,6 +71,16 @@ export function SocialLoginButtons() {
 
         toast.success(`Welcome! Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`);
         
+        // Check onboarding status before navigation
+        const hasAgency = profile?.agency_id;
+        const onboardingCompleted = profile?.onboardingCompleted !== false; // Default to true if not set (for backward compatibility)
+        
+        // If user doesn't have agency or onboarding not completed, redirect to onboarding
+        if (!hasAgency || !onboardingCompleted) {
+          navigate('/auth/create-organization', { replace: true });
+          return;
+        }
+        
         // Navigate based on role
         const userRole = profile?.role || result.user.user_metadata?.role || 'admin';
         if (userRole === 'admin') {

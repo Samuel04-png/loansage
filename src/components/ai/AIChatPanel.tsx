@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Sparkles, Loader2, Info, Copy, Check, User, Bot, Clock, Trash2, Download, RefreshCw, Zap, TrendingUp, AlertCircle, FileText, Users, DollarSign, BarChart3 } from 'lucide-react';
+import { X, Send, Sparkles, Loader2, Info, Copy, Check, User, Bot, Clock, Trash2, Download, RefreshCw, Zap, TrendingUp, AlertCircle, FileText, Users, DollarSign, BarChart3, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -17,6 +17,17 @@ import { useNavigate } from 'react-router-dom';
 import type { AssistantResponse } from '../../lib/ai/loan-officer-assistant';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { createLoanTransaction } from '../../lib/firebase/loan-transactions';
+import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/firebase/config';
+import { createAuditLog } from '../../lib/firebase/firestore-helpers';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AIChatPanelProps {
   open: boolean;
@@ -26,6 +37,8 @@ interface AIChatPanelProps {
   onWidthChange?: (width: number) => void;
 }
 
+type AIMode = 'ask' | 'action' | 'auto';
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -34,6 +47,11 @@ interface ChatMessage {
   data?: any;
   suggestions?: string[];
   actions?: Array<{ label: string; type: string; data: any }>;
+  pendingAction?: {
+    type: string;
+    data: any;
+    description: string;
+  };
 }
 
 export function AIChatPanel({
@@ -43,9 +61,10 @@ export function AIChatPanel({
   defaultWidth = 375,
   onWidthChange,
 }: AIChatPanelProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { agency } = useAgency();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // Persist panel width in localStorage
   const [width, setWidth] = useState(() => {
@@ -57,10 +76,13 @@ export function AIChatPanel({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [mode, setMode] = useState<AIMode>('ask');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Mode always defaults to 'ask' - no localStorage persistence
 
   // Save width to localStorage when it changes
   useEffect(() => {
@@ -120,13 +142,31 @@ export function AIChatPanel({
     setIsLoading(true);
 
     try {
+      // Enhanced prompt based on mode
+      let enhancedQuestion = messageToSend;
+      if (mode === 'action' || mode === 'auto') {
+        enhancedQuestion = `${messageToSend}\n\n[Mode: ${mode.toUpperCase()}] I want to perform actions. Please identify what actions need to be taken and provide them in a structured format.`;
+      }
+
       const response = await askLoanOfficerAssistant({
-        question: userMessage.content,
+        question: enhancedQuestion,
         context: {
           agencyId: profile.agency_id,
           userId: profile.id,
+          mode: mode, // Pass mode to assistant
         },
       });
+
+      // Extract actions from response if in action/auto mode
+      let pendingAction = null;
+      if ((mode === 'action' || mode === 'auto') && response.actions && response.actions.length > 0) {
+        const primaryAction = response.actions[0];
+        pendingAction = {
+          type: primaryAction.type,
+          data: primaryAction.data,
+          description: primaryAction.label || 'Perform action',
+        };
+      }
 
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
@@ -136,20 +176,302 @@ export function AIChatPanel({
         data: response.data,
         suggestions: response.suggestions,
         actions: response.actions,
+        pendingAction: pendingAction || undefined,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+
+      // Auto mode: Execute action immediately if pending
+      if (mode === 'auto' && pendingAction) {
+        setTimeout(() => {
+          handleExecuteAction(pendingAction.type, pendingAction.data, aiMessage.id);
+        }, 1000); // Small delay to show the message first
+      }
     } catch (error: any) {
-      const errorMessage: ChatMessage = {
+      console.error('AI Assistant error:', error);
+      
+      // Extract user-friendly error message
+      let errorContent = 'I apologize, but I encountered an error while processing your request.';
+      let errorTitle = 'AI Service Error';
+      
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      
+      // Handle specific error cases
+      if (errorMessage.includes('Service is too busy') || errorMessage.includes('too busy')) {
+        errorContent = `**AI Service Temporarily Unavailable**
+
+The AI service is currently experiencing high traffic and is temporarily unavailable. 
+
+**What you can do:**
+- Please try again in a few moments
+- The service should be back to normal shortly
+- Your request has been saved and you can retry when ready
+
+We apologize for the inconvenience.`;
+        errorTitle = 'Service Busy';
+      } else if (errorMessage.includes('CORS') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch')) {
+        errorContent = `**Network Connection Error**
+
+I'm having trouble connecting to the AI service. This could be due to:
+- Network connectivity issues
+- Service temporarily unavailable
+- CORS configuration problems
+
+**What you can do:**
+- Check your internet connection
+- Try refreshing the page
+- Wait a moment and try again`;
+        errorTitle = 'Connection Error';
+      } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+        errorContent = `**Rate Limit Exceeded**
+
+The AI service has reached its rate limit. 
+
+**What you can do:**
+- Please wait a few minutes before trying again
+- Try reducing the frequency of your requests`;
+        errorTitle = 'Rate Limit';
+      } else if (errorMessage.includes('unauthenticated') || errorMessage.includes('logged in')) {
+        errorContent = `**Authentication Required**
+
+You need to be logged in to use the AI assistant.
+
+**What you can do:**
+- Please log in and try again
+- Refresh the page if you're already logged in`;
+        errorTitle = 'Authentication Required';
+      } else {
+        errorContent = `**Error: ${errorTitle}**
+
+${errorMessage}
+
+**What you can do:**
+- Try rephrasing your question
+- Wait a moment and try again
+- If the problem persists, please contact support`;
+      }
+      
+      const errorMessageObj: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `Error: ${error.message || 'Failed to get AI response'}`,
+        content: errorContent,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
-      toast.error('Failed to get AI response. Please try again.');
+      
+      setMessages((prev) => [...prev, errorMessageObj]);
+      
+      // Show appropriate toast based on error type
+      if (errorMessage.includes('Service is too busy') || errorMessage.includes('too busy')) {
+        toast.error('AI service is temporarily busy. Please try again in a moment.', { duration: 5000 });
+      } else if (errorMessage.includes('CORS') || errorMessage.includes('network')) {
+        toast.error('Network error. Please check your connection and try again.', { duration: 5000 });
+      } else {
+        toast.error('Failed to get AI response. Please try again.', { duration: 4000 });
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleExecuteAction = async (actionType: string, actionData: any, messageId?: string) => {
+    if (!profile?.agency_id || !profile?.id || !user?.id) {
+      toast.error('Missing user context');
+      return;
+    }
+
+    try {
+      switch (actionType) {
+        case 'create_loan': {
+          // Extract loan parameters from actionData
+          const {
+            customerId,
+            customerName,
+            amount,
+            interestRate = 15,
+            durationMonths = 12,
+            loanType = 'Personal',
+            disbursementDate,
+          } = actionData;
+
+          // If customerName is provided but not customerId, try to find customer
+          let finalCustomerId = customerId;
+          if (!finalCustomerId && customerName) {
+            const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+            const customersQuery = query(
+              customersRef,
+              where('fullName', '==', customerName)
+            );
+            const customersSnapshot = await getDocs(customersQuery);
+            
+            if (!customersSnapshot.empty) {
+              finalCustomerId = customersSnapshot.docs[0].id;
+            } else {
+              toast.error(`Customer "${customerName}" not found. Please create the customer first.`);
+              return;
+            }
+          }
+
+          if (!finalCustomerId) {
+            toast.error('Customer ID or name is required to create a loan.');
+            return;
+          }
+
+          if (!amount || amount <= 0) {
+            toast.error('Valid loan amount is required.');
+            return;
+          }
+
+          // Create loan using transaction
+          const result = await createLoanTransaction({
+            agencyId: profile.agency_id,
+            customerId: finalCustomerId,
+            officerId: user.id,
+            amount: typeof amount === 'string' ? parseFloat(amount) : amount,
+            interestRate: typeof interestRate === 'string' ? parseFloat(interestRate) : interestRate,
+            durationMonths: typeof durationMonths === 'string' ? parseInt(durationMonths) : durationMonths,
+            loanType: loanType || 'Personal',
+            disbursementDate: disbursementDate ? new Date(disbursementDate) : new Date(),
+            collateralIncluded: false,
+          });
+
+          if (result.success) {
+            toast.success(`Loan created successfully! Loan ID: ${result.loanId}`);
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            
+            // Update message to show success
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan created successfully (ID: ${result.loanId})`,
+                      }
+                    : msg
+                )
+              );
+            }
+          } else {
+            throw new Error(result.error || 'Failed to create loan');
+          }
+          break;
+        }
+
+        case 'update_loan_status': {
+          const { loanId, status, loanNumber } = actionData;
+
+          // If loanNumber is provided but not loanId, try to find loan
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          if (!status) {
+            toast.error('New status is required.');
+            return;
+          }
+
+          const validStatuses = ['pending', 'approved', 'active', 'completed', 'defaulted', 'rejected', 'cancelled'];
+          if (!validStatuses.includes(status)) {
+            toast.error(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+            return;
+          }
+
+          const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', finalLoanId);
+          
+          // Get current status first
+          const { getDoc } = await import('firebase/firestore');
+          const loanSnap = await getDoc(loanRef);
+          if (!loanSnap.exists()) {
+            toast.error('Loan not found.');
+            return;
+          }
+
+          const currentStatus = loanSnap.data().status;
+          if (currentStatus === status) {
+            toast.info('Loan status is already set to this value.');
+            return;
+          }
+
+          await updateDoc(loanRef, {
+            status: status,
+            statusUpdatedAt: serverTimestamp(),
+            statusUpdatedBy: user.id,
+            updatedAt: serverTimestamp(),
+          });
+
+          // Create audit log
+          await createAuditLog(profile.agency_id, {
+            actorId: user.id,
+            action: 'update_loan_status',
+            targetCollection: 'loans',
+            targetId: finalLoanId,
+            metadata: {
+              oldStatus: currentStatus,
+              newStatus: status,
+            },
+          }).catch(() => {
+            // Ignore audit log errors
+          });
+
+          toast.success(`Loan status updated to "${status}"`);
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+          queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+
+          // Update message to show success
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      pendingAction: undefined,
+                      content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan status updated from "${currentStatus}" to "${status}"`,
+                    }
+                  : msg
+              )
+            );
+          }
+          break;
+        }
+
+        default:
+          // Fallback to navigation actions
+          handleActionClick({ label: actionType, type: actionType, data: actionData });
+      }
+    } catch (error: any) {
+      console.error('Action execution error:', error);
+      toast.error(`Failed to execute action: ${error.message || 'Unknown error'}`);
+      
+      // Update message to show error
+      if (messageId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  pendingAction: undefined,
+                  content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** ${error?.message || 'Unknown error'}`,
+                }
+              : msg
+          )
+        );
+      }
     }
   };
 
@@ -481,6 +803,8 @@ export function AIChatPanel({
                       profile={profile}
                       onSuggestionClick={handleSuggestionClick}
                       onActionClick={handleActionClick}
+                      onExecuteAction={handleExecuteAction}
+                      mode={mode}
                     />
                   </motion.div>
                 ))}
@@ -501,64 +825,133 @@ export function AIChatPanel({
             </div>
           </div>
 
-          {/* Input - Enhanced VS Code/Cursor style - Always visible at bottom */}
-          <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 bg-gradient-to-r from-white to-neutral-50/50 dark:from-[#1E293B] dark:to-[#1E293B]/80 backdrop-blur-sm flex-shrink-0">
-            <div className="flex items-end gap-2">
-              <div className="flex-1 relative">
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="Ask about loans, customers, portfolio..."
-                  className="pr-12 h-10 bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 focus:border-[#006BFF] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#006BFF]/20 dark:focus:ring-blue-500/30 focus:bg-white dark:focus:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 rounded-lg shadow-sm"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 dark:text-neutral-500">
-                  ⏎
-                </div>
-              </div>
-              <Button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                size="sm"
-                className="h-10 w-10 p-0 bg-gradient-to-r from-[#006BFF] to-[#4F46E5] hover:from-[#0052CC] hover:to-[#4338CA] text-white shadow-md hover:shadow-lg transition-all rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] text-neutral-400 dark:text-neutral-500">
-              <div className="flex items-center gap-1.5">
-                {messages.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
-                      if (lastUserMessage) {
-                        handleSend(lastUserMessage.content);
+          {/* Input - Clean Design with Mode Dropdown Below */}
+          <div className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E293B] flex-shrink-0">
+            <div className="p-4 space-y-3">
+              {/* Input Row */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
                       }
                     }}
-                    className="h-5 px-2 text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-[#006BFF] dark:hover:text-blue-400"
-                    disabled={isLoading}
-                    title="Regenerate last response"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Regenerate
-                  </Button>
-                )}
-                <Info className="w-3 h-3" />
-                <span>Enter to send</span>
+                    placeholder={
+                      mode === 'ask' ? 'Ask about loans, customers, portfolio...' :
+                      mode === 'action' ? 'Tell me what to do (e.g., "Create loan for John Doe")...' :
+                      'I\'ll automatically perform actions...'
+                    }
+                    className="pr-12 h-11 bg-white dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 focus:border-[#006BFF] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#006BFF]/20 dark:focus:ring-blue-500/30 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 rounded-lg"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 dark:text-neutral-500">
+                    ⏎
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSend}
+                  disabled={!input.trim() || isLoading}
+                  size="sm"
+                  className="h-11 w-11 p-0 bg-green-500 hover:bg-green-600 text-white shadow-sm hover:shadow-md transition-all rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
               </div>
-              <span className="font-mono">⌘L to toggle</span>
+              
+              {/* Mode Dropdown Row - Positioned Below Input */}
+              <div className="flex items-center justify-between">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-3 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors"
+                    >
+                      <span className="capitalize font-semibold">{mode}</span>
+                      <ChevronDown className="w-3.5 h-3.5 ml-2 text-neutral-500 dark:text-neutral-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent 
+                    align="start" 
+                    side="bottom"
+                    sideOffset={8}
+                    className="w-56 dark:bg-[#1E293B] dark:border-neutral-700 shadow-xl"
+                  >
+                    <div className="px-3 py-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                      Agent Mode
+                    </div>
+                    <DropdownMenuItem
+                      onClick={() => setMode('ask')}
+                      className={cn(
+                        "flex items-center justify-between cursor-pointer py-2.5 px-3 my-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                        mode === 'ask' && "bg-[#006BFF]/10 dark:bg-blue-500/20"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Bot className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
+                        <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Ask</span>
+                      </div>
+                      {mode === 'ask' && <CheckCircle2 className="w-4 h-4 text-[#006BFF] dark:text-blue-400" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setMode('action')}
+                      className={cn(
+                        "flex items-center justify-between cursor-pointer py-2.5 px-3 my-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                        mode === 'action' && "bg-[#006BFF]/10 dark:bg-blue-500/20"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Zap className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
+                        <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Action</span>
+                      </div>
+                      {mode === 'action' && <CheckCircle2 className="w-4 h-4 text-[#006BFF] dark:text-blue-400" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setMode('auto')}
+                      className={cn(
+                        "flex items-center justify-between cursor-pointer py-2.5 px-3 my-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                        mode === 'auto' && "bg-[#006BFF]/10 dark:bg-blue-500/20"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Sparkles className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
+                        <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Auto</span>
+                      </div>
+                      {mode === 'auto' && <CheckCircle2 className="w-4 h-4 text-[#006BFF] dark:text-blue-400" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                <div className="flex items-center gap-2 text-[10px] text-neutral-400 dark:text-neutral-500">
+                  {messages.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+                        if (lastUserMessage) {
+                          handleSend(lastUserMessage.content);
+                        }
+                      }}
+                      className="h-6 px-2 text-[10px] hover:text-[#006BFF] dark:hover:text-blue-400"
+                      disabled={isLoading}
+                      title="Regenerate last response"
+                    >
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Regenerate
+                    </Button>
+                  )}
+                  <span className="font-mono text-neutral-500 dark:text-neutral-400">⌘L</span>
+                </div>
+              </div>
             </div>
           </div>
         </>
@@ -587,11 +980,15 @@ function ChatMessageComponent({
   profile,
   onSuggestionClick,
   onActionClick,
+  onExecuteAction,
+  mode,
 }: { 
   message: ChatMessage; 
   profile?: any;
   onSuggestionClick?: (suggestion: string) => void;
   onActionClick?: (action: { label: string; type: string; data: any }) => void;
+  onExecuteAction?: (actionType: string, actionData: any, messageId: string) => void;
+  mode?: 'ask' | 'action' | 'auto';
 }) {
   const [copied, setCopied] = useState(false);
   const [showTimestamp, setShowTimestamp] = useState(false);
@@ -698,7 +1095,7 @@ function ChatMessageComponent({
             "whitespace-pre-wrap",
             isUser ? "text-white" : "text-neutral-900 dark:text-neutral-100"
           )}>
-            {message.content.split('\n').map((line, i) => {
+            {(typeof message.content === 'string' ? message.content : String(message.content || '')).split('\n').map((line, i) => {
               // Format lists
               if (line.trim().match(/^[-*•]\s+/)) {
                 return (
@@ -780,6 +1177,41 @@ function ChatMessageComponent({
           </div>
         )}
         
+        {/* Pending Action Confirmation - For Action Mode */}
+        {message.pendingAction && mode === 'action' && !isUser && (
+          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 mb-2 flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Action Ready
+            </p>
+            <p className="text-xs text-amber-800 dark:text-amber-300 mb-3">
+              {message.pendingAction.description}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => onExecuteAction?.(message.pendingAction!.type, message.pendingAction!.data, message.id)}
+                className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                Confirm & Execute
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Remove pending action from message
+                  const updatedMessage = { ...message };
+                  delete updatedMessage.pendingAction;
+                }}
+                className="h-7 px-3 text-xs border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Actions - Enhanced with Navigation */}
         {message.actions && message.actions.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">

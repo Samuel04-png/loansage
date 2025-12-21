@@ -2,7 +2,7 @@
  * Hook for using AI Intelligence Engine
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase/config';
@@ -85,9 +85,22 @@ export function useAIInsights(enabled: boolean = true) {
   // Analyze when data is available
   const analyze = useCallback(async () => {
     if (!analysisData || !aiEnabled || isAnalyzing) return;
+    
+    // Don't analyze if we already have insights for this data
+    const dataHash = JSON.stringify({
+      loans: analysisData.loans?.length || 0,
+      customers: analysisData.customers?.length || 0,
+      payments: analysisData.payments?.length || 0,
+    });
+    const lastAnalysisHash = useRef<string>('');
+    
+    if (lastAnalysisHash.current === dataHash && insights.length > 0) {
+      return; // Already analyzed this data
+    }
 
     setIsAnalyzing(true);
     try {
+      lastAnalysisHash.current = dataHash;
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<AIInsight[]>((_, reject) => {
         setTimeout(() => reject(new Error('Analysis timeout')), 30000); // 30 second timeout
@@ -144,18 +157,50 @@ export function useAIInsights(enabled: boolean = true) {
     }
   }, [analysisData, aiEnabled, isAnalyzing, addAlert]);
 
-  // Auto-analyze when data changes
+  // Auto-analyze when data changes (use ref to prevent infinite loops)
+  const analysisDataRef = useRef(analysisData);
+  const aiEnabledRef = useRef(aiEnabled);
+  const lastAnalysisHashRef = useRef<string>('');
+  
   useEffect(() => {
-    if (analysisData && aiEnabled) {
-      analyze();
-    } else {
-      setInsights([]);
-    }
-  }, [analysisData, aiEnabled, analyze]);
+    analysisDataRef.current = analysisData;
+    aiEnabledRef.current = aiEnabled;
+  }, [analysisData, aiEnabled]);
 
+  useEffect(() => {
+    if (analysisDataRef.current && aiEnabledRef.current && !isAnalyzing) {
+      // Create a hash of the data to avoid re-analyzing the same data
+      const dataHash = JSON.stringify({
+        loans: analysisDataRef.current.loans?.length || 0,
+        customers: analysisDataRef.current.customers?.length || 0,
+        payments: analysisDataRef.current.payments?.length || 0,
+      });
+      
+      // Only analyze if data has actually changed
+      if (lastAnalysisHashRef.current !== dataHash) {
+        // Use a debounce delay to prevent rapid re-analysis
+        const timeoutId = setTimeout(() => {
+          if (analysisDataRef.current && aiEnabledRef.current && lastAnalysisHashRef.current !== dataHash) {
+            lastAnalysisHashRef.current = dataHash;
+            analyze();
+          }
+        }, 1000); // Increased to 1 second to reduce flashing
+        
+        return () => clearTimeout(timeoutId);
+      }
+    } else if (!analysisDataRef.current || !aiEnabledRef.current) {
+      setInsights([]);
+      lastAnalysisHashRef.current = '';
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisData, aiEnabled, isAnalyzing]);
+
+  // Only show as analyzing if we're actively analyzing, not just loading data
+  const isActuallyAnalyzing = isAnalyzing && !isLoading;
+  
   return {
     insights,
-    isAnalyzing: isLoading || isAnalyzing,
+    isAnalyzing: isActuallyAnalyzing,
     aiEnabled,
     refresh: analyze,
   };

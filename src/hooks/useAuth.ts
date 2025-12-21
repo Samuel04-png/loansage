@@ -65,6 +65,7 @@ export function useAuth() {
                   employee_category: session.user.user_metadata?.employee_category || null,
                   agency_id: 'demo-agency-id',
                   is_active: true,
+                  onboardingCompleted: true,
                 });
               } else {
                 // Query user profile with timeout to prevent hanging

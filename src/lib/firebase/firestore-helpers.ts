@@ -203,7 +203,9 @@ export async function createAgency(data: {
   await setDoc(agencyRef, {
     ...data,
     id: agencyId,
+    name: data.name, // Ensure name is explicitly set
     logoURL: data.logoURL || null,
+    logo_url: data.logoURL || null, // Also set logo_url for compatibility
     planType: 'free',
     subscriptionStatus: 'trialing',
     trialStartDate: serverTimestamp(),
@@ -212,6 +214,7 @@ export async function createAgency(data: {
       theme: 'light',
       allowCustomerPortal: false,
       allowCustomerInvite: false,
+      aiEnabled: true, // Enable AI by default
       ...data.settings,
     },
     createdAt: serverTimestamp(),
@@ -265,6 +268,12 @@ export async function createEmployeeInvitation(
     setTimeout(() => reject(new Error('Invitation creation timeout')), 10000)
   );
 
+  // Generate invite URL - use environment variable or current origin
+  const baseUrl = typeof window !== 'undefined' 
+    ? window.location.origin
+    : (process.env.VITE_APP_URL || 'https://tengaloans.com');
+  const inviteUrl = `${baseUrl}/auth/accept-invite?token=${token}`;
+
   await Promise.race([
     setDoc(inviteRef, {
       id: inviteId,
@@ -272,6 +281,7 @@ export async function createEmployeeInvitation(
       role: data.role,
       note: data.note || null,
       token,
+      inviteUrl, // Store invite URL for easy retrieval
       createdBy: data.createdBy,
       status: 'pending',
       createdAt: serverTimestamp(),
@@ -280,7 +290,7 @@ export async function createEmployeeInvitation(
     timeoutPromise
   ]);
 
-  return { id: inviteId, token, ...data };
+  return { id: inviteId, token, inviteUrl, ...data };
 }
 
 // Customer invitation helper
@@ -294,7 +304,7 @@ export async function createCustomerInvitation(
   }
 ) {
   if (isDemoMode) {
-    return { id: 'demo-invite-id', token: 'demo-token', ...data };
+    return { id: 'demo-invite-id', token: 'demo-token', inviteUrl: 'demo-url', ...data };
   }
 
   const inviteId = generateId();
@@ -303,6 +313,12 @@ export async function createCustomerInvitation(
   
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+  // Generate invite URL - use environment variable or current origin
+  const baseUrl = typeof window !== 'undefined' 
+    ? window.location.origin
+    : (process.env.VITE_APP_URL || 'https://tengaloans.com');
+  const inviteUrl = `${baseUrl}/auth/accept-invite?token=${token}`;
 
   // Add timeout to prevent hanging
   const timeoutPromise = new Promise((_, reject) => 
@@ -317,6 +333,7 @@ export async function createCustomerInvitation(
       customerId: customerId,
       note: data.note || null,
       token,
+      inviteUrl, // Store invite URL for easy retrieval
       createdBy: data.createdBy,
       status: 'pending',
       createdAt: serverTimestamp(),
@@ -325,43 +342,80 @@ export async function createCustomerInvitation(
     timeoutPromise
   ]);
 
-  return { id: inviteId, token, ...data };
+  return { id: inviteId, token, inviteUrl, ...data };
 }
 
 export async function getInvitationByToken(token: string) {
   if (isDemoMode) return null;
 
-  // Search across all agencies for the token
-  const agenciesRef = collection(db, 'agencies');
-  const agenciesSnapshot = await getDocs(agenciesRef);
+  try {
+    // Search across all agencies for the token
+    // Note: This requires Firestore rules to allow reading pending invitations
+    const agenciesRef = collection(db, 'agencies');
+    const agenciesSnapshot = await getDocs(agenciesRef);
 
-  for (const agencyDoc of agenciesSnapshot.docs) {
-    const invitationsRef = collection(db, 'agencies', agencyDoc.id, 'invitations');
-    const q = query(invitationsRef, where('token', '==', token), where('status', '==', 'pending'));
-    const snapshot = await getDocs(q);
+    for (const agencyDoc of agenciesSnapshot.docs) {
+      try {
+        const invitationsRef = collection(db, 'agencies', agencyDoc.id, 'invitations');
+        const q = query(invitationsRef, where('token', '==', token), where('status', '==', 'pending'));
+        const snapshot = await getDocs(q);
 
-    if (!snapshot.empty) {
-      const invite = snapshot.docs[0].data();
-      return {
-        ...invite,
-        agencyId: agencyDoc.id,
-        id: snapshot.docs[0].id,
-      };
+        if (!snapshot.empty) {
+          const invite = snapshot.docs[0].data();
+          let expiresAt: Date | null = null;
+          
+          // Handle different date formats
+          if (invite.expiresAt?.toDate) {
+            expiresAt = invite.expiresAt.toDate();
+          } else if (invite.expiresAt instanceof Date) {
+            expiresAt = invite.expiresAt;
+          } else if (invite.expiresAt) {
+            expiresAt = new Date(invite.expiresAt);
+          }
+          
+          // Check if expired
+          if (expiresAt && expiresAt < new Date()) {
+            continue; // Skip expired invitations
+          }
+
+          return {
+            ...invite,
+            agencyId: agencyDoc.id,
+            id: snapshot.docs[0].id,
+            expiresAt: expiresAt,
+          };
+        }
+      } catch (error: any) {
+        // Continue searching other agencies if this one fails
+        // Only log if it's not a permission error (which is expected for some agencies)
+        if (!error.message?.includes('permission') && error.code !== 'permission-denied') {
+          console.warn(`Failed to search invitations in agency ${agencyDoc.id}:`, error);
+        }
+        continue;
+      }
     }
-  }
 
-  return null;
+    return null;
+  } catch (error: any) {
+    console.error('Error fetching invitation by token:', error);
+    throw new Error('Failed to fetch invitation. Please check the invitation link.');
+  }
 }
 
 export async function acceptInvitation(agencyId: string, inviteId: string, userId: string) {
   if (isDemoMode) return;
 
-  const inviteRef = doc(db, 'agencies', agencyId, 'invitations', inviteId);
-  await updateDoc(inviteRef, {
-    status: 'accepted',
-    acceptedBy: userId,
-    acceptedAt: serverTimestamp(),
-  });
+  try {
+    const inviteRef = doc(db, 'agencies', agencyId, 'invitations', inviteId);
+    await updateDoc(inviteRef, {
+      status: 'accepted',
+      acceptedBy: userId,
+      acceptedAt: serverTimestamp(),
+    });
+  } catch (error: any) {
+    console.error('Error accepting invitation:', error);
+    throw new Error(`Failed to accept invitation: ${error.message}`);
+  }
 }
 
 export async function createEmployee(

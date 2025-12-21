@@ -10,14 +10,22 @@ import nodemailer from 'nodemailer';
 
 const db = admin.firestore();
 
-// Email transporter (configure with your email service)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: functions.config().email?.user || '',
-    pass: functions.config().email?.password || '',
-  },
-});
+// Email transporter - lazy initialization to avoid deployment timeouts
+const getTransporter = () => {
+  const emailConfig = functions.config().email;
+  if (!emailConfig?.user || !emailConfig?.password) {
+    console.warn('Email configuration not set. Email sending will be disabled.');
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailConfig.user,
+      pass: emailConfig.password,
+    },
+  });
+};
 
 /**
  * Welcome Email Function
@@ -93,16 +101,23 @@ async function sendWelcomeEmailToUser(
   uid: string
 ): Promise<boolean> {
   try {
-    if (!functions.config().email?.user) {
-      console.warn('Email configuration not set. Skipping email send.');
+    const transporter = getTransporter();
+    if (!transporter) {
+      console.warn('Email transporter not configured. Skipping email send.');
       return false;
     }
 
     const emailSubject = '🎉 Welcome to TengaLoans — You\'re officially in!';
     const emailHtml = getWelcomeEmailTemplate(displayName);
 
+    // Use custom "from" name if configured, otherwise use the email address
+    const emailConfig = functions.config().email;
+    const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
+    const fromName = emailConfig?.name || 'TengaLoans';
+    const fromAddress = `${fromName} <${fromEmail}>`;
+
     await transporter.sendMail({
-      from: functions.config().email.user || 'noreply@tengaloans.com',
+      from: fromAddress,
       to: email,
       subject: emailSubject,
       html: emailHtml,
@@ -331,8 +346,20 @@ export const sendAnnouncementEmail = functions.https.onCall(
         if (!user.email) continue;
 
         try {
+          const transporter = getTransporter();
+          if (!transporter) {
+            console.warn('Email transporter not configured. Skipping email send.');
+            continue;
+          }
+
+          // Use custom "from" name if configured
+          const emailConfig = functions.config().email;
+          const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
+          const fromName = emailConfig?.name || 'TengaLoans';
+          const fromAddress = `${fromName} <${fromEmail}>`;
+
           await transporter.sendMail({
-            from: functions.config().email?.user || 'noreply@tengaloans.com',
+            from: fromAddress,
             to: user.email,
             subject: subject || 'Update from TengaLoans',
             html: getAnnouncementEmailTemplate(content),

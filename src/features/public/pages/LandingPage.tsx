@@ -45,7 +45,7 @@ export function LandingPage() {
                 <img 
                   src="/logo/tengaloanlogo.png" 
                   alt="TengaLoans" 
-                  className="h-32 w-auto transition-all duration-300 group-hover:drop-shadow-lg"
+                  className="h-12 sm:h-16 md:h-20 w-auto transition-all duration-300 group-hover:drop-shadow-lg"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                     const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;

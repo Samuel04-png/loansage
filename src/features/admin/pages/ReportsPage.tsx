@@ -10,6 +10,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Download, Calendar, TrendingUp, DollarSign, Users, FileText, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Line, Bar, Pie } from 'react-chartjs-2';
+import { exportLoans, exportCustomers, exportRepayments } from '../../../lib/data-export';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -128,7 +129,34 @@ export function ReportsPage() {
             <option value="quarter">Last Quarter</option>
             <option value="year">Last Year</option>
           </select>
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              if (!stats || stats.loans.length === 0) {
+                toast.error('No data to export');
+                return;
+              }
+              
+              // Export all data (loans, customers, repayments)
+              try {
+                exportLoans(stats.loans, { format: 'xlsx', filename: `loans-report-${dateRange}-${Date.now()}.xlsx` });
+                if (stats.customers.length > 0) {
+                  setTimeout(() => {
+                    exportCustomers(stats.customers, { format: 'xlsx', filename: `customers-report-${dateRange}-${Date.now()}.xlsx` });
+                  }, 500);
+                }
+                if (stats.repayments.length > 0) {
+                  setTimeout(() => {
+                    exportRepayments(stats.repayments, { format: 'xlsx', filename: `repayments-report-${dateRange}-${Date.now()}.xlsx` });
+                  }, 1000);
+                }
+                toast.success('Export started! Multiple files will download.');
+              } catch (error: any) {
+                console.error('Export error:', error);
+                toast.error('Failed to export data');
+              }
+            }}
+          >
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>

@@ -19,10 +19,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700': variant === 'secondary',
             'hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100 text-neutral-700 dark:text-neutral-300': variant === 'ghost',
             'text-[#006BFF] underline-offset-4 hover:underline hover:text-[#0052CC]': variant === 'link',
-            'h-10 px-4 py-2': size === 'default',
-            'h-9 px-3 text-xs': size === 'sm',
-            'h-11 px-8 text-base': size === 'lg',
-            'h-10 w-10': size === 'icon',
+            'h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0': size === 'default', // 44px on mobile, 40px on desktop
+            'h-10 md:h-9 px-3 text-xs min-h-[44px] md:min-h-0': size === 'sm', // 44px on mobile, 36px on desktop
+            'h-12 md:h-11 px-8 text-base min-h-[44px]': size === 'lg', // 44px minimum
+            'h-11 w-11 md:h-10 md:w-10 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0': size === 'icon', // 44px on mobile, 40px on desktop
           },
           className
         )}

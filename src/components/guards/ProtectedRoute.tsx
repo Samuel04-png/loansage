@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, profile } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -19,6 +19,16 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
+  }
+
+  // Check onboarding status - don't block access to onboarding page itself
+  const isOnboardingPage = location.pathname === '/auth/create-organization';
+  const hasAgency = profile?.agency_id;
+  const onboardingCompleted = profile?.onboardingCompleted !== false; // Default to true for backward compatibility
+  
+  // If not on onboarding page and user hasn't completed onboarding, redirect
+  if (!isOnboardingPage && (!hasAgency || !onboardingCompleted)) {
+    return <Navigate to="/auth/create-organization" replace />;
   }
 
   return <>{children}</>;

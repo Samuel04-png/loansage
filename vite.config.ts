@@ -60,7 +60,6 @@ export default defineConfig(({ mode }) => {
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
             additionalManifestEntries: [
-              { url: '/logo/tengaloanlogo.png', revision: null },
               { url: '/android-chrome-192x192.png', revision: null },
               { url: '/android-chrome-512x512.png', revision: null },
             ],

@@ -76,6 +76,7 @@ import { Dialog, DialogContent, DialogHeader } from '../../../components/ui/dial
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { switchAgency } from '../../../lib/firebase/firestore-helpers';
 import { AddAgencyDialog } from './AddAgencyDialog';
+import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
 
 export function AdminLayout() {
   const location = useLocation();
@@ -86,10 +87,6 @@ export function AdminLayout() {
   const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [updateNotificationDismissed, setUpdateNotificationDismissed] = useState(() => {
-    return localStorage.getItem('update-notification-dismissed') === 'true';
-  });
-  const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [addAgencyDialogOpen, setAddAgencyDialogOpen] = useState(false);
   
   // Persist sidebar collapsed state in localStorage
@@ -544,44 +541,6 @@ export function AdminLayout() {
 
           {/* Bottom Section */}
           <div className="p-4 border-t border-neutral-200/50 dark:border-neutral-800/50 space-y-3">
-            {/* New Version Banner */}
-            {!sidebarCollapsed && !updateNotificationDismissed && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 shadow-sm dark:shadow-lg relative"
-              >
-                <button
-                  onClick={() => {
-                    setUpdateNotificationDismissed(true);
-                    localStorage.setItem('update-notification-dismissed', 'true');
-                  }}
-                  className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 rounded transition-colors"
-                  aria-label="Dismiss update notification"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mb-1">New version available</h4>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-                      An improved version of TengaLoans is available. Please restart now to upgrade.
-                    </p>
-                    <button 
-                      onClick={() => setUpdateModalOpen(true)}
-                      className="text-xs font-medium text-[#006BFF] dark:text-blue-400 hover:text-[#0052CC] dark:hover:text-blue-300 transition-colors"
-                    >
-                      View Update →
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
             {/* User Profile */}
             <DropdownMenu open={showUserMenu} onOpenChange={setShowUserMenu}>
               <DropdownMenuTrigger asChild>
@@ -904,7 +863,7 @@ export function AdminLayout() {
               scrollBehavior: 'auto'
             }}
           >
-            <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
+            <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
             <Outlet />
           </div>
         </div>
@@ -919,157 +878,6 @@ export function AdminLayout() {
       </div>
       </div>
 
-      {/* Update Details Modal */}
-      <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-lg flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">What's New in TengaLoans</h2>
-                <p className="text-sm text-slate-600">Version 2.2.0 - Latest Updates</p>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {/* Major Features */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#006BFF]" />
-                Major Features
-              </h3>
-              <div className="space-y-3">
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">📊 Excel Import/Export</h4>
-                  <p className="text-sm text-slate-600">
-                    Import and export loans, customers, and employees using Excel (.xlsx) or CSV files. Bulk import with automatic data validation and error reporting.
-                  </p>
-                </div>
-                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">💰 Bank Reconciliation</h4>
-                  <p className="text-sm text-slate-600">
-                    Automatically match bank statement transactions with loan repayments. Upload CSV or Excel files to reconcile payments and update loan statuses automatically.
-                  </p>
-                </div>
-                <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">🤖 Enhanced AI Features</h4>
-                  <p className="text-sm text-slate-600">
-                    Improved Byte&Berry Copilot AI integration with connection testing, better error handling, and AI-powered risk assessment, collateral valuation, and smart recommendations.
-                  </p>
-                </div>
-                <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
-                  <h4 className="font-semibold text-slate-900 mb-1">💳 Stripe Payment Integration</h4>
-                  <p className="text-sm text-slate-600">
-                    Seamless subscription management with Stripe. Free 30-day trial, automatic plan upgrades, and payment history tracking.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Improvements */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <Check className="w-5 h-5 text-emerald-600" />
-                Improvements
-              </h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Enhanced loan management with tabbed interface and advanced filtering</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Improved repayment system with automatic balance calculations</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Better CSV parsing with support for quoted fields and commas</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Enhanced bank reconciliation with intelligent transaction matching</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Profile picture support for users and company profiles</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>AI Settings tab with connection testing and status monitoring</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Improved loan details page with comprehensive overview tabs</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <span>Better data export with Excel format support</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Bug Fixes */}
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-blue-600" />
-                Bug Fixes
-              </h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed dashboard stats accuracy - portfolio value now calculated from actual loan amounts</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Corrected active customers and total customers display on dashboard</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed chart data calculations for accurate monthly disbursement tracking</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Resolved total loans count to show all loans instead of just active</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed remaining balance calculation for amortized loans</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Resolved 404 errors on loan detail pages</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Fixed Firestore permission issues for employees</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span>Corrected Stripe checkout flow and plan status updates</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end pt-4 border-t border-slate-200">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setUpdateModalOpen(false);
-                  localStorage.setItem('update-notification-dismissed', 'true');
-                  setUpdateNotificationDismissed(true);
-                }}
-                className="bg-gradient-to-r from-[#006BFF] to-[#4F46E5] hover:from-[#0052CC] hover:to-[#4338CA] text-white border-0"
-              >
-                Got it!
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Add Agency Dialog */}
       <AddAgencyDialog 
@@ -1085,6 +893,20 @@ export function AdminLayout() {
 
       {/* Global Search Dialog */}
       <GlobalSearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} />
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav
+        items={useMemo(() => {
+          const bottomNavItems: BottomNavItem[] = [
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/admin/dashboard' },
+            { id: 'loans', label: 'Loans', icon: FileText, path: '/admin/loans' },
+            { id: 'customers', label: 'Customers', icon: Users, path: '/admin/customers' },
+            { id: 'reports', label: 'Reports', icon: PieChart, path: '/admin/reports' },
+            { id: 'settings', label: 'Settings', icon: Settings, path: '/admin/settings' },
+          ];
+          return bottomNavItems;
+        }, [])}
+      />
     </TooltipProvider>
   );
 }

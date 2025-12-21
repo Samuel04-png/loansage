@@ -41,6 +41,7 @@ interface DeepSeekResponse {
 
 /**
  * Call DeepSeek API with a prompt via Cloud Function proxy
+ * Includes retry logic for temporary failures
  */
 export async function callDeepSeekAPI(
   messages: DeepSeekMessage[],
@@ -48,48 +49,86 @@ export async function callDeepSeekAPI(
     temperature?: number;
     maxTokens?: number;
     model?: string;
+    retries?: number;
   } = {}
 ): Promise<string> {
   const {
     temperature = 0.7,
     maxTokens = 2000,
     model = 'deepseek-chat',
+    retries = 2, // Default to 2 retries
   } = options;
 
-  try {
-    const result = await deepseekProxyFunction({
-      messages,
-      temperature,
-      maxTokens,
-      model,
-    });
+  let lastError: any = null;
+  
+  // Retry logic with exponential backoff
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await deepseekProxyFunction({
+        messages,
+        temperature,
+        maxTokens,
+        model,
+      });
 
-    const data = result.data as { content: string; usage?: any; model?: string };
-    
-    if (!data || !data.content) {
-      throw new Error('No content in Byte&Berry Copilot API response');
-    }
+      const data = result.data as { content: string; usage?: any; model?: string };
+      
+      if (!data || !data.content) {
+        throw new Error('No content in Byte&Berry Copilot API response');
+      }
 
-    return data.content;
-  } catch (error: any) {
-    console.error('Byte&Berry Copilot API error:', error);
-    
-    // Handle Firebase Functions errors
-    if (error.code === 'functions/unauthenticated') {
-      throw new Error('You must be logged in to use DeepSeek API.');
-    } else if (error.code === 'functions/failed-precondition') {
-      throw new Error('DeepSeek API key is not configured on the server. Please contact support.');
-    } else if (error.code === 'functions/resource-exhausted') {
-      throw new Error('DeepSeek API rate limit exceeded. Please try again later.');
-    } else if (error.code === 'functions/unavailable') {
-      throw new Error('Network error connecting to DeepSeek API. Please check your internet connection.');
-    } else if (error.message) {
-      // Use the error message from the Cloud Function
-      throw new Error(error.message);
+      return data.content;
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Byte&Berry Copilot API error (attempt ${attempt + 1}/${retries + 1}):`, error);
+      
+      // Don't retry on certain errors
+      if (error.code === 'functions/unauthenticated') {
+        throw new Error('You must be logged in to use DeepSeek API.');
+      } else if (error.code === 'functions/failed-precondition') {
+        throw new Error('DeepSeek API key is not configured on the server. Please contact support.');
+      }
+      
+      // Check if error is retryable (service busy, network errors, etc.)
+      const errorMessage = error?.message || error?.toString() || '';
+      const isRetryable = 
+        errorMessage.includes('Service is too busy') ||
+        errorMessage.includes('too busy') ||
+        errorMessage.includes('unavailable') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('CORS') ||
+        errorMessage.includes('Failed to fetch') ||
+        error.code === 'functions/unavailable' ||
+        error.code === 'functions/deadline-exceeded';
+      
+      // If this is the last attempt or error is not retryable, throw
+      if (attempt >= retries || !isRetryable) {
+        break;
+      }
+      
+      // Wait before retrying (exponential backoff: 1s, 2s, 4s...)
+      const delayMs = Math.min(1000 * Math.pow(2, attempt), 5000); // Max 5 seconds
+      console.log(`Retrying in ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
-    
-    throw new Error('Unknown error occurred while calling DeepSeek API');
   }
+  
+  // All retries failed, throw the last error with user-friendly message
+  const errorMessage = lastError?.message || lastError?.toString() || 'Unknown error';
+  
+  // Handle Firebase Functions errors
+  if (lastError?.code === 'functions/resource-exhausted') {
+    throw new Error('DeepSeek API rate limit exceeded. Please try again later.');
+  } else if (lastError?.code === 'functions/unavailable') {
+    throw new Error('Network error connecting to DeepSeek API. Please check your internet connection.');
+  } else if (errorMessage.includes('Service is too busy') || errorMessage.includes('too busy')) {
+    throw new Error('DeepSeek API error: Service is too busy. We advise users to temporarily switch to alternative LLM API service providers.');
+  } else if (errorMessage) {
+    // Use the error message from the Cloud Function
+    throw new Error(errorMessage);
+  }
+  
+  throw new Error('Unknown error occurred while calling DeepSeek API');
 }
 
 /**

@@ -39,9 +39,10 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
 
 export function EmployeeLayout() {
   const location = useLocation();
@@ -344,11 +345,25 @@ export function EmployeeLayout() {
 
         {/* Scrollable Area - Reference Style */}
         <div className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A]">
-          <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
+          <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
             <Outlet />
           </div>
         </div>
       </main>
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav
+        items={useMemo(() => {
+          const bottomNavItems: BottomNavItem[] = [
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/employee/dashboard' },
+            { id: 'customers', label: 'Customers', icon: Users, path: '/employee/customers' },
+            { id: 'loans', label: 'Loans', icon: FileText, path: '/employee/loans' },
+            { id: 'tasks', label: 'Tasks', icon: ClipboardCheck, path: '/employee/tasks' },
+            { id: 'support', label: 'Support', icon: MessageSquare, path: '/employee/support' },
+          ];
+          return bottomNavItems;
+        }, [])}
+      />
     </div>
   );
 }

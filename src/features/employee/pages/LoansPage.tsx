@@ -10,11 +10,22 @@ import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
 import { Plus, Search, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
+import { LoanStatusBadge } from '../../../components/loans/LoanStatusBadge';
+import { LoanActionButtons } from '../../../components/loans/LoanActionButtons';
+import { SubmitLoanButton } from '../../../components/loans/SubmitLoanButton';
+import { LoanStatus, UserRole } from '../../../types/loan-workflow';
+import { useAgency } from '../../../hooks/useAgency';
 
 export function EmployeeLoansPage() {
   const { profile, user } = useAuth();
+  const { agency } = useAgency();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Get user role
+  const userRole = (profile?.employee_category === 'loan_officer' ? UserRole.LOAN_OFFICER :
+                   profile?.role === 'admin' ? UserRole.ADMIN :
+                   UserRole.LOAN_OFFICER) as UserRole;
 
   // Find employee by user ID
   const { data: employee } = useQuery({
@@ -84,24 +95,6 @@ export function EmployeeLoansPage() {
     enabled: !!employee?.id && !!profile?.agency_id,
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="success">Active</Badge>;
-      case 'pending':
-        return <Badge variant="warning">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="default">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-      case 'paid':
-        return <Badge variant="success">Paid</Badge>;
-      case 'defaulted':
-        return <Badge variant="destructive">Defaulted</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
 
   const filteredLoans = loans?.filter((loan: any) => {
     if (!searchTerm) return true;

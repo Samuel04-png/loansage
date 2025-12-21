@@ -62,7 +62,9 @@ export const useAgencyStore = create<AgencyState>((set, get) => ({
           agency: { 
             id: agencySnap.id, 
             ...data,
-            logo_url: data.logoURL || data.logo_url,
+            name: data.name || 'Agency', // Ensure name is always set
+            logo_url: data.logoURL || data.logo_url || null,
+            logoURL: data.logoURL || data.logo_url || null, // Set both for compatibility
             settings,
           } as Agency, 
           loading: false 

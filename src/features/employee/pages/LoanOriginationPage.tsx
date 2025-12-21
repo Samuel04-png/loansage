@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,6 +39,10 @@ import { formatCurrency } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { analyzeLoanRisk } from '../../../services/aiService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getEnabledLoanTypes } from '../../../lib/firebase/loan-type-config';
+import { useAgency } from '../../../hooks/useAgency';
+import { getLoanTypeIcon } from '../../../lib/loan-type-icons';
+import type { LoanTypeConfig, LoanTypeId } from '../../../types/loan-config';
 
 // Form schemas
 const borrowerSchema = z.object({
@@ -64,10 +68,11 @@ type LoanTermsFormData = z.infer<typeof loanTermsSchema>;
 export function LoanOriginationPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { agency } = useAgency();
   const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-  const [loanType, setLoanType] = useState<string>('');
+  const [loanType, setLoanType] = useState<LoanTypeId | ''>('');
   const [collateral, setCollateral] = useState<any[]>([]);
   const [documents, setDocuments] = useState<File[]>([]);
   const [documentUrls, setDocumentUrls] = useState<string[]>([]);
@@ -75,7 +80,23 @@ export function LoanOriginationPage() {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [uploadingDocs, setUploadingDocs] = useState(false);
 
-  const totalSteps = 8;
+  // Fetch enabled loan types for this agency
+  const { data: enabledLoanTypes = [], isLoading: loadingLoanTypes } = useQuery({
+    queryKey: ['enabledLoanTypes', agency?.id],
+    queryFn: async () => {
+      if (!agency?.id) return [];
+      return await getEnabledLoanTypes(agency.id);
+    },
+    enabled: !!agency?.id,
+  });
+
+  // Get current loan type configuration
+  const currentLoanTypeConfig = enabledLoanTypes.find(lt => lt.id === loanType);
+
+  // Calculate total steps dynamically based on whether collateral is required
+  const needsCollateral = currentLoanTypeConfig?.collateralRequirement === 'required' || 
+                          currentLoanTypeConfig?.collateralRequirement === 'conditional';
+  const totalSteps = needsCollateral ? 8 : 7; // Skip collateral step if not required
 
   // Step 1: Customer search
   const { data: customers } = useQuery({
@@ -143,6 +164,53 @@ export function LoanOriginationPage() {
     },
   });
 
+  // Update form defaults and add dynamic validation when loan type changes
+  useEffect(() => {
+    if (currentLoanTypeConfig) {
+      loanTermsForm.setValue('interestRate', currentLoanTypeConfig.interestRate.default);
+      loanTermsForm.setValue('durationMonths', currentLoanTypeConfig.duration.defaultMonths || 12);
+      loanTermsForm.setValue('repaymentFrequency', currentLoanTypeConfig.repaymentFrequency[0] as any);
+    }
+  }, [loanType, currentLoanTypeConfig]);
+
+  // Dynamic validation function
+  const validateLoanTerms = (data: LoanTermsFormData): boolean => {
+    if (!currentLoanTypeConfig) {
+      return true; // Fallback to schema validation
+    }
+
+    const errors: string[] = [];
+
+    if (data.amount < currentLoanTypeConfig.loanAmount.min) {
+      errors.push(`Amount must be at least ${currentLoanTypeConfig.loanAmount.min.toLocaleString()}`);
+    }
+    if (data.amount > currentLoanTypeConfig.loanAmount.max) {
+      errors.push(`Amount cannot exceed ${currentLoanTypeConfig.loanAmount.max.toLocaleString()}`);
+    }
+    if (data.interestRate < currentLoanTypeConfig.interestRate.min) {
+      errors.push(`Interest rate must be at least ${currentLoanTypeConfig.interestRate.min}%`);
+    }
+    if (data.interestRate > currentLoanTypeConfig.interestRate.max) {
+      errors.push(`Interest rate cannot exceed ${currentLoanTypeConfig.interestRate.max}%`);
+    }
+    if (data.durationMonths < currentLoanTypeConfig.duration.minMonths) {
+      errors.push(`Duration must be at least ${currentLoanTypeConfig.duration.minMonths} months`);
+    }
+    if (data.durationMonths > currentLoanTypeConfig.duration.maxMonths) {
+      errors.push(`Duration cannot exceed ${currentLoanTypeConfig.duration.maxMonths} months`);
+    }
+    if (!currentLoanTypeConfig.repaymentFrequency.includes(data.repaymentFrequency)) {
+      errors.push(`Repayment frequency must be one of: ${currentLoanTypeConfig.repaymentFrequency.join(', ')}`);
+    }
+
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error));
+      return false;
+    }
+
+    return true;
+  };
+
   const createLoan = useMutation({
     mutationFn: async (loanData: any) => {
       if (!profile?.agency_id) throw new Error('Not authenticated');
@@ -153,7 +221,7 @@ export function LoanOriginationPage() {
           .insert({
             ...loanData,
             agency_id: profile.agency_id,
-            status: 'pending',
+            status: 'draft', // Create in DRAFT status - must be submitted separately
             created_by: profile.id,
           })
           .select('*')
@@ -169,9 +237,10 @@ export function LoanOriginationPage() {
 
       return result;
     },
-    onSuccess: () => {
-      toast.success('Loan application submitted successfully!');
-      navigate('/employee/loans');
+    onSuccess: (data) => {
+      toast.success('Loan application created as draft! You can submit it for review when ready.');
+      // Optionally navigate to loan detail page or stay on form
+      navigate(`/employee/loans/${data.id}`);
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to submit loan');
@@ -180,13 +249,23 @@ export function LoanOriginationPage() {
 
   const handleNext = () => {
     if (step < totalSteps) {
-      setStep(step + 1);
+      let nextStep = step + 1;
+      // Skip collateral step (5) if not needed
+      if (!needsCollateral && nextStep === 5) {
+        nextStep = 6;
+      }
+      setStep(nextStep);
     }
   };
 
   const handleBack = () => {
     if (step > 1) {
-      setStep(step - 1);
+      let prevStep = step - 1;
+      // Skip collateral step (5) if not needed when going back
+      if (!needsCollateral && prevStep === 5) {
+        prevStep = 4;
+      }
+      setStep(prevStep);
     }
   };
 
@@ -354,6 +433,8 @@ export function LoanOriginationPage() {
           interestRate: loanTermsForm.getValues('interestRate'),
           durationMonths: loanTermsForm.getValues('durationMonths'),
           collateral: collateral,
+          loanType: loanType,
+          loan_type: loanType, // For compatibility
         } as any,
         {
           name: selectedCustomer?.users?.full_name || borrowerForm.getValues('fullName'),
@@ -369,27 +450,33 @@ export function LoanOriginationPage() {
     }
   };
 
-  const stepIcons = [
-    <Search className="w-4 h-4" />,
-    <User className="w-4 h-4" />,
-    <FileText className="w-4 h-4" />,
-    <DollarSign className="w-4 h-4" />,
-    <ShieldAlert className="w-4 h-4" />,
-    <Upload className="w-4 h-4" />,
-    <ShieldAlert className="w-4 h-4" />,
-    <CheckCircle2 className="w-4 h-4" />,
-  ];
+  // Get step info based on actual step number
+  const getStepInfo = (stepNum: number) => {
+    const allSteps = [
+      { icon: <Search className="w-4 h-4" />, title: 'Borrower Lookup' },
+      { icon: <User className="w-4 h-4" />, title: 'Borrower KYC' },
+      { icon: <FileText className="w-4 h-4" />, title: 'Loan Type' },
+      { icon: <DollarSign className="w-4 h-4" />, title: 'Loan Terms' },
+      { icon: <ShieldAlert className="w-4 h-4" />, title: 'Collateral' },
+      { icon: <Upload className="w-4 h-4" />, title: 'Documents' },
+      { icon: <ShieldAlert className="w-4 h-4" />, title: 'Risk Assessment' },
+      { icon: <CheckCircle2 className="w-4 h-4" />, title: 'Preview & Submit' },
+    ];
 
-  const stepTitles = [
-    'Borrower Lookup',
-    'Borrower KYC',
-    'Loan Type',
-    'Loan Terms',
-    'Collateral',
-    'Documents',
-    'Risk Assessment',
-    'Preview & Submit',
-  ];
+    // Map step number to actual step index
+    if (!needsCollateral) {
+      // Skip collateral step (index 4)
+      if (stepNum <= 4) {
+        return allSteps[stepNum - 1];
+      } else {
+        // Shift steps after collateral
+        return allSteps[stepNum]; // stepNum 5 -> index 5 (Documents), etc.
+      }
+    }
+    return allSteps[stepNum - 1];
+  };
+
+  const currentStepInfo = getStepInfo(step);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 p-4 md:p-6">
@@ -443,7 +530,7 @@ export function LoanOriginationPage() {
           ))}
         </div>
         <div className="mt-3 text-center">
-          <p className="text-sm font-medium text-foreground">{stepTitles[step - 1]}</p>
+          <p className="text-sm font-medium text-foreground">{currentStepInfo.title}</p>
         </div>
       </motion.div>
 
@@ -458,8 +545,8 @@ export function LoanOriginationPage() {
           <Card className="shadow-lg border-2">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20">
               <CardTitle className="text-2xl flex items-center gap-2">
-                {stepIcons[step - 1]}
-                {stepTitles[step - 1]}
+                {currentStepInfo.icon}
+                {currentStepInfo.title}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 p-6">
@@ -695,34 +782,74 @@ export function LoanOriginationPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              className="space-y-4"
             >
-              {[
-                { type: 'personal', icon: User, desc: 'For personal expenses' },
-                { type: 'business', icon: Briefcase, desc: 'For business operations' },
-                { type: 'agriculture', icon: Sprout, desc: 'For farming activities' },
-                { type: 'vehicle', icon: Car, desc: 'Vehicle purchase/repair' },
-                { type: 'property', icon: Home, desc: 'Property investment' },
-              ].map(({ type, icon: Icon, desc }, idx) => (
-                <motion.button
-                  key={type}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setLoanType(type)}
-                  className={`p-6 border-2 rounded-xl text-left transition-all ${
-                    loanType === type
-                      ? 'border-primary-600 bg-primary-50 dark:bg-primary/20 shadow-lg'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                  }`}
-                >
-                  <Icon className={`w-8 h-8 mb-3 ${loanType === type ? 'text-primary-600' : 'text-muted-foreground'}`} />
-                  <div className="font-semibold capitalize text-foreground">{type}</div>
-                  <div className="text-sm text-muted-foreground mt-1">{desc}</div>
-                </motion.button>
-              ))}
+              <div>
+                <Label className="text-base font-semibold mb-2 block">Select Loan Type</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Choose the type of loan that best matches the borrower's needs
+                </p>
+              </div>
+              {loadingLoanTypes ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : enabledLoanTypes.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed rounded-xl">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-2">No loan types configured</p>
+                  <p className="text-sm text-muted-foreground">
+                    Please configure loan types in Settings → Loan Types
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {enabledLoanTypes.map((loanTypeConfig, idx) => {
+                    const isSelected = loanType === loanTypeConfig.id;
+                    const Icon = getLoanTypeIcon(loanTypeConfig.id);
+                    return (
+                      <motion.button
+                        key={loanTypeConfig.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setLoanType(loanTypeConfig.id)}
+                        className={`p-6 border-2 rounded-xl text-left transition-all relative ${
+                          isSelected
+                            ? 'border-primary-600 bg-primary-50 dark:bg-primary/20 shadow-lg'
+                            : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <Icon className={`w-8 h-8 ${isSelected ? 'text-primary-600' : 'text-muted-foreground'}`} />
+                          {loanTypeConfig.collateralRequirement === 'required' && (
+                            <Badge variant="outline" className="text-xs">
+                              Secured
+                            </Badge>
+                          )}
+                          {loanTypeConfig.collateralRequirement === 'not_required' && (
+                            <Badge variant="secondary" className="text-xs">
+                              Unsecured
+                            </Badge>
+                          )}
+                          {loanTypeConfig.collateralRequirement === 'conditional' && (
+                            <Badge variant="outline" className="text-xs">
+                              Conditional
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="font-semibold text-foreground">{loanTypeConfig.name}</div>
+                        <div className="text-sm text-muted-foreground mt-1">{loanTypeConfig.description}</div>
+                        <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                          {formatCurrency(loanTypeConfig.loanAmount?.min || 0)} - {formatCurrency(loanTypeConfig.loanAmount?.max || 0)}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -731,9 +858,26 @@ export function LoanOriginationPage() {
             <motion.form
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              onSubmit={loanTermsForm.handleSubmit(handleNext)}
+              onSubmit={loanTermsForm.handleSubmit((data) => {
+                if (validateLoanTerms(data)) {
+                  handleNext();
+                }
+              })}
               className="space-y-5"
             >
+              {currentLoanTypeConfig && (
+                <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    {currentLoanTypeConfig.name} - Requirements
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-blue-800 dark:text-blue-200">
+                    <div>Amount: {currentLoanTypeConfig.loanAmount.min.toLocaleString()} - {currentLoanTypeConfig.loanAmount.max.toLocaleString()}</div>
+                    <div>Interest: {currentLoanTypeConfig.interestRate.min}% - {currentLoanTypeConfig.interestRate.max}%</div>
+                    <div>Duration: {currentLoanTypeConfig.duration.minMonths} - {currentLoanTypeConfig.duration.maxMonths} months</div>
+                    <div>Frequency: {currentLoanTypeConfig.repaymentFrequency.join(', ')}</div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="amount" className="text-sm font-medium">Loan Amount (ZMW) *</Label>
@@ -850,8 +994,8 @@ export function LoanOriginationPage() {
             </motion.form>
           )}
 
-          {/* Step 5: Collateral */}
-          {step === 5 && (
+          {/* Step 5: Collateral (only shown if required) */}
+          {step === 5 && needsCollateral && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -973,8 +1117,8 @@ export function LoanOriginationPage() {
             </motion.div>
           )}
 
-          {/* Step 6: Documents Upload */}
-          {step === 6 && (
+          {/* Step 6: Documents Upload (or Step 5 if no collateral) */}
+          {((needsCollateral && step === 6) || (!needsCollateral && step === 5)) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1053,8 +1197,8 @@ export function LoanOriginationPage() {
             </motion.div>
           )}
 
-          {/* Step 7: Risk Assessment */}
-          {step === 7 && (
+          {/* Step 7: Risk Assessment (or Step 6 if no collateral) */}
+          {((needsCollateral && step === 7) || (!needsCollateral && step === 6)) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1118,8 +1262,8 @@ export function LoanOriginationPage() {
             </motion.div>
           )}
 
-          {/* Step 8: Preview & Submit */}
-          {step === 8 && (
+          {/* Step 8: Preview & Submit (or Step 7 if no collateral) */}
+          {((needsCollateral && step === 8) || (!needsCollateral && step === 7)) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

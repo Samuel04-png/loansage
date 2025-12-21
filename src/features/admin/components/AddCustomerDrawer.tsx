@@ -41,9 +41,6 @@ const customerSchema = z.object({
   guarantorPhone: z.string().optional(),
   guarantorNRC: z.string().optional(),
   guarantorRelationship: z.string().optional(),
-  loanType: z.string().optional(),
-  initialLoanAmount: z.string().optional(),
-  collateralDetails: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -156,51 +153,6 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
         }
       }
 
-      // Extract and create collateral if details provided
-      if (data.collateralDetails && data.collateralDetails.trim()) {
-        try {
-          const { extractCollateralFromText } = await import('../../../lib/firebase/collateral-extraction');
-          const extractedCollaterals = extractCollateralFromText(data.collateralDetails);
-          
-          for (const collateralData of extractedCollaterals) {
-            // Map extracted types to valid collateral types
-            let validType: 'vehicle' | 'land' | 'electronics' | 'equipment' | 'other' = 'other';
-            if (collateralData.type === 'vehicle') {
-              validType = 'vehicle';
-            } else if (collateralData.type === 'land' || collateralData.type === 'property') {
-              validType = 'land';
-            } else if (collateralData.type === 'electronics') {
-              validType = 'electronics';
-            } else if (collateralData.type === 'equipment') {
-              validType = 'equipment';
-            }
-            
-            const collateralPayload: any = {
-              type: validType,
-              name: collateralData.name || collateralData.description?.substring(0, 50) || `Collateral ${extractedCollaterals.length + 1}`,
-              description: collateralData.description,
-              estimatedValue: collateralData.estimatedValue || 0,
-              ownerCustomerId: customer.id,
-            };
-            
-            // Only add optional fields if they have values
-            if (collateralData.brand) collateralPayload.brand = collateralData.brand;
-            if (collateralData.model) collateralPayload.model = collateralData.model;
-            if (collateralData.year) collateralPayload.year = collateralData.year;
-            if (collateralData.serialNumber) collateralPayload.serialNumber = collateralData.serialNumber;
-            if (collateralData.condition) collateralPayload.condition = collateralData.condition;
-            
-            await createCollateral(profile.agency_id, collateralPayload);
-          }
-          
-          if (extractedCollaterals.length > 0) {
-            toast.success(`Customer created with ${extractedCollaterals.length} collateral item(s) extracted!`);
-          }
-        } catch (error: any) {
-          console.warn('Failed to extract collateral:', error);
-          // Continue even if collateral extraction fails
-        }
-      }
 
       // Create audit log (non-blocking)
       createAuditLog(profile.agency_id, {
@@ -222,24 +174,46 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
             createdBy: user.id,
           });
 
-          // Show invitation link in toast
-          const inviteUrl = `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
-          toast.success(
-            <div>
-              <p className="font-semibold">Customer created!</p>
-              <p className="text-xs mt-1">Invitation link: <a href={inviteUrl} className="text-blue-600 underline break-all" target="_blank" rel="noopener noreferrer">{inviteUrl}</a></p>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(inviteUrl);
-                  toast.success('Invitation link copied to clipboard!');
-                }}
-                className="text-xs mt-2 text-blue-600 underline"
-              >
-                Copy link
-              </button>
-            </div>,
-            { duration: 15000 }
-          );
+          // Send invitation email via Cloud Function
+          try {
+            const { getFunctions, httpsCallable } = await import('firebase/functions');
+            const functions = getFunctions();
+            const sendInvitationEmail = httpsCallable(functions, 'sendInvitationEmail');
+            
+            const inviteUrl = invitation.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
+            
+            await sendInvitationEmail({
+              agencyId: profile.agency_id,
+              invitationId: invitation.id,
+              email: data.email,
+              role: 'customer',
+              inviteUrl: inviteUrl,
+              note: invitation.note,
+              agencyName: agency?.name,
+            });
+            
+            toast.success('Customer created and invitation email sent!');
+          } catch (emailError: any) {
+            console.error('Failed to send invitation email:', emailError);
+            // Still show success - customer is created, email can be resent
+            const inviteUrl = invitation.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
+            toast.success(
+              <div>
+                <p className="font-semibold">Customer created!</p>
+                <p className="text-xs mt-1">Email sending failed. Invitation link: <a href={inviteUrl} className="text-blue-600 underline break-all" target="_blank" rel="noopener noreferrer">{inviteUrl}</a></p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(inviteUrl);
+                    toast.success('Invitation link copied to clipboard!');
+                  }}
+                  className="text-xs mt-2 text-blue-600 underline"
+                >
+                  Copy link
+                </button>
+              </div>,
+              { duration: 15000 }
+            );
+          }
         } catch (error: any) {
           console.warn('Failed to create customer invitation:', error);
           toast.success('Customer created successfully! (Invitation creation failed)');

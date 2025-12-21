@@ -21,6 +21,7 @@ import { uploadLoanDocument as uploadDoc, uploadCollateralPhoto } from '../../..
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { assessLoanRisk } from '../../../lib/ai/risk-assessment-engine';
 import { RiskAssessmentDisplay } from '../../../components/risk/RiskAssessmentDisplay';
+import { LOAN_TYPES } from '../../../lib/loan-types';
 import toast from 'react-hot-toast';
 
 const loanSchema = z.object({
@@ -362,11 +363,11 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="">Select type</option>
-                      <option value="personal">Personal Loan</option>
-                      <option value="business">Business Loan</option>
-                      <option value="agricultural">Agricultural Loan</option>
-                      <option value="emergency">Emergency Loan</option>
-                      <option value="asset">Asset-Based Loan</option>
+                      {LOAN_TYPES.map((loanType) => (
+                        <option key={loanType.type} value={loanType.type}>
+                          {loanType.label}
+                        </option>
+                      ))}
                     </select>
                     {errors.loanType && (
                       <p className="text-sm text-red-600 mt-1">{errors.loanType.message}</p>

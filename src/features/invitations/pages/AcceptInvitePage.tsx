@@ -64,7 +64,20 @@ export function AcceptInvitePage() {
           return;
         }
 
-        const expiresAt = invite.expiresAt?.toDate?.() || new Date(invite.expiresAt);
+        // Handle expiresAt - could be Timestamp, Date, or string
+        let expiresAt: Date;
+        if (invite.expiresAt?.toDate) {
+          expiresAt = invite.expiresAt.toDate();
+        } else if (invite.expiresAt instanceof Date) {
+          expiresAt = invite.expiresAt;
+        } else if (invite.expiresAt) {
+          expiresAt = new Date(invite.expiresAt);
+        } else {
+          // Default to 7 days from now if not set
+          expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7);
+        }
+
         if (expiresAt < new Date()) {
           toast.error('This invitation has expired');
           navigate('/auth/login');
@@ -91,39 +104,88 @@ export function AcceptInvitePage() {
     try {
       const isCustomer = invitation.role === 'customer';
       const isEmployee = invitation.role && invitation.role !== 'customer';
+      
+      // For employees, the role should be 'employee' and employee_category should be the specific role
+      const userRole = isEmployee ? 'employee' : (isCustomer ? 'customer' : invitation.role);
+      const employeeCategory = isEmployee ? invitation.role : undefined;
 
-      // Create auth user
-      const { user, session } = await authService.signUp({
-        email: data.email,
-        password: data.password,
-        fullName: data.fullName,
-        role: invitation.role,
-        employeeCategory: isEmployee ? invitation.role : undefined,
-      });
+      let user: any;
+      let session: any;
+      let isExistingUser = false;
+
+      // Try to create auth user
+      try {
+        const result = await authService.signUp({
+          email: data.email,
+          password: data.password,
+          fullName: data.fullName,
+          role: userRole,
+          employeeCategory: employeeCategory,
+        });
+        user = result.user;
+        session = result.session;
+      } catch (signUpError: any) {
+        // If email already exists, try to sign in instead
+        if (signUpError.message?.includes('email-already-in-use') || signUpError.code === 'auth/email-already-in-use') {
+          toast.error('An account with this email already exists. Please sign in instead.');
+          navigate('/auth/login?email=' + encodeURIComponent(data.email));
+          return;
+        }
+        throw signUpError;
+      }
 
       if (!user || !session) throw new Error('Failed to create user');
 
-      // Create user record in Firestore (via users collection)
+      // Create or update user record in Firestore (via users collection)
       const { supabase } = await import('../../../lib/supabase/client');
-      await supabase
+      
+      // Try to insert first, if it fails due to existing record, update instead
+      const { error: insertError } = await supabase
         .from('users')
         .insert({
           id: user.id,
           email: data.email,
           full_name: data.fullName,
-          role: invitation.role,
-          employee_category: isEmployee ? invitation.role : null,
+          role: userRole,
+          employee_category: employeeCategory || null,
           agency_id: invitation.agencyId,
         });
 
+      // If insert fails because record exists, update instead
+      if (insertError && insertError.code !== '23505') { // 23505 is unique violation in PostgreSQL
+        console.error('Error creating user record:', insertError);
+        // Try update instead
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            full_name: data.fullName,
+            role: userRole,
+            employee_category: employeeCategory || null,
+            agency_id: invitation.agencyId,
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          console.error('Error updating user record:', updateError);
+          throw new Error(`Failed to update user record: ${updateError.message}`);
+        }
+      }
+
       // Handle employee invitations
       if (isEmployee && invitation.agencyId) {
-        await createEmployee(invitation.agencyId, {
-          userId: user.id,
-          email: data.email,
-          name: data.fullName,
-          role: invitation.role as any,
-        });
+        try {
+          await createEmployee(invitation.agencyId, {
+            userId: user.id,
+            email: data.email,
+            name: data.fullName,
+            role: invitation.role as any, // This is the employee category (loan_officer, manager, etc.)
+          });
+        } catch (employeeError: any) {
+          console.error('Error creating employee record:', employeeError);
+          // Don't fail the whole process if employee creation fails
+          // The user is still created and can be linked later
+          toast.error(`Account created but employee record failed: ${employeeError.message}`);
+        }
       }
 
       // Handle customer invitations - link customer record to user
@@ -131,8 +193,26 @@ export function AcceptInvitePage() {
         await linkCustomerToUser(invitation.agencyId, invitation.customerId, user.id);
       }
 
-      // Mark invitation as accepted
-      await acceptInvitation(invitation.agencyId, invitation.id, user.id);
+      // Mark invitation as accepted - must be done while authenticated
+      try {
+        // Wait a moment to ensure user is fully authenticated
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await acceptInvitation(invitation.agencyId, invitation.id, user.id);
+      } catch (acceptError: any) {
+        console.error('Error accepting invitation:', acceptError);
+        // If permission error, try again after a short delay (user might not be fully synced)
+        if (acceptError.message?.includes('permission') || acceptError.code === 'permission-denied') {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          try {
+            await acceptInvitation(invitation.agencyId, invitation.id, user.id);
+          } catch (retryError: any) {
+            console.error('Error accepting invitation on retry:', retryError);
+            toast.error(`Account created but failed to mark invitation as accepted. Please contact support.`);
+          }
+        } else {
+          toast.error(`Account created but failed to mark invitation as accepted: ${acceptError.message}`);
+        }
+      }
 
       toast.success('Account created successfully! Please verify your email.');
       navigate('/auth/login');

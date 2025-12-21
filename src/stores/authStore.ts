@@ -14,6 +14,7 @@ interface UserProfile {
   is_active: boolean;
   photoURL?: string | null;
   photo_url?: string | null;
+  onboardingCompleted?: boolean;
 }
 
 interface AuthState {
@@ -56,8 +57,26 @@ export const useAuthStore = create<AuthState>()(
 
       initialize: async () => {
         try {
-          const session = await authService.getSession();
-          const user = await authService.getUser();
+          // First check Firebase Auth currentUser (for persistent sessions)
+          const { auth } = await import('../lib/firebase/config');
+          let session = null;
+          let user = null;
+          
+          // Check if Firebase Auth has a current user (persisted session)
+          if (auth.currentUser) {
+            try {
+              session = await authService.getSession();
+              user = await authService.getUser();
+            } catch (error) {
+              console.warn('Failed to get session from Firebase Auth:', error);
+            }
+          }
+          
+          // If no Firebase session, try to get from persisted Zustand state
+          if (!session || !user) {
+            session = await authService.getSession();
+            user = await authService.getUser();
+          }
 
           if (session && user) {
             // Try to fetch user profile from database
@@ -77,6 +96,7 @@ export const useAuthStore = create<AuthState>()(
                   employee_category: user.user_metadata?.employee_category || null,
                   agency_id: 'demo-agency-id',
                   is_active: true,
+                  onboardingCompleted: true,
                 };
               } else {
                 try {

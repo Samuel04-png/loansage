@@ -147,7 +147,7 @@ export interface Database {
           loan_number: string
           agency_id: string
           customer_id: string
-          loan_type: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property'
+          loan_type: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property' | 'education' | 'medical' | 'emergency' | 'salary_advance' | 'microfinance' | 'group' | 'equipment' | 'working_capital' | 'invoice_financing' | 'trade_finance' | 'refinancing' | 'asset_finance' | 'construction'
           amount: number
           currency: string
           interest_rate: number
@@ -166,7 +166,7 @@ export interface Database {
           loan_number: string
           agency_id: string
           customer_id: string
-          loan_type: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property'
+          loan_type: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property' | 'education' | 'medical' | 'emergency' | 'salary_advance' | 'microfinance' | 'group' | 'equipment' | 'working_capital' | 'invoice_financing' | 'trade_finance' | 'refinancing' | 'asset_finance' | 'construction'
           amount: number
           currency?: string
           interest_rate: number
@@ -185,7 +185,7 @@ export interface Database {
           loan_number?: string
           agency_id?: string
           customer_id?: string
-          loan_type?: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property'
+          loan_type?: 'personal' | 'business' | 'agriculture' | 'vehicle' | 'property' | 'education' | 'medical' | 'emergency' | 'salary_advance' | 'microfinance' | 'group' | 'equipment' | 'working_capital' | 'invoice_financing' | 'trade_finance' | 'refinancing' | 'asset_finance' | 'construction'
           amount?: number
           currency?: string
           interest_rate?: number

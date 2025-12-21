@@ -272,37 +272,72 @@ html {
     @apply bg-background text-foreground font-sans antialiased;
   }
   
-  /* Typography System - Reference Style */
+  /* Typography System - Reference Style with Mobile-First Approach */
   .h1 {
-    font-size: var(--fs-3xl);
+    font-size: clamp(1.75rem, 2vw + 1rem, var(--fs-3xl)); /* Responsive: 28px to 40px */
     font-weight: 700;
     line-height: 1.25;
     letter-spacing: -0.02em;
   }
   
   .h2 {
-    font-size: var(--fs-2xl);
+    font-size: clamp(1.5rem, 1.5vw + 0.875rem, var(--fs-2xl)); /* Responsive: 24px to 32px */
     font-weight: 600;
     line-height: 1.3;
     letter-spacing: -0.01em;
   }
   
   .h3 {
-    font-size: var(--fs-xl);
+    font-size: clamp(1.25rem, 1vw + 0.75rem, var(--fs-xl)); /* Responsive: 20px to 24px */
     font-weight: 600;
     line-height: 1.3;
   }
   
+  .h4 {
+    font-size: clamp(1.125rem, 0.5vw + 0.875rem, 1.25rem); /* Responsive: 18px to 20px */
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  
   .body {
-    font-size: var(--fs-base);
+    font-size: var(--fs-base); /* 16px - optimal reading size */
     font-weight: 400;
-    line-height: 1.6;
+    line-height: 1.6; /* Better readability */
     color: hsl(var(--foreground));
+  }
+  
+  .body-sm {
+    font-size: var(--fs-sm); /* 14px */
+    font-weight: 400;
+    line-height: 1.5;
   }
   
   .muted {
     color: hsl(var(--muted-foreground));
     font-size: var(--fs-sm);
+    line-height: 1.5;
+  }
+  
+  /* Page Title - Large, bold heading for page headers */
+  .page-title {
+    font-size: clamp(1.5rem, 2vw + 0.875rem, 2rem); /* 24px to 32px */
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  
+  /* Section Title - Medium heading for sections */
+  .section-title {
+    font-size: clamp(1.125rem, 1vw + 0.75rem, 1.5rem); /* 18px to 24px */
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  
+  /* Helper Text - Small, muted text for descriptions */
+  .helper-text {
+    font-size: var(--fs-sm); /* 14px */
+    color: hsl(var(--muted-foreground));
+    line-height: 1.5;
   }
 }
 
@@ -323,6 +358,45 @@ html {
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  /* Ensure touch targets are at least 44px */
+  button, a, input, select, textarea, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve spacing on mobile */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Prevent text from being too small on mobile */
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* Safe area insets for devices with notches */
+@supports (padding: max(0px)) {
+  .safe-area-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .safe-area-left {
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  
+  .safe-area-right {
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
 }
 
 /* Glassmorphism utility */
@@ -442,5 +516,60 @@ html {
 
 .checkmark-explode {
   animation: checkmarkExplode 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Currency formatting - right align numbers */
+.currency-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Mobile table utilities */
+@media (max-width: 767px) {
+  /* Hide table headers on mobile when using card layout */
+  .mobile-hide-table-header thead {
+    display: none;
+  }
+  
+  /* Ensure tables don't break layout on mobile */
+  table {
+    display: block;
+    width: 100%;
+  }
+  
+  table thead {
+    display: none;
+  }
+  
+  table tbody {
+    display: block;
+    width: 100%;
+  }
+  
+  table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: hsl(var(--card));
+  }
+  
+  table td {
+    display: block;
+    text-align: right;
+    padding: 0.5rem 0;
+    border: none;
+  }
+  
+  table td:before {
+    content: attr(data-label);
+    float: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+  }
 }
 

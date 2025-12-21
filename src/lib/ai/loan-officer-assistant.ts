@@ -13,6 +13,7 @@ export interface AssistantQuery {
     agencyId: string;
     userId?: string;
     filters?: any;
+    mode?: 'ask' | 'action' | 'auto';
   };
 }
 
@@ -47,8 +48,12 @@ export async function askLoanOfficerAssistant(
     // Fetch relevant data based on question keywords
     const data = await fetchRelevantData(question, context);
     
-    // Use AI to generate answer
-    const systemPrompt = `You are an AI loan officer assistant for TengaLoans. 
+    // Use AI to generate answer with mode-aware prompts
+    const mode = context?.mode || 'ask';
+    let systemPrompt = '';
+    
+    if (mode === 'ask') {
+      systemPrompt = `You are an AI loan officer assistant for TengaLoans. 
 You help loan officers understand their portfolio, find loans, analyze performance, and get insights.
 Be concise, professional, and data-driven. Always provide actionable insights.
 
@@ -64,6 +69,83 @@ ${JSON.stringify(data, null, 2)}
 
 Answer the user's question using this data. When listing loans, include customer names, loan numbers, and amounts for clarity.
 If you need more specific data, suggest what queries to run.`;
+    } else if (mode === 'action') {
+      systemPrompt = `You are an AI loan officer assistant for TengaLoans in ACTION mode.
+The user wants you to perform actions on the database (create loans, update status, etc.).
+
+When the user requests an action, you should:
+1. Identify what action needs to be performed
+2. Extract all necessary parameters from the request
+3. Provide a clear description of what will be done
+4. At the END of your response, include a JSON action object in this exact format:
+   <ACTION>
+   {
+     "type": "create_loan" | "update_loan_status" | "add_payment",
+     "data": {
+       // For create_loan:
+       "customerId" or "customerName": string,
+       "amount": number,
+       "interestRate": number (default 15),
+       "durationMonths": number (default 12),
+       "loanType": string (default "Personal"),
+       "disbursementDate": string (ISO date, optional),
+       
+       // For update_loan_status:
+       "loanId" or "loanNumber": string,
+       "status": "pending" | "approved" | "active" | "completed" | "defaulted" | "rejected" | "cancelled"
+     },
+     "label": "Human-readable description"
+   }
+   </ACTION>
+
+Available data:
+${JSON.stringify(data, null, 2)}
+
+IMPORTANT: 
+- Only suggest actions that are safe and have all required parameters
+- If information is missing, ask for clarification in your response
+- Always include the <ACTION> JSON block at the end when you identify an action
+- Extract customer names, loan numbers, amounts, etc. from the available data when possible`;
+    } else if (mode === 'auto') {
+      systemPrompt = `You are an AI loan officer assistant for TengaLoans in AUTO mode.
+The user wants you to automatically perform actions without confirmation.
+
+When the user requests an action, you should:
+1. Identify what action needs to be performed
+2. Extract all necessary parameters
+3. Automatically execute the action if all required data is available
+4. If data is missing, ask for clarification
+
+At the END of your response, include a JSON action object in this exact format:
+<ACTION>
+{
+  "type": "create_loan" | "update_loan_status" | "add_payment",
+  "data": {
+    // For create_loan:
+    "customerId" or "customerName": string,
+    "amount": number,
+    "interestRate": number (default 15),
+    "durationMonths": number (default 12),
+    "loanType": string (default "Personal"),
+    "disbursementDate": string (ISO date, optional),
+    
+    // For update_loan_status:
+    "loanId" or "loanNumber": string,
+    "status": "pending" | "approved" | "active" | "completed" | "defaulted" | "rejected" | "cancelled"
+  },
+  "label": "Human-readable description"
+}
+</ACTION>
+
+Available data:
+${JSON.stringify(data, null, 2)}
+
+IMPORTANT: 
+- Only perform actions that are safe and have all required parameters
+- Always validate data before executing
+- Always include the <ACTION> JSON block at the end when you identify an action
+- Extract customer names, loan numbers, amounts, etc. from the available data when possible`;
+    }
 
     const aiResponse = await callDeepSeekAPI([
       {
@@ -74,11 +156,25 @@ If you need more specific data, suggest what queries to run.`;
         role: 'user',
         content: question,
       },
-    ], { temperature: 0.3, maxTokens: 1000 });
+    ], { temperature: 0.3, maxTokens: 1500 });
     
     // Extract suggestions and actions from response
     const suggestions = extractSuggestions(aiResponse);
-    const actions = extractActions(aiResponse, data);
+    let actions = extractActions(aiResponse, data);
+    
+    // For action/auto modes, try to extract structured action from AI response
+    if ((mode === 'action' || mode === 'auto') && aiResponse.includes('<ACTION>')) {
+      try {
+        const actionMatch = aiResponse.match(/<ACTION>([\s\S]*?)<\/ACTION>/);
+        if (actionMatch) {
+          const actionJson = JSON.parse(actionMatch[1].trim());
+          // Prepend the structured action to the actions array
+          actions = [actionJson, ...actions];
+        }
+      } catch (error) {
+        console.warn('Failed to parse action JSON from AI response:', error);
+      }
+    }
     
     return {
       answer: aiResponse,
@@ -89,8 +185,34 @@ If you need more specific data, suggest what queries to run.`;
     };
   } catch (error: any) {
     console.error('AI Assistant error:', error);
+    
+    const errorMessage = error?.message || error?.toString() || 'Unknown error';
+    
+    // Provide helpful error messages based on error type
+    let userFriendlyMessage = 'I apologize, but I encountered an error while processing your request.';
+    
+    if (errorMessage.includes('Service is too busy') || errorMessage.includes('too busy')) {
+      userFriendlyMessage = `**AI Service Temporarily Unavailable**
+
+The AI service is currently experiencing high traffic. Please try again in a few moments. Your question has been saved and you can retry when ready.`;
+    } else if (errorMessage.includes('CORS') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch')) {
+      userFriendlyMessage = `**Network Connection Error**
+
+I'm having trouble connecting to the AI service. Please check your internet connection and try again.`;
+    } else if (errorMessage.includes('rate limit') || errorMessage.includes('quota')) {
+      userFriendlyMessage = `**Rate Limit Exceeded**
+
+The AI service has reached its rate limit. Please wait a few minutes before trying again.`;
+    } else if (errorMessage.includes('unauthenticated')) {
+      userFriendlyMessage = `**Authentication Required**
+
+You need to be logged in to use the AI assistant. Please log in and try again.`;
+    } else {
+      userFriendlyMessage = `I encountered an error: ${errorMessage}. Please try rephrasing your question or try again in a moment.`;
+    }
+    
     return {
-      answer: `I encountered an error: ${error.message}. Please try rephrasing your question.`,
+      answer: userFriendlyMessage,
       confidence: 0,
     };
   }

@@ -3,6 +3,21 @@
  * Uses machine learning algorithms to assess loan and customer risk
  */
 
+// Helper to get loan type category for AI context
+function getLoanTypeCategoryForAI(loanType: string): string {
+  if (!loanType) return 'Standard';
+  
+  const securedTypes = ['collateral_based', 'asset_financing', 'equipment', 'trade_finance', 'construction', 'vehicle', 'property'];
+  const unsecuredTypes = ['salary_based', 'personal_unsecured', 'education', 'medical', 'emergency', 'microfinance', 'personal'];
+  const conditionalTypes = ['sme_business', 'group', 'working_capital', 'invoice_financing', 'refinancing', 'business'];
+  
+  const typeLower = loanType.toLowerCase();
+  if (securedTypes.some(t => typeLower.includes(t))) return 'Secured';
+  if (unsecuredTypes.some(t => typeLower.includes(t))) return 'Unsecured';
+  if (conditionalTypes.some(t => typeLower.includes(t))) return 'Conditional';
+  return 'Standard';
+}
+
 interface RiskFactors {
   // Required inputs
   nrc?: string;
@@ -87,7 +102,8 @@ Loan Details:
 - Amount: ${factors.loanDetails?.amount || 0} ZMW
 - Interest Rate: ${factors.loanDetails?.interestRate || 0}%
 - Duration: ${factors.loanDetails?.durationMonths || 0} months
-- Loan Type: ${factors.loanDetails?.loanType || 'Not specified'}
+- Loan Type: ${factors.loanDetails?.loanType || factors.loanDetails?.loan_type || 'Not specified'}
+- Loan Type Category: ${getLoanTypeCategoryForAI(factors.loanDetails?.loanType || factors.loanDetails?.loan_type || '')}
 
 Customer Profile:
 - NRC: ${factors.nrc || 'Not provided'}

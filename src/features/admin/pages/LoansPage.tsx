@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { collection, getDocs, query as firestoreQuery, where, orderBy, doc, updateDoc, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
@@ -52,15 +53,21 @@ import {
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
+import { LoanApprovalDialog } from '../components/LoanApprovalDialog';
 import { exportLoans } from '../../../lib/data-export';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Label } from '../../../components/ui/label';
+import { LoanStatusBadge } from '../../../components/loans/LoanStatusBadge';
+import { LoanActionButtons } from '../../../components/loans/LoanActionButtons';
+import { LoanStatus, UserRole } from '../../../types/loan-workflow';
+import { submitLoanForReview, disburseLoan } from '../../../lib/loans/workflow';
+import { useAgency } from '../../../hooks/useAgency';
 import {
   Dialog,
   DialogContent,
@@ -69,19 +76,39 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import { Breadcrumbs } from '../../../components/ui/breadcrumbs';
+import { StickyActionBar, StickyActionBarSpacer } from '../../../components/ui/sticky-action-bar';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { TableCard, TableCardRow } from '../../../components/ui/responsive-table';
 
 type SortOption = 'date' | 'repaymentDate' | 'status' | 'amount' | 'customerName';
 
 export function LoansPage() {
   const { profile, user } = useAuth();
+  const { agency } = useAgency();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Read query parameters from URL on mount and when they change
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const overdueParam = searchParams.get('overdue');
+    
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    } else if (overdueParam === 'true') {
+      setStatusFilter('overdue');
+    }
+  }, [searchParams]);
   const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<{ id: string; status: string } | null>(null);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [loanToDelete, setLoanToDelete] = useState<{ id: string; loanNumber?: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +119,12 @@ export function LoansPage() {
   const [bulkStatus, setBulkStatus] = useState<string>('active');
   const [bulkPaymentAmount, setBulkPaymentAmount] = useState<string>('');
   const [bulkPaymentDate, setBulkPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Get user role
+  const userRole = (profile?.role === 'admin' ? UserRole.ADMIN :
+                   profile?.employee_category === 'accountant' ? UserRole.ACCOUNTANT :
+                   profile?.employee_category === 'loan_officer' ? UserRole.LOAN_OFFICER :
+                   UserRole.ADMIN) as UserRole;
 
   // Fetch all loans
   const { data: loans, isLoading, refetch } = useQuery({
@@ -198,6 +231,17 @@ export function LoansPage() {
           if (loanStatus !== 'active' && loanStatus !== 'approved') {
             return false;
           }
+        } else if (statusFilter === 'overdue') {
+          // Overdue loans: have pending repayments past due date
+          const now = new Date();
+          const hasOverdueRepayment = loan.repayments?.some((r: any) => {
+            if (r.status !== 'pending') return false;
+            const dueDate = r.dueDate instanceof Date ? r.dueDate : new Date(r.dueDate);
+            return dueDate < now;
+          });
+          if (!hasOverdueRepayment) {
+            return false;
+          }
         } else if (statusFilter === 'settled') {
           // Settled includes both 'settled' and 'paid' loans
           if (loanStatus !== 'settled' && loanStatus !== 'paid') {
@@ -206,6 +250,15 @@ export function LoansPage() {
         } else if (statusFilter === 'pending') {
           // Pending filter - exact match
           if (loanStatus !== 'pending') {
+            return false;
+          }
+        } else if (statusFilter === 'under_review') {
+          if (loanStatus !== 'under_review') {
+            return false;
+          }
+        } else if (statusFilter === 'closed') {
+          // Closed includes both 'closed' and 'paid' for backward compatibility
+          if (loanStatus !== 'closed' && loanStatus !== 'paid' && loanStatus !== 'settled') {
             return false;
           }
         } else {
@@ -283,22 +336,49 @@ export function LoansPage() {
     setCurrentPage(1);
   }, [statusFilter, searchTerm]);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; className: string }> = {
-      active: { label: 'Active', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
-      pending: { label: 'Pending', className: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
-      approved: { label: 'Approved', className: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
-      rejected: { label: 'Rejected', className: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
-      paid: { label: 'Settled', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
-      settled: { label: 'Settled', className: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
-      defaulted: { label: 'Defaulted', className: 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' },
-    };
+  // Handle loan actions
+  const handleSubmitLoan = async (loanId: string) => {
+    if (!agency?.id || !user?.id) {
+      toast.error('Agency or user not found');
+      return;
+    }
 
-    const config = statusConfig[status] || { 
-      label: status, 
-      className: 'bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700' 
-    };
-    return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
+    try {
+      const result = await submitLoanForReview({
+        loanId,
+        agencyId: agency.id,
+        userId: user.id,
+        userRole,
+      });
+
+      if (result.success) {
+        toast.success('Loan submitted for review');
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+      } else {
+        toast.error(result.error || 'Failed to submit loan');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit loan');
+    }
+  };
+
+  const handleDisburseLoan = async (loanId: string) => {
+    if (!agency?.id || !user?.id) {
+      toast.error('Agency or user not found');
+      return;
+    }
+
+    try {
+      const result = await disburseLoan(loanId, agency.id, user.id, userRole);
+      if (result.success) {
+        toast.success('Loan disbursed successfully');
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+      } else {
+        toast.error(result.error || 'Failed to disburse loan');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to disburse loan');
+    }
   };
 
   // Delete loan mutation
@@ -453,13 +533,16 @@ export function LoansPage() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs */}
+      <Breadcrumbs />
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Loans</h1>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Manage and track all loans in your portfolio</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100">Loans</h1>
+          <p className="helper-text mt-1">Manage and track all loans in your portfolio</p>
         </div>
-        <div className="flex gap-3">
+        <div className="hidden md:flex gap-3">
           <Button
             variant="outline"
             onClick={() => {
@@ -485,6 +568,34 @@ export function LoansPage() {
         </div>
       </div>
 
+      {/* Sticky Action Bar for Mobile */}
+      <StickyActionBar>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (filteredAndSortedLoans && filteredAndSortedLoans.length > 0) {
+                exportLoans(filteredAndSortedLoans);
+                toast.success('Loans exported successfully');
+              } else {
+                toast.error('No loans to export');
+              }
+            }}
+            className="flex-1"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <Button 
+            onClick={() => setNewLoanDrawerOpen(true)}
+            className="flex-1 bg-[#006BFF] hover:bg-[#0052CC] text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Loan
+          </Button>
+        </div>
+      </StickyActionBar>
+
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -493,7 +604,7 @@ export function LoansPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Portfolio</p>
-                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1 currency-amount">
                     {formatCurrency(stats.totalPortfolio, 'ZMW')}
                   </p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{stats.total} loans</p>
@@ -510,11 +621,11 @@ export function LoansPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Collected</p>
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 currency-amount">
                     {formatCurrency(stats.totalCollected, 'ZMW')}
                   </p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                    {formatCurrency(stats.totalOutstanding, 'ZMW')} outstanding
+                    <span className="currency-amount">{formatCurrency(stats.totalOutstanding, 'ZMW')}</span> outstanding
                   </p>
                 </div>
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
@@ -529,7 +640,7 @@ export function LoansPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Expected Profit</p>
-                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1 currency-amount">
                     {formatCurrency(stats.expectedProfit, 'ZMW')}
                   </p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">From interest</p>
@@ -546,7 +657,7 @@ export function LoansPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Outstanding Balance</p>
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1 currency-amount">
                     {formatCurrency(stats.totalOutstanding, 'ZMW')}
                   </p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Remaining to collect</p>
@@ -746,7 +857,7 @@ export function LoansPage() {
                         </TableCell>
                         <TableCell 
                           className="cursor-pointer"
-                          onClick={() => window.location.href = `/admin/loans/${loan.id}`}
+                          onClick={() => navigate(`/admin/loans/${loan.id}`)}
                         >
                           <div className="space-y-1">
                             <div className="font-semibold text-neutral-900 dark:text-neutral-100">
@@ -762,7 +873,7 @@ export function LoansPage() {
                         </TableCell>
                         <TableCell 
                           className="cursor-pointer"
-                          onClick={() => window.location.href = `/admin/loans/${loan.id}`}
+                          onClick={() => navigate(`/admin/loans/${loan.id}`)}
                         >
                           <div className="space-y-1">
                             <div className="font-medium text-neutral-900">
@@ -782,12 +893,12 @@ export function LoansPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-neutral-900">
+                          <div className="font-semibold text-neutral-900 currency-amount">
                             {formatCurrency(principal, 'ZMW')}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-emerald-600">
+                          <div className="font-semibold text-emerald-600 currency-amount">
                             {formatCurrency(totalPaid, 'ZMW')}
                           </div>
                           <div className="text-xs text-neutral-500">
@@ -795,12 +906,12 @@ export function LoansPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-red-600">
+                          <div className="font-semibold text-red-600 currency-amount">
                             {formatCurrency(remainingBalance, 'ZMW')}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-medium text-neutral-900">
+                          <div className="font-medium text-neutral-900 currency-amount">
                             {interestRate}%
                           </div>
                         </TableCell>
@@ -810,7 +921,7 @@ export function LoansPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(loan.status)}
+                          <LoanStatusBadge status={loan.status as LoanStatus} />
                         </TableCell>
                         <TableCell>
                           {loan.nextPaymentDue ? (
@@ -832,42 +943,68 @@ export function LoansPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedLoan({ id: loan.id, status: loan.status });
-                                  setStatusDialogOpen(true);
-                                }}
-                                className="cursor-pointer"
-                              >
-                                <FileText className="mr-2 h-4 w-4" />
-                                Change Status
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLoanToDelete({ id: loan.id, loanNumber: loan.loanNumber });
-                                  setDeleteDialogOpen(true);
-                                }}
-                                className="cursor-pointer text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Loan
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center justify-end gap-2">
+                            <LoanActionButtons
+                              loanStatus={loan.status as LoanStatus}
+                              userRole={userRole}
+                              isLoanOwner={loan.created_by === user?.id || loan.officerId === user?.id}
+                              onSubmit={() => handleSubmitLoan(loan.id)}
+                              onApprove={() => {
+                                setSelectedLoan({ id: loan.id, status: loan.status });
+                                setApprovalDialogOpen(true);
+                              }}
+                              onReject={() => {
+                                setSelectedLoan({ id: loan.id, status: loan.status });
+                                setApprovalDialogOpen(true);
+                              }}
+                              onDisburse={() => handleDisburseLoan(loan.id)}
+                              onManageRepayments={() => navigate(`/admin/loans/${loan.id}?tab=repayments`)}
+                              onClose={() => {
+                                setSelectedLoan({ id: loan.id, status: loan.status });
+                                setStatusDialogOpen(true);
+                              }}
+                            />
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View Details
+                                  </Link>
+                                </DropdownMenuItem>
+                                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedLoan({ id: loan.id, status: loan.status });
+                                      setStatusDialogOpen(true);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Change Status
+                                  </DropdownMenuItem>
+                                )}
+                                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLoanToDelete({ id: loan.id, loanNumber: loan.loanNumber });
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                    className="cursor-pointer text-red-600 focus:text-red-600"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Loan
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -932,28 +1069,31 @@ export function LoansPage() {
               </div>
             )}
             </>
-          ) : (
-            <div className="text-center py-16 text-neutral-500">
-              <FileText className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
-              <p className="text-lg font-medium mb-2">No loans found</p>
-              <p className="text-sm text-neutral-400 mb-6">
-                {searchTerm || statusFilter !== 'all' 
-                  ? 'Try adjusting your filters' 
-                  : 'Get started by creating your first loan'}
-              </p>
-              {!searchTerm && statusFilter === 'all' && (
-                <Button
-                  onClick={() => setNewLoanDrawerOpen(true)}
-                  className="bg-[#006BFF] hover:bg-[#0052CC] text-white rounded-lg"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Loan
-                </Button>
-              )}
-            </div>
+            ) : (
+            <EmptyState
+              icon={FileText}
+              title="No loans found"
+              description={
+                searchTerm || statusFilter !== 'all'
+                  ? 'Try adjusting your filters to find loans'
+                  : 'Get started by creating your first loan in the system'
+              }
+              action={
+                !searchTerm && statusFilter === 'all'
+                  ? {
+                      label: 'New Loan',
+                      onClick: () => setNewLoanDrawerOpen(true),
+                      icon: Plus,
+                    }
+                  : undefined
+              }
+            />
           )}
         </CardContent>
       </Card>
+
+      {/* Spacer for sticky action bar on mobile */}
+      <StickyActionBarSpacer />
 
       <NewLoanDrawer
         open={newLoanDrawerOpen}
@@ -1132,6 +1272,22 @@ export function LoansPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Loan Approval Dialog */}
+      {selectedLoan && agency?.id && (
+        <LoanApprovalDialog
+          open={approvalDialogOpen}
+          onOpenChange={setApprovalDialogOpen}
+          loanId={selectedLoan.id}
+          agencyId={agency.id}
+          currentStatus={selectedLoan.status as LoanStatus}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            refetch();
+            setSelectedLoan(null);
+          }}
+        />
+      )}
     </div>
   );
 }

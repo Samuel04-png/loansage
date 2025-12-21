@@ -74,16 +74,28 @@ export function InviteEmployeeDrawer({ open, onOpenChange, onSuccess }: InviteEm
         // Ignore audit log errors - not critical
       });
 
-      // TODO: Trigger Cloud Function to send email
-      // For now, we'll show the invite link in a toast
-      const inviteUrl = `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
-      toast.success(
-        <div>
-          <p className="font-semibold">Invitation created!</p>
-          <p className="text-xs mt-1">Share this link: {inviteUrl}</p>
-        </div>,
-        { duration: 10000 }
-      );
+      // Send invitation email via Cloud Function
+      try {
+        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const functions = getFunctions();
+        const sendInvitationEmail = httpsCallable(functions, 'sendInvitationEmail');
+        
+        await sendInvitationEmail({
+          agencyId: profile.agency_id,
+          invitationId: invitation.id,
+          email: data.email,
+          role: data.role,
+          inviteUrl: invitation.inviteUrl,
+          note: data.note,
+          agencyName: agency?.name,
+        });
+        
+        toast.success('Invitation created and email sent!');
+      } catch (emailError: any) {
+        console.error('Failed to send invitation email:', emailError);
+        // Still show success - invitation is created, email can be resent
+        toast.success('Invitation created! Email sending failed. You can copy and share the link from the Invitations page.');
+      }
 
       reset();
       onOpenChange(false);

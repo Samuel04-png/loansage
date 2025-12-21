@@ -100,7 +100,7 @@ export async function createLoanTransaction(
         throw new Error('User not found');
       }
 
-      // Create loan document
+      // Create loan document with DRAFT status (new workflow)
       transaction.set(loanRef, {
         id: loanId,
         customerId: data.customerId,
@@ -109,7 +109,7 @@ export async function createLoanTransaction(
         interestRate: data.interestRate,
         durationMonths: data.durationMonths,
         loanType: data.loanType,
-        status: 'pending',
+        status: 'draft', // Start in draft status - must be submitted
         disbursementDate: data.disbursementDate
           ? Timestamp.fromDate(data.disbursementDate)
           : null,

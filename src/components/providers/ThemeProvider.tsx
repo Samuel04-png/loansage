@@ -18,6 +18,8 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
+  // Get agency - this will be null if auth/agency isn't ready yet, which is fine
+  // Call useAgency unconditionally (React hook rules)
   const { agency } = useAgency();
   
   // Initialize theme from localStorage or agency settings
@@ -100,8 +102,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setTheme(resolvedTheme === 'light' ? 'dark' : 'light');
   }, [resolvedTheme, setTheme]);
 
+  // Always provide a valid context value
+  const contextValue: ThemeContextType = {
+    theme,
+    setTheme,
+    resolvedTheme,
+    toggleTheme,
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme, toggleTheme }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
@@ -114,4 +124,3 @@ export function useTheme() {
   }
   return context;
 }
-

@@ -22,6 +22,7 @@ import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/f
 import { uploadAgencyLogo, uploadProfilePhoto, uploadCompanyProfilePhoto } from '../../../lib/firebase/storage-helpers';
 import { InviteEmployeeDrawer } from '../components/InviteEmployeeDrawer';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
+import { LoanTypeSettings } from '../components/LoanTypeSettings';
 import { authService } from '../../../lib/supabase/auth';
 import { exportLoans, exportCustomers, exportEmployees } from '../../../lib/data-export';
 import { importCustomersFromCSV, importLoansFromCSV } from '../../../lib/data-import';
@@ -788,7 +789,24 @@ export function SettingsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-6"
           >
+            {/* Loan Types Configuration Section */}
+            <LoanTypeSettings />
+
+            {/* Divider */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-neutral-200 dark:border-neutral-700" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-[#1E293B] px-2 text-neutral-500 dark:text-neutral-400">
+                  Loan Calculation Settings
+                </span>
+              </div>
+            </div>
+
+            {/* Loan Calculation Settings Section */}
             <form onSubmit={loanSettingsForm.handleSubmit(handleLoanSettingsSubmit)}>
               <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
                 <CardHeader className="pb-4">

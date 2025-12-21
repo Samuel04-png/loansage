@@ -32,9 +32,10 @@ import {
   UserCircle,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
 
 export function CustomerLayout() {
   const location = useLocation();
@@ -282,11 +283,25 @@ export function CustomerLayout() {
 
         {/* Scrollable Area - Reference Style */}
         <div className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A]">
-          <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl">
+          <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
             <Outlet />
           </div>
         </div>
       </main>
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav
+        items={useMemo(() => {
+          const bottomNavItems: BottomNavItem[] = [
+            { id: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/customer/dashboard' },
+            { id: 'loans', label: 'Loans', icon: FileText, path: '/customer/loans' },
+            { id: 'payments', label: 'Payments', icon: Wallet, path: '/customer/payments' },
+            { id: 'messages', label: 'Messages', icon: MessageSquare, path: '/customer/messages' },
+            { id: 'settings', label: 'Settings', icon: Settings, path: '/customer/settings' },
+          ];
+          return bottomNavItems;
+        }, [])}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { doc, updateDoc, serverTimestamp, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, getDocs, query, orderBy, limit, runTransaction, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
@@ -87,73 +87,136 @@ export function AddPaymentDialog({
         return;
       }
 
-      // Distribute payment across repayments (oldest first)
-      let remainingPayment = paymentAmount;
+      // Generate unique transaction ID for idempotency
+      const paymentTransactionId = transactionId?.trim() || `bulk-payment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const paymentDateTimestamp = paymentDate ? new Date(paymentDate) : new Date();
 
-      for (const repayment of unpaidRepayments) {
-        if (remainingPayment <= 0) break;
+      // Get repayment IDs for transaction
+      const repaymentIds = unpaidRepayments.map((r: any) => r.id);
 
-        const amountDue = Number(repayment.amountDue || 0);
-        const amountPaid = Number(repayment.amountPaid || 0);
-        const remaining = amountDue - amountPaid;
-
-        const paymentForThisRepayment = Math.min(remainingPayment, remaining);
-        const newAmountPaid = amountPaid + paymentForThisRepayment;
-        const isFullyPaid = newAmountPaid >= amountDue;
-
-        // Update repayment
-        const repaymentRef = doc(
-          db,
-          'agencies',
-          agencyId,
-          'loans',
-          loanId,
-          'repayments',
-          repayment.id
+      // Use Firestore transaction for atomic updates across all repayments
+      await runTransaction(db, async (transaction) => {
+        // Re-read each repayment within transaction to get latest state
+        const currentRepayments = await Promise.all(
+          repaymentIds.map(async (repaymentId) => {
+            const repaymentDocRef = doc(db, 'agencies', agencyId, 'loans', loanId, 'repayments', repaymentId);
+            const repaymentSnap = await transaction.get(repaymentDocRef);
+            if (!repaymentSnap.exists()) {
+              return null;
+            }
+            return {
+              id: repaymentId,
+              ...repaymentSnap.data(),
+            };
+          })
         );
-
-        await updateDoc(repaymentRef, {
-          amountPaid: newAmountPaid,
-          status: isFullyPaid ? 'paid' : repayment.status,
-          paidAt: isFullyPaid ? serverTimestamp() : repayment.paidAt,
-          paymentMethod: paymentMethod || null,
-          lastPaymentDate: serverTimestamp(),
-          lastPaymentAmount: paymentForThisRepayment,
-          updatedAt: serverTimestamp(),
-        });
-
-        // Create payment history entry
-        const paymentHistoryRef = doc(
-          db,
-          'agencies',
-          agencyId,
-          'loans',
-          loanId,
-          'repayments',
-          repayment.id,
-          'paymentHistory',
-          `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        );
-
-        const { setDoc, Timestamp } = await import('firebase/firestore');
-        const paymentHistoryData: any = {
-          amount: paymentForThisRepayment,
-          paymentMethod: paymentMethod || 'cash',
-          recordedBy: user?.id || '',
-          recordedAt: Timestamp.fromDate(paymentDateTimestamp) || serverTimestamp(),
-          notes: notes || null,
-        };
         
-        // Only add transactionId if provided
-        if (transactionId && transactionId.trim()) {
-          paymentHistoryData.transactionId = transactionId.trim();
+        const validRepayments = currentRepayments.filter(r => r !== null) as any[];
+
+        // Sort repayments by due date (oldest first) and filter unpaid ones
+        const currentUnpaidRepayments = validRepayments
+          .filter((r: any) => {
+            const amountDue = Number(r.amountDue || 0);
+            const amountPaid = Number(r.amountPaid || 0);
+            return amountPaid < amountDue;
+          })
+          .sort((a: any, b: any) => {
+            const dateA = a.dueDate?.toDate?.() || a.dueDate || new Date(0);
+            const dateB = b.dueDate?.toDate?.() || b.dueDate || new Date(0);
+            return dateA.getTime() - dateB.getTime();
+          });
+
+        if (currentUnpaidRepayments.length === 0) {
+          throw new Error('All repayments are already paid');
         }
-        
-        await setDoc(paymentHistoryRef, paymentHistoryData);
 
-        remainingPayment -= paymentForThisRepayment;
-      }
+        // Check if this bulk payment transaction already exists (idempotency)
+        const firstRepaymentId = currentUnpaidRepayments[0].id;
+        const bulkPaymentCheckRef = doc(
+          db,
+          'agencies',
+          agencyId,
+          'loans',
+          loanId,
+          'repayments',
+          firstRepaymentId,
+          'paymentHistory',
+          paymentTransactionId
+        );
+        
+        const bulkPaymentCheckSnap = await transaction.get(bulkPaymentCheckRef);
+        if (bulkPaymentCheckSnap.exists()) {
+          // This bulk payment already processed - idempotent
+          throw new Error('This payment has already been recorded');
+        }
+
+        // Distribute payment across repayments (oldest first)
+        let remainingPayment = paymentAmount;
+
+        for (const repayment of currentUnpaidRepayments) {
+          if (remainingPayment <= 0) break;
+
+          const amountDue = Number(repayment.amountDue || 0);
+          const amountPaid = Number(repayment.amountPaid || 0);
+          const remaining = amountDue - amountPaid;
+
+          const paymentForThisRepayment = Math.min(remainingPayment, remaining);
+          const newAmountPaid = amountPaid + paymentForThisRepayment;
+          const isFullyPaid = newAmountPaid >= amountDue;
+
+          // Update repayment atomically
+          const repaymentRef = doc(
+            db,
+            'agencies',
+            agencyId,
+            'loans',
+            loanId,
+            'repayments',
+            repayment.id
+          );
+
+          transaction.update(repaymentRef, {
+            amountPaid: newAmountPaid,
+            status: isFullyPaid ? 'paid' : repayment.status,
+            paidAt: isFullyPaid ? serverTimestamp() : repayment.paidAt,
+            paymentMethod: paymentMethod || null,
+            lastPaymentDate: serverTimestamp(),
+            lastPaymentAmount: paymentForThisRepayment,
+            updatedAt: serverTimestamp(),
+          });
+
+          // Create payment history entry with unique ID for idempotency
+          const paymentHistoryRef = doc(
+            db,
+            'agencies',
+            agencyId,
+            'loans',
+            loanId,
+            'repayments',
+            repayment.id,
+            'paymentHistory',
+            `${paymentTransactionId}-${repayment.id}`
+          );
+
+          const { Timestamp } = await import('firebase/firestore');
+          const paymentHistoryData: any = {
+            amount: paymentForThisRepayment,
+            paymentMethod: paymentMethod || 'cash',
+            recordedBy: user?.id || '',
+            recordedAt: Timestamp.fromDate(paymentDateTimestamp) || serverTimestamp(),
+            notes: notes || null,
+            transactionId: paymentTransactionId,
+          };
+
+          transaction.set(paymentHistoryRef, paymentHistoryData);
+
+          remainingPayment -= paymentForThisRepayment;
+        }
+
+        if (remainingPayment > 0) {
+          throw new Error(`Payment amount exceeds total due. Remaining: ${remainingPayment.toLocaleString()}`);
+        }
+      });
 
       // Update loan summary (remaining balance, total paid, upcoming due date, status)
       const { updateLoanAfterPayment } = await import('../../lib/firebase/repayment-helpers');

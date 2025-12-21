@@ -64,6 +64,10 @@ export function AccountingPage() {
         const loanRepayments = snapshot.docs.map(doc => ({
           id: doc.id,
           loanId: loan.id,
+          customerId: loan.customerId,
+          customerName: loan.customer?.fullName || loan.customerName || 'N/A',
+          loanOfficerId: loan.loanOfficerId || loan.createdBy,
+          loanOfficerName: loan.loanOfficer?.name || loan.loanOfficerName || 'N/A',
           ...doc.data(),
           dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
           paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
@@ -465,9 +469,8 @@ export function AccountingPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  toast('P&L Report generation coming soon', { icon: 'ℹ️' });
-                }}
+                disabled
+                title="P&L Report generation coming soon"
               >
                 <FileText className="mr-2 h-4 w-4" />
                 P&L Report
@@ -475,9 +478,8 @@ export function AccountingPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  toast('Trial Balance generation coming soon', { icon: 'ℹ️' });
-                }}
+                disabled
+                title="Trial Balance generation coming soon"
               >
                 <FileText className="mr-2 h-4 w-4" />
                 Trial Balance
@@ -568,6 +570,8 @@ export function AccountingPage() {
                   <th className="px-4 py-3 text-left">Date</th>
                   <th className="px-4 py-3 text-left">Type</th>
                   <th className="px-4 py-3 text-left">Loan ID</th>
+                  <th className="px-4 py-3 text-left">Customer</th>
+                  <th className="px-4 py-3 text-left">Loan Officer</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3 text-left">Status</th>
                 </tr>
@@ -600,6 +604,12 @@ export function AccountingPage() {
                         {repayment.status === 'paid' ? 'Collection' : 'Due Payment'}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">{repayment.loanId?.substring(0, 8)}</td>
+                      <td className="px-4 py-3">
+                        {repayment.customerName || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {repayment.loanOfficerName || 'N/A'}
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold">
                         {formatCurrency(Number(repayment.amountPaid || repayment.amountDue || 0), 'ZMW')}
                       </td>

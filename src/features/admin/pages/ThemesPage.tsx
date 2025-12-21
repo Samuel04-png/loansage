@@ -7,6 +7,8 @@ import { Palette, Sun, Moon, Monitor, Check, Loader2 } from 'lucide-react';
 import { useTheme } from '../../../components/providers/ThemeProvider';
 import { useAgency } from '../../../hooks/useAgency';
 import { useAuth } from '../../../hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
+import { applyWhitelabelStyles } from '../../../lib/whitelabel';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
@@ -20,6 +22,7 @@ export function ThemesPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { agency, updateAgency } = useAgency();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [primaryColor, setPrimaryColor] = useState(agency?.primary_color || '#006BFF');
   const [secondaryColor, setSecondaryColor] = useState(agency?.secondary_color || '#3B82FF');
@@ -31,6 +34,13 @@ export function ThemesPage() {
     if (agency?.secondary_color) setSecondaryColor(agency.secondary_color);
     if (agency?.tertiary_color) setTertiaryColor(agency.tertiary_color);
   }, [agency?.primary_color, agency?.secondary_color, agency?.tertiary_color]);
+
+  // Apply colors in real-time for preview
+  useEffect(() => {
+    if (primaryColor && secondaryColor) {
+      applyWhitelabelStyles(primaryColor, secondaryColor, tertiaryColor);
+    }
+  }, [primaryColor, secondaryColor, tertiaryColor]);
 
   const handleThemeChange = async (newTheme: 'light' | 'dark' | 'auto') => {
     setTheme(newTheme);
@@ -62,7 +72,14 @@ export function ThemesPage() {
         secondary_color: secondaryColor,
         tertiary_color: tertiaryColor,
       });
-      toast.success('Brand colors saved successfully!');
+      
+      // Immediately apply the colors to the UI
+      applyWhitelabelStyles(primaryColor, secondaryColor, tertiaryColor);
+      
+      // Invalidate agency query to refresh data
+      queryClient.invalidateQueries({ queryKey: ['agency', agency.id] });
+      
+      toast.success('Brand colors saved and applied successfully!');
     } catch (error: any) {
       console.error('Error saving colors:', error);
       toast.error('Failed to save brand colors');
@@ -74,11 +91,11 @@ export function ThemesPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-neutral-900 flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-3">
           <Palette className="w-8 h-8 text-[#006BFF]" />
           Themes
         </h1>
-        <p className="text-neutral-600 mt-2">Customize the appearance of your TengaLoans interface</p>
+        <p className="text-neutral-600 dark:text-neutral-400 mt-2">Customize the appearance of your TengaLoans interface</p>
       </div>
 
       <Card>
@@ -120,8 +137,8 @@ export function ThemesPage() {
                       <Icon className={`w-8 h-8 ${isSelected ? 'text-white' : 'text-neutral-600'}`} />
                     </div>
                     <div className="text-center">
-                      <h3 className="font-semibold text-neutral-900">{themeOption.name}</h3>
-                      <p className="text-sm text-neutral-500 mt-1">{themeOption.description}</p>
+                      <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{themeOption.name}</h3>
+                      <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">{themeOption.description}</p>
                     </div>
                   </div>
                 </motion.button>
@@ -149,10 +166,10 @@ export function ThemesPage() {
               )}
             </div>
             <div>
-              <p className="font-semibold text-neutral-900">
+              <p className="font-semibold text-neutral-900 dark:text-neutral-100">
                 {theme === 'auto' ? 'Auto (System)' : theme.charAt(0).toUpperCase() + theme.slice(1)}
               </p>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
                 Currently using: {resolvedTheme.charAt(0).toUpperCase() + resolvedTheme.slice(1)} mode
               </p>
             </div>

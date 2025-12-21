@@ -16,7 +16,7 @@ import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { subscribeToDashboardStats } from '../../../lib/firebase/dashboard-helpers';
 import { getCachedDashboardStats } from '../../../lib/firebase/stats-aggregation';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import { useAIInsights } from '../../../hooks/useAIInsights';
@@ -116,6 +116,7 @@ const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }
 );
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { resolvedTheme } = useTheme();
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
@@ -287,10 +288,10 @@ export function AdminDashboard() {
                   Your account is not assigned to an agency. Please contact your administrator to be assigned to an agency, or create a new agency in Settings.
                 </p>
                 <Button
-                  onClick={() => window.location.href = '/admin/settings'}
+                  onClick={() => navigate('/auth/create-organization')}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white"
                 >
-                  Go to Settings
+                  Create Agency
                 </Button>
               </div>
             </div>
@@ -350,7 +351,7 @@ export function AdminDashboard() {
   return (
     <div className="space-y-8">
       {/* AI Insights Panel - Only show if there are actual insights (not just loading) */}
-      {!aiAnalyzing && aiInsights.length > 0 && (
+      {aiInsights.length > 0 && !aiAnalyzing && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -433,7 +434,7 @@ export function AdminDashboard() {
           change={`${formatCurrency(stats?.totalPortfolioValue || 0, 'ZMW')} portfolio`}
           trend="up"
           icon={DollarSign}
-          onClick={() => window.location.href = '/admin/loans?status=active'}
+          onClick={() => navigate('/admin/loans?status=active')}
           gradient
         />
         <StatCard
@@ -458,7 +459,7 @@ export function AdminDashboard() {
           change={`${stats?.totalCustomers || 0} total`}
           trend="up"
           icon={Users}
-          onClick={() => window.location.href = '/admin/customers'}
+          onClick={() => navigate('/admin/customers')}
         />
       </div>
 
@@ -470,7 +471,7 @@ export function AdminDashboard() {
           change="+2"
           trend="up"
           icon={Users}
-          onClick={() => window.location.href = '/admin/employees'}
+          onClick={() => navigate('/admin/employees')}
         />
         <StatCard
           title="Approval Rate"
@@ -485,7 +486,7 @@ export function AdminDashboard() {
           change={stats?.overdueLoans > 0 ? 'Action needed' : 'All good'}
           trend={stats?.overdueLoans > 0 ? 'down' : 'up'}
           icon={AlertTriangle}
-          onClick={() => window.location.href = '/admin/loans?status=overdue'}
+          onClick={() => navigate('/admin/loans?overdue=true')}
         />
         <StatCard
           title="Total Loans"
