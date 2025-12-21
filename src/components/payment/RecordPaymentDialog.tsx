@@ -55,8 +55,12 @@ export function RecordPaymentDialog({
 
     setLoading(true);
     try {
-      // Generate unique transaction ID for idempotency
-      const paymentTransactionId = transactionId?.trim() || `payment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate deterministic transaction ID for idempotency based on payment context
+      // This ensures the same payment attempt (same amount, method, repayment) always uses the same ID, preventing duplicates
+      // Removed Date.now() and Math.random() to achieve true determinism - same form values = same ID
+      const deterministicId = transactionId?.trim() || 
+        `payment-${loanId}-${repaymentId}-${paymentAmount.toFixed(2)}-${paymentMethod}`;
+      const paymentTransactionId = deterministicId;
       
       // Use Firestore transaction for atomic updates
       await runTransaction(db, async (transaction) => {

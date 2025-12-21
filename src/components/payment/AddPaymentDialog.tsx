@@ -88,9 +88,11 @@ export function AddPaymentDialog({
       }
 
       // Generate deterministic transaction ID for idempotency based on payment context
-      // This ensures the same payment attempt always uses the same ID, preventing duplicates
+      // This ensures the same payment attempt (same amount, method, date) always uses the same ID, preventing duplicates
+      // Removed Date.now() to achieve true determinism - same form values = same ID
+      const paymentDateStr = paymentDate ? new Date(paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       const deterministicId = transactionId?.trim() || 
-        `bulk-payment-${loanId}-${paymentAmount.toFixed(2)}-${Date.now()}`;
+        `bulk-payment-${loanId}-${paymentAmount.toFixed(2)}-${paymentMethod}-${paymentDateStr}`;
       const paymentTransactionId = deterministicId;
       const paymentDateTimestamp = paymentDate ? new Date(paymentDate) : new Date();
 
@@ -367,4 +369,3 @@ export function AddPaymentDialog({
     </Dialog>
   );
 }
-
