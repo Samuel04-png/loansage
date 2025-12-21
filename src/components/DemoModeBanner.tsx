@@ -12,15 +12,15 @@ export function DemoModeBanner() {
   }
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 sticky top-16 z-[5] md:sticky md:top-0 md:z-[5]">
+    <div className="hidden md:block bg-amber-50 border-b border-amber-200 px-4 py-2.5 sticky top-0 z-10">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-amber-900">
+            <p className="text-xs font-medium text-amber-900">
               Demo Mode Active
             </p>
-            <p className="text-xs text-amber-700">
+            <p className="text-[10px] text-amber-700">
               You're testing the UI flow. Configure Supabase to enable full functionality.
             </p>
           </div>
@@ -30,10 +30,10 @@ export function DemoModeBanner() {
             setDismissed(true);
             localStorage.setItem('demo-banner-dismissed', 'true');
           }}
-          className="text-amber-600 hover:text-amber-800 flex-shrink-0"
+          className="text-amber-600 hover:text-amber-800 flex-shrink-0 p-1"
           aria-label="Dismiss banner"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

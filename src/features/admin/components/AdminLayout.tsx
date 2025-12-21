@@ -779,29 +779,29 @@ export function AdminLayout() {
               scrolled && 'bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur-sm shadow-sm'
             )}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <Menu className="h-5 w-5 text-neutral-600" />
+                  <Button variant="ghost" size="icon" className="md:hidden flex-shrink-0">
+                    <Menu className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   </Button>
                 </SheetTrigger>
               </Sheet>
-              <h1 className="text-xl font-semibold text-neutral-900 capitalize">
-              {activePath.replace('-', ' ')}
-            </h1>
-          </div>
+              <h1 className="text-lg md:text-xl font-semibold text-neutral-900 dark:text-neutral-100 capitalize truncate">
+                {activePath.replace('-', ' ')}
+              </h1>
+            </div>
 
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex items-center gap-2 sm:gap-3 md:gap-6 flex-shrink-0">
               {/* Search Button */}
               <button
                 onClick={() => setSearchDialogOpen(true)}
-                className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:border-[#006BFF] hover:text-[#006BFF] transition-colors"
+                className="hidden sm:flex items-center gap-2 h-9 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:border-[#006BFF] dark:hover:border-blue-500 hover:text-[#006BFF] dark:hover:text-blue-400 transition-colors"
                 title="Search (⌘K)"
               >
                 <Search className="w-4 h-4" />
                 <span className="text-sm">Search</span>
-                <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border border-neutral-200 bg-neutral-50 px-1.5 font-mono text-[10px] font-medium text-neutral-500">
+                <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-1.5 font-mono text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
                   ⌘K
                 </kbd>
               </button>
@@ -815,14 +815,15 @@ export function AdminLayout() {
               <NotificationDropdown />
               <Link
                 to="/admin/settings"
-                className="p-2 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                className="p-2 text-neutral-400 hover:text-neutral-600 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 flex-shrink-0"
+                aria-label="Settings"
               >
-              <Settings className="w-5 h-5" />
+                <Settings className="w-5 h-5" />
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
-                    <Avatar className="h-9 w-9 border-2 border-neutral-200">
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 flex-shrink-0">
+                    <Avatar className="h-9 w-9 border-2 border-neutral-200 dark:border-neutral-700">
                       <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
                       <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
                         {getUserInitials()}
