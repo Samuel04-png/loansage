@@ -87,8 +87,11 @@ export function AddPaymentDialog({
         return;
       }
 
-      // Generate unique transaction ID for idempotency
-      const paymentTransactionId = transactionId?.trim() || `bulk-payment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate deterministic transaction ID for idempotency based on payment context
+      // This ensures the same payment attempt always uses the same ID, preventing duplicates
+      const deterministicId = transactionId?.trim() || 
+        `bulk-payment-${loanId}-${paymentAmount.toFixed(2)}-${Date.now()}`;
+      const paymentTransactionId = deterministicId;
       const paymentDateTimestamp = paymentDate ? new Date(paymentDate) : new Date();
 
       // Get repayment IDs for transaction
