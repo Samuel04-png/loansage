@@ -233,7 +233,7 @@ export function CustomerLayout() {
                 </Button>
               </SheetTrigger>
             </Sheet>
-            <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 capitalize">
+            <h1 className="hidden md:block text-xl font-semibold text-neutral-900 dark:text-neutral-100 capitalize">
               {activePath.replace('-', ' ')}
             </h1>
           </div>

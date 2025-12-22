@@ -787,10 +787,10 @@ export function AdminLayout() {
                   </Button>
                 </SheetTrigger>
               </Sheet>
-              <h1 className="text-lg md:text-xl font-semibold text-neutral-900 dark:text-neutral-100 capitalize truncate">
-                {activePath.replace('-', ' ')}
-              </h1>
-            </div>
+              <h1 className="hidden md:block text-lg md:text-xl font-semibold text-neutral-900 dark:text-neutral-100 capitalize truncate">
+              {activePath.replace('-', ' ')}
+            </h1>
+          </div>
 
             <div className="flex items-center gap-2 sm:gap-3 md:gap-6 flex-shrink-0">
               {/* Search Button */}
@@ -809,8 +809,10 @@ export function AdminLayout() {
               {/* AI Floating Indicator - Cursor/VSCode Style */}
               <AIFloatingIndicator onChatOpen={() => setAiChatPanelOpen(!aiChatPanelOpen)} />
               
-              {/* Theme Toggle */}
-              <ThemeToggle />
+              {/* Theme Toggle - Hidden on mobile */}
+              <div className="hidden md:block">
+                <ThemeToggle />
+              </div>
               
               <NotificationDropdown />
               <Link
@@ -818,7 +820,7 @@ export function AdminLayout() {
                 className="p-2 text-neutral-400 hover:text-neutral-600 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 flex-shrink-0"
                 aria-label="Settings"
               >
-                <Settings className="w-5 h-5" />
+              <Settings className="w-5 h-5" />
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

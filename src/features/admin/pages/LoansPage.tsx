@@ -709,29 +709,31 @@ export function LoansPage() {
 
             {/* Filter Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
-              <TabsList className="grid w-full grid-cols-7 rounded-lg bg-neutral-100 p-1">
-                <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800">
-                  All
-                </TabsTrigger>
-                <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white">
-                  Pending
-                </TabsTrigger>
-                <TabsTrigger value="active" className="rounded-md data-[state=active]:bg-white">
-                  Active
-                </TabsTrigger>
-                <TabsTrigger value="approved" className="rounded-md data-[state=active]:bg-white">
-                  Approved
-                </TabsTrigger>
-                <TabsTrigger value="settled" className="rounded-md data-[state=active]:bg-white">
-                  Settled
-                </TabsTrigger>
-                <TabsTrigger value="rejected" className="rounded-md data-[state=active]:bg-white">
-                  Rejected
-                </TabsTrigger>
-                <TabsTrigger value="defaulted" className="rounded-md data-[state=active]:bg-white">
-                  Defaulted
-                </TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
+                <TabsList className="inline-flex w-full md:grid md:grid-cols-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 p-1 min-w-max md:min-w-0">
+                  <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 whitespace-nowrap">
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Pending
+                  </TabsTrigger>
+                  <TabsTrigger value="active" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Active
+                  </TabsTrigger>
+                  <TabsTrigger value="approved" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Approved
+                  </TabsTrigger>
+                  <TabsTrigger value="settled" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Settled
+                  </TabsTrigger>
+                  <TabsTrigger value="rejected" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Rejected
+                  </TabsTrigger>
+                  <TabsTrigger value="defaulted" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Defaulted
+                  </TabsTrigger>
+                </TabsList>
+              </div>
             </Tabs>
           </div>
         </CardHeader>

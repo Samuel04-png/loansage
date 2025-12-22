@@ -92,29 +92,31 @@ export function CustomerSettingsPage() {
         <p className="text-slate-600">Manage your account settings and preferences</p>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'profile'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <User className="w-4 h-4 inline mr-2" />
-          Profile
-        </button>
-        <button
-          onClick={() => setActiveTab('password')}
-          className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-            activeTab === 'password'
-              ? 'border-primary-600 text-primary-600'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <Lock className="w-4 h-4 inline mr-2" />
-          Password
-        </button>
+      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex gap-4 border-b border-slate-200 min-w-max md:min-w-0">
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'profile'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <User className="w-4 h-4 inline mr-2" />
+            Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'password'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Lock className="w-4 h-4 inline mr-2" />
+            Password
+          </button>
+        </div>
       </div>
 
       {activeTab === 'profile' && (

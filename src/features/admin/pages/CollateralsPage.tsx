@@ -198,13 +198,13 @@ export function CollateralsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex justify-between items-center"
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
       >
         <div>
           <h2 className="text-2xl font-bold text-neutral-900">Collaterals</h2>
           <p className="text-sm text-neutral-600">Manage all loan collaterals and their valuations</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button variant="outline" onClick={exportCollaterals} className="rounded-xl">
             <Download className="mr-2 h-4 w-4" />
             Export

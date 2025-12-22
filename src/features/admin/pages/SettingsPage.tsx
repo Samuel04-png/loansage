@@ -580,50 +580,52 @@ export function SettingsPage() {
 
       {/* Tabs - Reference Style with ShadCN Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-6 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1">
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex w-full md:grid md:max-w-4xl md:grid-cols-6 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1 min-w-max md:min-w-0">
           <TabsTrigger 
             value="agency" 
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <Building2 className="w-4 h-4 mr-2" />
             Agency
           </TabsTrigger>
           <TabsTrigger 
             value="loans"
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <Calculator className="w-4 h-4 mr-2" />
             Loan Settings
           </TabsTrigger>
           <TabsTrigger 
             value="employees"
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <Users className="w-4 h-4 mr-2" />
             Employees
           </TabsTrigger>
           <TabsTrigger 
             value="account"
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <User className="w-4 h-4 mr-2" />
             Account
           </TabsTrigger>
           <TabsTrigger 
             value="data"
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <Database className="w-4 h-4 mr-2" />
             Data
           </TabsTrigger>
           <TabsTrigger 
             value="ai"
-            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm"
+            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 data-[state=active]:text-[#006BFF] dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm whitespace-nowrap"
           >
             <Sparkles className="w-4 h-4 mr-2" />
             AI Settings
           </TabsTrigger>
         </TabsList>
+        </div>
 
         {/* Agency Settings Tab */}
         <TabsContent value="agency" className="mt-6">

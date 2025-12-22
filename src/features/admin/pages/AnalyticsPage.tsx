@@ -49,12 +49,12 @@ export function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Advanced Analytics</h1>
           <p className="text-neutral-600 dark:text-neutral-400 mt-1">Revenue forecasting, portfolio health, and trend analysis</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap flex-shrink-0">
           <Button
             variant={forecastMonths === 6 ? 'default' : 'outline'}
             size="sm"

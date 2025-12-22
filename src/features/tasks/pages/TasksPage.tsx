@@ -129,12 +129,12 @@ export function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Tasks</h2>
           <p className="text-slate-600">Manage your assigned tasks</p>
         </div>
-        <Button>
+        <Button className="flex-shrink-0">
           <Plus className="mr-2 h-4 w-4" />
           New Task
         </Button>
