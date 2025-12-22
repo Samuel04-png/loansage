@@ -1,6 +1,27 @@
 import { ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export function Watermark() {
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+
+  useEffect(() => {
+    // Check if AI panel is open from localStorage
+    const checkAiPanel = () => {
+      const saved = localStorage.getItem('ai-chat-panel-open');
+      setAiPanelOpen(saved === 'true');
+    };
+
+    checkAiPanel();
+    // Check periodically for changes
+    const interval = setInterval(checkAiPanel, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Hide watermark when AI panel is open on mobile
+  if (aiPanelOpen && window.innerWidth < 768) {
+    return null;
+  }
+
   return (
     <a
       href="https://byteandberry.com"

@@ -59,15 +59,15 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
 
   const getIndicatorIcon = () => {
     if (status === 'alert' && alertCount > 0) {
-      return <AlertTriangle className="w-4 h-4 text-red-600" />;
+      return <AlertTriangle className="w-5 h-5 text-red-600" />;
     }
     if (status === 'thinking' || isRunning) {
-      return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
+      return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
     }
     if (status === 'task-running') {
-      return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
+      return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
     }
-    return <Sparkles className="w-4 h-4 text-[#006BFF]" />;
+    return <img src="/Tengaloansai.png" alt="AI" className="w-5 h-5 object-contain" />;
   };
 
   const getIndicatorColor = () => {
@@ -77,7 +77,7 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
     if (status === 'thinking' || isRunning) {
       return 'bg-blue-50 border-blue-200 hover:bg-blue-100';
     }
-    return 'bg-white border-neutral-200 hover:bg-neutral-50';
+    return 'bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm border-neutral-200 dark:border-neutral-700 hover:bg-white dark:hover:bg-neutral-800';
   };
 
   const getTooltipText = () => {
@@ -105,8 +105,9 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
             <button
               onClick={handleClick}
               className={cn(
-                'relative flex items-center justify-center w-9 h-9 rounded-lg border transition-all duration-200',
+                'relative flex items-center justify-center w-10 h-10 rounded-lg border transition-all duration-200',
                 'focus:outline-none focus:ring-2 focus:ring-[#006BFF] focus:ring-offset-2',
+                'hover:shadow-md',
                 getIndicatorColor()
               )}
               aria-label="AI Assistant"
@@ -144,7 +145,7 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
               )}
 
               {/* Icon */}
-              <div className="relative z-10">
+              <div className="relative z-10 flex items-center justify-center">
                 {getIndicatorIcon()}
               </div>
 
@@ -284,7 +285,7 @@ export function AIFloatingIndicator({ onChatOpen, position = 'top-right' }: AIFl
                     }}
                     className="w-full text-xs justify-start"
                   >
-                    <Sparkles className="w-3 h-3 mr-2" />
+                    <img src="/Tengaloansai.png" alt="AI" className="w-3 h-3 mr-2 object-contain" />
                     Open AI Chat
                   </Button>
                 </div>

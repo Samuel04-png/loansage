@@ -77,10 +77,21 @@ export function AIChatPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [mode, setMode] = useState<AIMode>('ask');
+  const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   // Mode always defaults to 'ask' - no localStorage persistence
 
@@ -617,16 +628,16 @@ ${errorMessage}
     <div
       ref={panelRef}
       className={cn(
-        'h-full bg-white dark:bg-[#1E293B] border-l border-neutral-200 dark:border-neutral-800 flex flex-col transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0',
+        'bg-white dark:bg-[#1E293B] border-l border-neutral-200 dark:border-neutral-800 flex flex-col transition-all duration-300 ease-in-out overflow-hidden flex-shrink-0',
+        'md:relative md:h-full fixed top-0 left-0 right-0 bottom-16 md:inset-auto z-40 md:z-auto', // Full width on mobile but above bottom nav, side panel on desktop
+        'h-[calc(100vh-4rem)]', // Explicit height on mobile: viewport height minus bottom nav (64px = 4rem)
         open && 'shadow-[0_0_8px_rgba(0,0,0,0.08)] dark:shadow-[0_0_8px_rgba(0,0,0,0.3)]',
         !open && 'border-0 overflow-hidden'
       )}
       style={{ 
-        width: open ? `${width}px` : '0px',
-        minWidth: open ? `${width}px` : '0px',
-        maxWidth: open ? `${width}px` : '0px',
-        height: '100%', // Fixed height - matches parent (100vh)
-        maxHeight: '100%', // Never exceed viewport
+        width: open ? (isMobile ? '100%' : `${width}px`) : '0px',
+        minWidth: open ? (isMobile ? '100%' : `${width}px`) : '0px',
+        maxWidth: open ? (isMobile ? '100%' : `${width}px`) : '0px',
         opacity: open ? 1 : 0,
         pointerEvents: open ? 'auto' : 'none',
         overscrollBehavior: 'contain'
@@ -638,8 +649,8 @@ ${errorMessage}
         }
       }}
     >
-      {/* Resize Handle - VS Code/Cursor style */}
-      {open && (
+      {/* Resize Handle - VS Code/Cursor style - Hidden on mobile */}
+      {open && !isMobile && (
         <div
           className={cn(
             'absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#006BFF] transition-colors z-10 group',
@@ -661,9 +672,11 @@ ${errorMessage}
           <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex-shrink-0 bg-gradient-to-r from-white to-neutral-50/50 dark:from-[#1E293B] dark:to-[#1E293B]/80 backdrop-blur-sm">
             <div className="flex items-center gap-2.5">
               <div className="relative">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center shadow-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-white" />
-                </div>
+                <img 
+                  src="/Tengaloansai.png" 
+                  alt="TengaLoans AI" 
+                  className="w-10 h-10 object-contain"
+                />
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border-2 border-white dark:border-[#1E293B] animate-pulse" />
               </div>
               <div>
@@ -733,9 +746,11 @@ ${errorMessage}
                   >
                     <div className="flex flex-col items-center text-center mb-6">
                       <div className="relative mb-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center shadow-lg">
-                          <Sparkles className="w-8 h-8 text-white" />
-                        </div>
+                        <img 
+                          src="/Tengaloansai.png" 
+                          alt="TengaLoans AI Assistant" 
+                          className="w-28 h-28 object-contain"
+                        />
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-[#1E293B] animate-pulse" />
                       </div>
                       <h4 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 mb-2">TengaLoans AI Assistant</h4>
@@ -825,55 +840,57 @@ ${errorMessage}
             </div>
           </div>
 
-          {/* Input - Clean Design with Mode Dropdown Below */}
-          <div className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E293B] flex-shrink-0">
+          {/* Input - Clean Design with Mode Dropdown Below - Sticky at bottom */}
+          <div className="border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E293B] flex-shrink-0 sticky bottom-0 pb-4 md:pb-4">
             <div className="p-4 space-y-3">
-              {/* Input Row */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 relative">
-                  <Input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
+              {/* Layout: Stack on mobile (flex-col), row on desktop (flex-row) */}
+              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-2">
+                {/* Input Row with TextField and Send Button - First on mobile, second on desktop */}
+                <div className="flex items-center gap-2 flex-1 w-full order-1 md:order-2">
+                  <div className="flex-1 relative">
+                    <Input
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder={
+                        mode === 'ask' ? 'Ask about loans, customers, portfolio...' :
+                        mode === 'action' ? 'Tell me what to do (e.g., "Create loan for John Doe")...' :
+                        'I\'ll automatically perform actions...'
                       }
-                    }}
-                    placeholder={
-                      mode === 'ask' ? 'Ask about loans, customers, portfolio...' :
-                      mode === 'action' ? 'Tell me what to do (e.g., "Create loan for John Doe")...' :
-                      'I\'ll automatically perform actions...'
-                    }
-                    className="pr-12 h-11 bg-white dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 focus:border-[#006BFF] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#006BFF]/20 dark:focus:ring-blue-500/30 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 rounded-lg"
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 dark:text-neutral-500">
-                    ⏎
+                      className="pr-12 h-11 min-h-[44px] bg-white dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 focus:border-[#006BFF] dark:focus:border-blue-500 focus:ring-2 focus:ring-[#006BFF]/20 dark:focus:ring-blue-500/30 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-500 dark:placeholder:text-neutral-400 rounded-lg"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400 dark:text-neutral-500 pointer-events-none">
+                      ⏎
+                    </div>
                   </div>
+                  <Button
+                    onClick={handleSend}
+                    disabled={!input.trim() || isLoading}
+                    size="sm"
+                    className="h-11 w-11 min-w-[44px] min-h-[44px] p-0 bg-green-500 hover:bg-green-600 text-white shadow-sm hover:shadow-md transition-all rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    aria-label="Send message"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isLoading}
-                  size="sm"
-                  className="h-11 w-11 p-0 bg-green-500 hover:bg-green-600 text-white shadow-sm hover:shadow-md transition-all rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-              
-              {/* Mode Dropdown Row - Positioned Below Input */}
-              <div className="flex items-center justify-between">
+
+                {/* Mode Dropdown - Below input on mobile (order-2), first on desktop (order-1) */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-3 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors"
+                      className="h-11 md:h-8 min-w-[44px] md:min-w-0 px-3 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors self-start md:self-auto order-2 md:order-1"
                     >
                       <span className="capitalize font-semibold">{mode}</span>
                       <ChevronDown className="w-3.5 h-3.5 ml-2 text-neutral-500 dark:text-neutral-400" />
@@ -881,7 +898,7 @@ ${errorMessage}
                   </DropdownMenuTrigger>
                   <DropdownMenuContent 
                     align="start" 
-                    side="bottom"
+                    side={isMobile ? "top" : "bottom"}
                     sideOffset={8}
                     className="w-56 dark:bg-[#1E293B] dark:border-neutral-700 shadow-xl"
                   >
@@ -929,7 +946,10 @@ ${errorMessage}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                
+              </div>
+              
+              {/* Additional Actions Row - Desktop only */}
+              <div className="hidden md:flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[10px] text-neutral-400 dark:text-neutral-500">
                   {messages.length > 0 && (
                     <Button
