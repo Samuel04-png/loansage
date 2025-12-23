@@ -64,7 +64,6 @@ import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Label } from '../../../components/ui/label';
 import { LoanStatusBadge } from '../../../components/loans/LoanStatusBadge';
-import { LoanActionButtons } from '../../../components/loans/LoanActionButtons';
 import { LoanStatus, UserRole } from '../../../types/loan-workflow';
 import { submitLoanForReview, disburseLoan } from '../../../lib/loans/workflow';
 import { useAgency } from '../../../hooks/useAgency';
@@ -812,17 +811,17 @@ export function LoansPage() {
                           }}
                         />
                       </TableHead>
-                      <TableHead className="font-semibold">Loan Details</TableHead>
-                      <TableHead className="font-semibold">Customer</TableHead>
-                      <TableHead className="font-semibold text-right">Loan Amount</TableHead>
-                      <TableHead className="font-semibold text-right">Amount Repaid</TableHead>
-                      <TableHead className="font-semibold text-right">Amount Owed</TableHead>
-                      <TableHead className="font-semibold text-right">Interest Rate</TableHead>
+                      <TableHead className="font-semibold min-w-[180px]">Loan Details</TableHead>
+                      <TableHead className="font-semibold min-w-[150px]">Customer</TableHead>
+                      <TableHead className="font-semibold text-right">Amount</TableHead>
+                      <TableHead className="font-semibold text-right">Repaid</TableHead>
+                      <TableHead className="font-semibold text-right">Owed</TableHead>
+                      <TableHead className="font-semibold text-right">Rate</TableHead>
                       <TableHead className="font-semibold">Duration</TableHead>
                       <TableHead className="font-semibold">Status</TableHead>
                       <TableHead className="font-semibold">Next Payment</TableHead>
-                      <TableHead className="font-semibold">Risk Score</TableHead>
-                      <TableHead className="font-semibold text-right">Actions</TableHead>
+                      <TableHead className="font-semibold">Risk</TableHead>
+                      <TableHead className="font-semibold text-right w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -861,12 +860,12 @@ export function LoansPage() {
                           className="cursor-pointer"
                           onClick={() => navigate(`/admin/loans/${loan.id}`)}
                         >
-                          <div className="space-y-1">
-                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                          <div className="space-y-0.5">
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">
                               {loan.loanNumber || loan.id.substring(0, 12)}
                             </div>
                             <div className="text-xs text-neutral-500">
-                              {loan.loanType || 'Standard Loan'}
+                              {loan.loanType || 'Standard'}
                             </div>
                             <div className="text-xs text-neutral-400">
                               {formatDateSafe(loan.createdAt)}
@@ -877,8 +876,8 @@ export function LoansPage() {
                           className="cursor-pointer"
                           onClick={() => navigate(`/admin/loans/${loan.id}`)}
                         >
-                          <div className="space-y-1">
-                            <div className="font-medium text-neutral-900">
+                          <div className="space-y-0.5">
+                            <div className="font-medium text-neutral-900 text-sm">
                               {loan.customer?.fullName || loan.customer?.name || 'N/A'}
                             </div>
                             {loan.customer?.phone && (
@@ -887,39 +886,34 @@ export function LoansPage() {
                                 {loan.customer.phone}
                               </div>
                             )}
-                            {loan.customer?.nrcNumber && (
-                              <div className="text-xs text-neutral-500">
-                                NRC: {loan.customer.nrcNumber}
-                              </div>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-neutral-900 currency-amount">
+                          <div className="font-semibold text-neutral-900 currency-amount text-sm">
                             {formatCurrency(principal, 'ZMW')}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-emerald-600 currency-amount">
+                          <div className="font-semibold text-emerald-600 currency-amount text-sm">
                             {formatCurrency(totalPaid, 'ZMW')}
                           </div>
                           <div className="text-xs text-neutral-500">
-                            {loan.paymentProgress?.toFixed(1) || 0}% paid
+                            {loan.paymentProgress?.toFixed(1) || 0}%
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-semibold text-red-600 currency-amount">
+                          <div className="font-semibold text-red-600 currency-amount text-sm">
                             {formatCurrency(remainingBalance, 'ZMW')}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="font-medium text-neutral-900 currency-amount">
+                          <div className="font-medium text-neutral-900 text-sm">
                             {interestRate}%
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-neutral-700">
-                            {durationMonths} months
+                            {durationMonths}m
                           </div>
                         </TableCell>
                         <TableCell>
@@ -945,68 +939,35 @@ export function LoansPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            <LoanActionButtons
-                              loanStatus={loan.status as LoanStatus}
-                              userRole={userRole}
-                              isLoanOwner={loan.created_by === user?.id || loan.officerId === user?.id}
-                              onSubmit={() => handleSubmitLoan(loan.id)}
-                              onApprove={() => {
-                                setSelectedLoan({ id: loan.id, status: loan.status });
-                                setApprovalDialogOpen(true);
-                              }}
-                              onReject={() => {
-                                setSelectedLoan({ id: loan.id, status: loan.status });
-                                setApprovalDialogOpen(true);
-                              }}
-                              onDisburse={() => handleDisburseLoan(loan.id)}
-                              onManageRepayments={() => navigate(`/admin/loans/${loan.id}?tab=repayments`)}
-                              onClose={() => {
-                                setSelectedLoan({ id: loan.id, status: loan.status });
-                                setStatusDialogOpen(true);
-                              }}
-                            />
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View Details
-                                  </Link>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8">
+                                <MoreVertical className="h-4 w-4 mr-2" />
+                                Actions
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/admin/loans/${loan.id}`} className="cursor-pointer">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Details
+                                </Link>
+                              </DropdownMenuItem>
+                              {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLoanToDelete({ id: loan.id, loanNumber: loan.loanNumber });
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                  className="cursor-pointer text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Loan
                                 </DropdownMenuItem>
-                                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedLoan({ id: loan.id, status: loan.status });
-                                      setStatusDialogOpen(true);
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Change Status
-                                  </DropdownMenuItem>
-                                )}
-                                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setLoanToDelete({ id: loan.id, loanNumber: loan.loanNumber });
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                    className="cursor-pointer text-red-600 focus:text-red-600"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete Loan
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

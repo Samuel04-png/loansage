@@ -24,6 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
 import { 
   ArrowLeft, 
   DollarSign, 
@@ -45,7 +52,9 @@ import {
   Mail,
   MapPin,
   Loader2,
-  CreditCard
+  CreditCard,
+  MoreVertical,
+  Send
 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
@@ -61,17 +70,77 @@ import { useLoanAIInsights } from '../../../hooks/useAIInsights';
 import { AIInsightsPanel } from '../../../components/ai/AIInsightsPanel';
 import { Sparkles } from 'lucide-react';
 import { AddCollateralDrawer } from '../components/AddCollateralDrawer';
+import { LoanApprovalDialog } from '../components/LoanApprovalDialog';
+import { LoanStatus, UserRole, getLoanPermissions } from '../../../types/loan-workflow';
+import { submitLoanForReview, disburseLoan } from '../../../lib/loans/workflow';
+import { useAgency } from '../../../hooks/useAgency';
 
 export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
   const navigate = useNavigate();
   const { profile, user, loading: authLoading } = useAuth();
+  const { agency } = useAgency();
   const queryClient = useQueryClient();
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [addCollateralDrawerOpen, setAddCollateralDrawerOpen] = useState(false);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<'approve' | 'reject' | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Get user role
+  const userRole = (profile?.role === 'admin' ? UserRole.ADMIN : 
+                   profile?.employee_category === 'accountant' ? UserRole.ACCOUNTANT :
+                   profile?.employee_category === 'loan_officer' ? UserRole.LOAN_OFFICER :
+                   UserRole.ADMIN) as UserRole;
+
+  // Handle loan actions
+  const handleSubmitLoan = async () => {
+    if (!agency?.id || !user?.id || !loanId) {
+      toast.error('Agency or user not found');
+      return;
+    }
+
+    try {
+      const result = await submitLoanForReview({
+        loanId,
+        agencyId: agency.id,
+        userId: user.id,
+        userRole,
+      });
+
+      if (result.success) {
+        toast.success('Loan submitted for review');
+        queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+      } else {
+        toast.error(result.error || 'Failed to submit loan');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit loan');
+    }
+  };
+
+  const handleDisburseLoan = async () => {
+    if (!agency?.id || !user?.id || !loanId) {
+      toast.error('Agency or user not found');
+      return;
+    }
+
+    try {
+      const result = await disburseLoan(loanId, agency.id, user.id, userRole);
+      if (result.success) {
+        toast.success('Loan disbursed successfully');
+        queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+        queryClient.invalidateQueries({ queryKey: ['loans'] });
+      } else {
+        toast.error(result.error || 'Failed to disburse loan');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to disburse loan');
+    }
+  };
 
   // AI Insights for this loan
   const { insights: loanAIInsights, isLoading: aiLoading } = useLoanAIInsights(loanId, true);
@@ -386,107 +455,224 @@ export function LoanDetailPage() {
     return end;
   })();
 
+  // Get permissions for current user and loan status
+  const isLoanOwner = loan.created_by === user?.id || loan.officerId === user?.id;
+  const permissions = getLoanPermissions(userRole, loan.status as LoanStatus, isLoanOwner);
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Link to="/admin/loans">
-            <Button variant="outline" size="icon" className="rounded-lg">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Loan Details</h1>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 font-mono mt-1">
-              {loan.loanNumber || loan.id.substring(0, 12)}...
-            </p>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm p-6"
+      >
+        <div className="flex flex-col gap-6">
+          {/* Top Row: Title and Back Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/admin/loans">
+                <Button variant="outline" size="icon" className="rounded-xl">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Loan Details</h1>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-0.5">
+                  {loan.loanNumber || loan.id.substring(0, 12)}
+                </p>
+              </div>
+            </div>
+            {getStatusBadge(loan.status)}
+          </div>
+
+          {/* Action Buttons Row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+            {/* Primary Actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Submit for Review */}
+              {permissions.canSubmit && (
+                <Button
+                  onClick={handleSubmitLoan}
+                  className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit for Review
+                </Button>
+              )}
+
+
+              {/* Manage Repayments - Show for active/approved/disbursed loans */}
+              {permissions.canManageRepayments && (
+                <Button
+                  onClick={() => setActiveTab('repayments')}
+                  variant="outline"
+                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Manage Repayments
+                </Button>
+              )}
+
+              {/* Add Payment - Quick action for active loans */}
+              {(loan.status === 'active' || loan.status === 'approved' || loan.status === 'disbursed') && (
+                <Button
+                  onClick={() => {
+                    setActiveTab('repayments');
+                    setPaymentDialogOpen(true);
+                  }}
+                  variant="outline"
+                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Add Payment
+                </Button>
+              )}
+
+              {/* Close Loan - Show for active loans */}
+              {permissions.canClose && loan.status === 'active' && (
+                <Button
+                  onClick={() => setStatusDialogOpen(true)}
+                  variant="outline"
+                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <Clock className="mr-2 h-4 w-4" />
+                  Close Loan
+                </Button>
+              )}
+
+              {/* Change Status - Show for non-terminal statuses */}
+              {loan.status !== 'closed' && loan.status !== 'settled' && loan.status !== 'rejected' && (
+                <Button
+                  onClick={() => setStatusDialogOpen(true)}
+                  variant="outline"
+                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Change Status
+                </Button>
+              )}
+            </div>
+
+            {/* More Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-xl border-neutral-200 hover:bg-neutral-50">
+                  <MoreVertical className="h-4 w-4 mr-2" />
+                  More Actions
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                {/* Approve */}
+                {permissions.canApprove && (
+                  (loan.status === 'pending' || loan.status === 'under_review' || loan.status === 'approved' || loan.status === 'draft' || permissions.canOverride) && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSelectedAction('approve');
+                          setApprovalDialogOpen(true);
+                        }}
+                        className="cursor-pointer rounded-lg text-emerald-600 focus:text-emerald-600 focus:bg-emerald-50"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Approve
+                      </DropdownMenuItem>
+                      {permissions.canReject && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedAction('reject');
+                            setApprovalDialogOpen(true);
+                          }}
+                          className="cursor-pointer rounded-lg text-red-600 focus:text-red-600 focus:bg-red-50"
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Reject
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                    </>
+                  )
+                )}
+
+                {/* Disburse */}
+                {permissions.canDisburse && (
+                  (loan.status === 'approved' || loan.status === 'disbursed' || permissions.canOverride) && loan.status !== 'active' && loan.status !== 'closed' && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDisburseLoan();
+                        }}
+                        className="cursor-pointer rounded-lg text-blue-600 focus:text-blue-600 focus:bg-blue-50"
+                      >
+                        <DollarSign className="mr-2 h-4 w-4" />
+                        Disburse Loan
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )
+                )}
+
+                <DropdownMenuItem
+                  onClick={() => setActiveTab('repayments')}
+                  className="cursor-pointer rounded-lg"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Manage Repayments
+                </DropdownMenuItem>
+                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setStatusDialogOpen(true)}
+                      className="cursor-pointer rounded-lg"
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Change Status
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setDeleteDialogOpen(true)}
+                      className="cursor-pointer text-red-600 focus:text-red-600 rounded-lg"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Loan
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <div className="flex gap-3 flex-wrap">
-          {getStatusBadge(loan.status)}
-          {loan.status === 'pending' && (
-            <>
-              <Button
-                variant="default"
-                onClick={async () => {
-                  try {
-                    const loanRef = doc(db, 'agencies', profile!.agency_id!, 'loans', loanId!);
-                    await updateDoc(loanRef, {
-                      status: 'approved',
-                      approvedBy: profile!.id,
-                      approvedAt: serverTimestamp(),
-                      updatedAt: serverTimestamp(),
-                    });
-                    toast.success('Loan approved successfully');
-                    queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
-                  } catch (error: any) {
-                    toast.error(error.message || 'Failed to approve loan');
-                  }
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 rounded-lg"
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Approve
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={async () => {
-                  const reason = prompt('Rejection reason (optional):');
-                  try {
-                    const loanRef = doc(db, 'agencies', profile!.agency_id!, 'loans', loanId!);
-                    await updateDoc(loanRef, {
-                      status: 'rejected',
-                      rejectedBy: profile!.id,
-                      rejectedAt: serverTimestamp(),
-                      rejectionReason: reason || 'Not specified',
-                      updatedAt: serverTimestamp(),
-                    });
-                    toast.success('Loan rejected');
-                    queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
-                  } catch (error: any) {
-                    toast.error(error.message || 'Failed to reject loan');
-                  }
-                }}
-                className="rounded-lg"
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Reject
-            </Button>
-            </>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => setStatusDialogOpen(true)}
-            className="rounded-lg"
-          >
-            <Edit className="mr-2 h-4 w-4" />
-            Update Status
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setDeleteDialogOpen(true)}
-            className="rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
-        </div>
-      </div>
+      </motion.div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 rounded-lg bg-neutral-100 p-1">
-          <TabsTrigger value="overview" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800">
+        <TabsList className="grid w-full grid-cols-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1.5">
+          <TabsTrigger 
+            value="overview" 
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-neutral-700 transition-all duration-200"
+          >
             Overview
           </TabsTrigger>
-          <TabsTrigger value="repayments" className="rounded-md data-[state=active]:bg-white">
+          <TabsTrigger 
+            value="repayments" 
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-neutral-700 transition-all duration-200"
+          >
             Repayments
           </TabsTrigger>
-          <TabsTrigger value="collateral" className="rounded-md data-[state=active]:bg-white">
+          <TabsTrigger 
+            value="collateral" 
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-neutral-700 transition-all duration-200"
+          >
             Collateral
           </TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-md data-[state=active]:bg-white">
+          <TabsTrigger 
+            value="activity" 
+            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-neutral-700 transition-all duration-200"
+          >
             Activity Logs
           </TabsTrigger>
         </TabsList>
@@ -911,6 +1097,27 @@ export function LoanDetailPage() {
             currentStatus={loan.status || 'pending'}
             agencyId={profile?.agency_id || ''}
           />
+      )}
+
+      {loan && loanId && agency?.id && (
+        <LoanApprovalDialog
+          open={approvalDialogOpen}
+          onOpenChange={(open) => {
+            setApprovalDialogOpen(open);
+            if (!open) {
+              setSelectedAction(null); // Reset action when dialog closes
+            }
+          }}
+          loanId={loanId}
+          agencyId={agency.id}
+          currentStatus={loan.status as LoanStatus}
+          initialAction={selectedAction}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            setSelectedAction(null);
+          }}
+        />
       )}
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

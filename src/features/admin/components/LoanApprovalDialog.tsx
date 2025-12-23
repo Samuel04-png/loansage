@@ -4,7 +4,7 @@
  * Allows accountants and admins to approve or reject loans with required notes
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
@@ -22,6 +22,7 @@ interface LoanApprovalDialogProps {
   agencyId: string;
   currentStatus: LoanStatus;
   onSuccess: () => void;
+  initialAction?: 'approve' | 'reject' | null;
 }
 
 export function LoanApprovalDialog({
@@ -31,11 +32,23 @@ export function LoanApprovalDialog({
   agencyId,
   currentStatus,
   onSuccess,
+  initialAction = null,
 }: LoanApprovalDialogProps) {
   const { user, profile } = useAuth();
-  const [action, setAction] = useState<'approve' | 'reject' | null>(null);
+  const [action, setAction] = useState<'approve' | 'reject' | null>(initialAction);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Update action when initialAction changes (when dialog opens with pre-selected action)
+  useEffect(() => {
+    if (open && initialAction) {
+      setAction(initialAction);
+    } else if (!open) {
+      // Reset when dialog closes
+      setAction(null);
+      setNotes('');
+    }
+  }, [open, initialAction]);
 
   const userRole = (profile?.role === 'admin' ? UserRole.ADMIN : 
                    profile?.employee_category === 'accountant' ? UserRole.ACCOUNTANT :
