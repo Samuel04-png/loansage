@@ -531,13 +531,13 @@ export function CustomerDetailPage() {
             ) : loans && loans.length > 0 ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Loan ID</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Amount</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Type</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Created</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Loan ID</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Amount</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Type</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Created</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

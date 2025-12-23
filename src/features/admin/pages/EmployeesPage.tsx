@@ -83,7 +83,7 @@ export function EmployeesPage() {
         className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-neutral-900 mb-1">Employees</h2>
+          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Employees</h2>
           <p className="text-sm text-neutral-600">Manage your agency employees</p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -183,7 +183,7 @@ export function EmployeesPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+        <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-card">
           <CardHeader className="pb-4 border-b border-neutral-200/50">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
@@ -211,13 +211,13 @@ export function EmployeesPage() {
             ) : filteredEmployees.length > 0 ? (
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Employee</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">ID</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Department</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Category</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Employee</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">ID</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Department</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Category</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -238,7 +238,7 @@ export function EmployeesPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-semibold text-neutral-900">
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
                               {emp.name || 'N/A'}
                             </div>
                             <div className="text-xs text-neutral-500">{emp.email}</div>
@@ -254,9 +254,9 @@ export function EmployeesPage() {
                       </TableCell>
                       <TableCell>
                         {emp.status === 'active' ? (
-                          <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
+                          <Badge variant="success">Active</Badge>
                         ) : (
-                          <Badge className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20">Inactive</Badge>
+                          <Badge variant="destructive" className="bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20">Inactive</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

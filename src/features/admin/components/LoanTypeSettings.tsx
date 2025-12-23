@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAgency } from '../../../hooks/useAgency';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
 import {
   getAgencyLoanConfig,
   toggleLoanType,
@@ -39,6 +40,7 @@ import { getLoanTypeIcon } from '../../../lib/loan-type-icons';
 
 export function LoanTypeSettings() {
   const { agency } = useAgency();
+  const { loanTypeLimit } = useFeatureGate();
   const queryClient = useQueryClient();
   const [editingType, setEditingType] = useState<LoanTypeId | null>(null);
   const [editedConfig, setEditedConfig] = useState<Partial<LoanTypeConfig> | null>(null);
@@ -56,13 +58,13 @@ export function LoanTypeSettings() {
     mutationFn: async ({ loanTypeId, enabled }: { loanTypeId: LoanTypeId; enabled: boolean }) => {
       if (!agency?.id) throw new Error('Agency not found');
       
-      // Check if we're trying to enable and already have 3 enabled
-      if (enabled) {
+      // Check plan limit
+      if (enabled && loanTypeLimit !== null) {
         const currentConfig = await getAgencyLoanConfig(agency.id);
         if (currentConfig) {
           const enabledCount = Object.values(currentConfig.loanTypes).filter(lt => lt.enabled).length;
-          if (enabledCount >= 3) {
-            throw new Error('Maximum of 3 loan types can be enabled at a time. Please disable one first.');
+          if (enabledCount >= loanTypeLimit) {
+            throw new Error(`Maximum of ${loanTypeLimit} loan type${loanTypeLimit > 1 ? 's' : ''} can be enabled. Please disable one first or upgrade to Enterprise for unlimited loan types.`);
           }
         }
       }
@@ -151,8 +153,9 @@ export function LoanTypeSettings() {
 
   const enabledLoanTypes = Object.values(loanConfig.loanTypes).filter(lt => lt.enabled);
   const allTemplates = Object.values(DEFAULT_LOAN_TYPE_TEMPLATES);
-  const maxEnabled = 3;
-  const canEnableMore = enabledLoanTypes.length < maxEnabled;
+  // Use plan limit (null = unlimited for Enterprise)
+  const maxEnabled = loanTypeLimit ?? Infinity;
+  const canEnableMore = maxEnabled === null || enabledLoanTypes.length < maxEnabled;
 
   return (
     <div className="space-y-6">

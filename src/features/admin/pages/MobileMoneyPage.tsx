@@ -156,12 +156,15 @@ export function MobileMoneyPage() {
                     </Badge>
                   </div>
                   <div className="flex gap-2 mt-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={link.link} target="_blank" rel="noopener noreferrer">
-                        <LinkIcon className="w-4 h-4 mr-2" />
-                        Open Link
-                      </a>
-                    </Button>
+                    <a 
+                      href={link.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-xl text-xs font-semibold h-10 md:h-9 px-3 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 transition-all duration-300"
+                    >
+                      <LinkIcon className="w-4 h-4 mr-2" />
+                      Open Link
+                    </a>
                     <Button
                       variant="outline"
                       size="sm"

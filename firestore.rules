@@ -53,6 +53,35 @@ service cloud.firestore {
         : false;
     }
     
+    // Plan and feature helpers
+    function getAgencyPlan(agencyId) {
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc != null && agencyDoc.data != null ? agencyDoc.data.plan : null;
+    }
+    
+    function hasFeature(agencyId, featureName) {
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc != null 
+        && agencyDoc.data != null 
+        && agencyDoc.data.features != null
+        && agencyDoc.data.features[featureName] == true;
+    }
+    
+    function getLoanTypeLimit(agencyId) {
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc != null && agencyDoc.data != null ? agencyDoc.data.loanTypeLimit : 1;
+    }
+    
+    function getMaxCustomers(agencyId) {
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc != null && agencyDoc.data != null ? agencyDoc.data.maxCustomers : 50;
+    }
+    
+    function getMaxActiveLoans(agencyId) {
+      let agencyDoc = get(/databases/$(database)/documents/agencies/$(agencyId));
+      return agencyDoc != null && agencyDoc.data != null ? agencyDoc.data.maxActiveLoans : 30;
+    }
+    
     // Users collection
     match /users/{userId} {
       // Allow users to read their own document, or any authenticated user can read (needed for getUserAgencyId helper)
@@ -144,8 +173,8 @@ service cloud.firestore {
         // Allow create if:
         // 1. User belongs to agency (from Firestore user doc), OR
         // 2. User is creating a customer with createdBy field matching their auth.uid
-        //    (This handles cases where user data is in Supabase - we trust the client
-        //     to set createdBy correctly, and the application logic enforces this)
+        // Note: Customer limit enforcement (maxCustomers) is done in Cloud Functions/Frontend
+        // Rules here only enforce permissions, not business logic limits
         allow create: if isAuthenticated() && (
           belongsToAgency(agencyId) ||
           request.resource.data.createdBy == request.auth.uid
@@ -176,6 +205,8 @@ service cloud.firestore {
       // Loans subcollection
       match /loans/{loanId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isLoanOwner(loanId, agencyId) || (resource != null && isCustomerOwner(resource.data.customerId, agencyId)));
+        // Note: Active loan limit enforcement (maxActiveLoans) is done in Cloud Functions/Frontend
+        // Rules here only enforce permissions, not business logic limits
         allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
         
         // Update rules based on workflow:
@@ -252,11 +283,22 @@ service cloud.firestore {
       }
       
       // Top-level collateral registry
+      // Collateral valuation feature check (Starter plan doesn't have this feature)
       match /collateral/{collateralId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isCustomer());
-        allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
-        allow update: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
-        allow delete: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        // Starter plan doesn't have collateral valuation feature
+        allow create: if isAuthenticated() 
+          && (isLoanOfficer() || isAdmin()) 
+          && belongsToAgency(agencyId)
+          && hasFeature(agencyId, 'collateralValuation');
+        allow update: if isAuthenticated() 
+          && (isLoanOfficer() || isAdmin()) 
+          && belongsToAgency(agencyId)
+          && hasFeature(agencyId, 'collateralValuation');
+        allow delete: if isAuthenticated() 
+          && (isAdmin() || isLoanOfficer()) 
+          && belongsToAgency(agencyId)
+          && hasFeature(agencyId, 'collateralValuation');
       }
       
       // Audit logs subcollection
@@ -297,6 +339,8 @@ service cloud.firestore {
       }
       
       // Loan type configuration subcollection
+      // Note: Loan type limit enforcement is done in Cloud Functions/Frontend
+      // Rules here only enforce permissions, not business logic limits
       match /config/{configId} {
         allow read: if isAuthenticated() && belongsToAgency(agencyId);
         allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
@@ -306,11 +350,13 @@ service cloud.firestore {
     }
     
     // AI logs collection (read-only for employees, full access for admins)
+    // AI insights feature check (Starter plan doesn't have this feature)
     match /ai_logs/{logId} {
       allow read: if isAuthenticated() && (isAdmin() || isEmployee());
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && isAdmin();
-      allow delete: if isAuthenticated() && isAdmin();
+      // Starter plan doesn't have AI insights feature
+      allow create: if isAuthenticated() && hasFeature(getUserAgencyId(), 'aiInsights');
+      allow update: if isAuthenticated() && isAdmin() && hasFeature(getUserAgencyId(), 'aiInsights');
+      allow delete: if isAuthenticated() && isAdmin() && hasFeature(getUserAgencyId(), 'aiInsights');
     }
     
     // App settings (admin only)

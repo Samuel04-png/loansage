@@ -264,9 +264,12 @@ export function OutstandingBorrowersPage() {
                                 {loan.status}
                               </Badge>
                             </div>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link to={`/admin/loans/${loan.id}`}>View</Link>
-                            </Button>
+                            <Link 
+                              to={`/admin/loans/${loan.id}`}
+                              className="inline-flex items-center justify-center rounded-xl text-xs font-semibold h-10 md:h-9 px-3 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 transition-all duration-300"
+                            >
+                              View
+                            </Link>
                           </div>
                         </div>
                       ))}

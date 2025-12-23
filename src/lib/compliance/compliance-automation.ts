@@ -39,11 +39,18 @@ export interface ComplianceChecklist {
 
 /**
  * Generate and schedule compliance reports automatically
+ * Enterprise feature - requires scheduledReports feature flag
  */
 export async function scheduleComplianceReports(
   agencyId: string,
-  tasks: ComplianceTask[]
+  tasks: ComplianceTask[],
+  agencyFeatures?: { scheduledReports?: boolean }
 ): Promise<void> {
+  // Enterprise feature check
+  if (agencyFeatures && !agencyFeatures.scheduledReports) {
+    throw new Error('Scheduled reports automation is available on Enterprise plan only. Please upgrade to access this feature.');
+  }
+  
   const tasksRef = collection(db, 'agencies', agencyId, 'compliance_tasks');
   
   for (const task of tasks) {
@@ -57,8 +64,17 @@ export async function scheduleComplianceReports(
 
 /**
  * Run scheduled compliance tasks
+ * Enterprise feature - requires scheduledReports feature flag
  */
-export async function runScheduledComplianceTasks(agencyId: string): Promise<void> {
+export async function runScheduledComplianceTasks(
+  agencyId: string,
+  agencyFeatures?: { scheduledReports?: boolean }
+): Promise<void> {
+  // Enterprise feature check
+  if (agencyFeatures && !agencyFeatures.scheduledReports) {
+    throw new Error('Scheduled reports automation is available on Enterprise plan only. Please upgrade to access this feature.');
+  }
+  
   const tasksRef = collection(db, 'agencies', agencyId, 'compliance_tasks');
   const activeTasksQuery = query(tasksRef, where('status', '==', 'active'));
   const tasksSnapshot = await getDocs(activeTasksQuery);

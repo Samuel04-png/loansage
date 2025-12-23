@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { useAgency } from './useAgency';
 import { getAgencyPlanStatus } from '../lib/firebase/subscription-helpers';
+import { normalizePlanCode, PLAN_CONFIG, type PlanCode } from '../lib/pricing/plan-config';
 
 // December special end date - all features free until this date
 const DECEMBER_SPECIAL_END_DATE = new Date('2025-01-15T23:59:59');
@@ -39,7 +40,11 @@ export type FeatureKey =
   | 'training_onboarding'
   | 'advanced_security'
   | 'custom_workflows'
-  | 'advanced_audit_logs';
+  | 'advanced_audit_logs'
+  | 'ai_insights'
+  | 'collateral_valuation'
+  | 'scheduled_reports'
+  | 'multi_branch';
 
 interface FeatureConfig {
   free: boolean;
@@ -148,16 +153,52 @@ const FEATURE_CONFIG: Record<FeatureKey, FeatureConfig> = {
     professional: false,
     enterprise: true,
   },
+  ai_insights: {
+    free: false,
+    professional: true,
+    enterprise: true,
+  },
+  collateral_valuation: {
+    free: false,
+    professional: true,
+    enterprise: true,
+  },
+  scheduled_reports: {
+    free: false,
+    professional: false,
+    enterprise: true,
+  },
+  multi_branch: {
+    free: false,
+    professional: false,
+    enterprise: true,
+  },
 };
 
 export interface FeatureGateResult {
   hasFeature: (feature: FeatureKey) => boolean;
-  planType: 'free' | 'paid' | 'enterprise';
+  plan: PlanCode;
+  planType: 'starter' | 'professional' | 'enterprise'; // Alias for plan
   isTrialing: boolean;
   daysRemaining: number | null;
   upgradeRequired: (feature: FeatureKey) => boolean;
   isDecemberSpecial: boolean;
   daysUntilGating: number | null;
+  // Plan limits
+  loanTypeLimit: number | null;
+  maxCustomers: number | null;
+  maxActiveLoans: number | null;
+  // Direct feature access
+  features: {
+    aiInsights: boolean;
+    collateralValuation: boolean;
+    apiAccess: boolean;
+    multiBranch: boolean;
+    whiteLabel: boolean;
+    scheduledReports: boolean;
+    advancedAnalytics: boolean;
+    multiUser: boolean;
+  };
 }
 
 /**
@@ -166,6 +207,13 @@ export interface FeatureGateResult {
 export function useFeatureGate(): FeatureGateResult {
   const { agency } = useAgency();
   
+  // Get plan code from agency (normalizes legacy planType)
+  const plan: PlanCode = useMemo(() => normalizePlanCode(agency), [agency]);
+  
+  // Get plan configuration
+  const planConfig = useMemo(() => PLAN_CONFIG[plan], [plan]);
+  
+  // Legacy plan status for compatibility
   const planStatus = useMemo(() => {
     if (!agency) {
       return {
@@ -178,28 +226,40 @@ export function useFeatureGate(): FeatureGateResult {
     return getAgencyPlanStatus(agency);
   }, [agency]);
   
-  const planType = useMemo(() => {
-    if (planStatus.planType === 'free') return 'free';
-    // Check if enterprise (would need additional field in agency)
-    if (agency?.planType === 'enterprise') return 'enterprise';
-    return 'paid';
-  }, [planStatus, agency]);
-  
   const hasFeature = (feature: FeatureKey): boolean => {
     // December special: All features free until January 15, 2025
     if (isDecemberSpecialActive()) {
       return true;
     }
     
+    // Map feature keys to plan config features
+    const featureMap: Record<string, keyof typeof planConfig.features> = {
+      'ai_insights': 'aiInsights',
+      'collateral_valuation': 'collateralValuation',
+      'api_access': 'apiAccess',
+      'multi_branch': 'multiBranch',
+      'white_label': 'whiteLabel',
+      'scheduled_reports': 'scheduledReports',
+      'advanced_analytics': 'advancedAnalytics',
+      'unlimited_team': 'multiUser',
+    };
+    
+    // Check direct feature mapping first
+    const directFeature = featureMap[feature];
+    if (directFeature !== undefined) {
+      return planConfig.features[directFeature];
+    }
+    
+    // Fallback to legacy feature config
     const config = FEATURE_CONFIG[feature];
     if (!config) return false;
     
-    switch (planType) {
+    switch (plan) {
       case 'enterprise':
         return config.enterprise;
-      case 'paid':
+      case 'professional':
         return config.professional;
-      case 'free':
+      case 'starter':
         return config.free;
       default:
         return false;
@@ -217,12 +277,19 @@ export function useFeatureGate(): FeatureGateResult {
   
   return {
     hasFeature,
-    planType,
+    plan,
+    planType: plan, // Alias for backward compatibility
     isTrialing: planStatus.isTrialing,
     daysRemaining: planStatus.daysRemaining,
     upgradeRequired,
     isDecemberSpecial,
     daysUntilGating,
+    // Plan limits
+    loanTypeLimit: planConfig.limits.loanTypeLimit,
+    maxCustomers: planConfig.limits.maxCustomers,
+    maxActiveLoans: planConfig.limits.maxActiveLoans,
+    // Direct feature access
+    features: planConfig.features,
   };
 }
 

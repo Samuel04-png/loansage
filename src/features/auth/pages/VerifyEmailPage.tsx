@@ -30,14 +30,14 @@ export function VerifyEmailPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+        <Card className="shadow-2xl">
           <CardHeader className="space-y-1 text-center pb-6">
             <motion.div
               initial={{ scale: 0 }}
@@ -80,7 +80,7 @@ export function VerifyEmailPage() {
               transition={{ delay: 0.4 }}
               className="bg-slate-50 border border-slate-200 rounded-xl p-4"
             >
-              <p className="text-sm font-medium text-slate-900 mb-2">Didn't receive the email?</p>
+              <p className="text-sm font-medium text-foreground mb-2">Didn't receive the email?</p>
               <ul className="list-disc list-inside space-y-1.5 text-sm text-slate-600">
                 <li>Check your spam or junk folder</li>
                 <li>Make sure the email address is correct</li>

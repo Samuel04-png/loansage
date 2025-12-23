@@ -21,16 +21,22 @@ interface PredictionResult {
 
 /**
  * Analyze portfolio and predict default rates
+ * Enterprise feature - requires advancedAnalytics feature flag
  */
 export async function predictPortfolioDefaults(
   agencyId: string,
-  timeframe: '30days' | '90days' | '6months' | '1year' = '90days'
+  timeframe: '30days' | '90days' | '6months' | '1year' = '90days',
+  agencyFeatures?: { advancedAnalytics?: boolean }
 ): Promise<{
   predictedDefaultRate: number;
   atRiskLoans: number;
   totalExposure: number;
   recommendations: string[];
 }> {
+  // Enterprise feature check
+  if (agencyFeatures && !agencyFeatures.advancedAnalytics) {
+    throw new Error('Advanced AI predictions are available on Enterprise plan only. Please upgrade to access this feature.');
+  }
   const loansRef = collection(db, 'agencies', agencyId, 'loans');
   const activeLoansQuery = query(
     loansRef,
@@ -268,10 +274,12 @@ export function detectLoanAnomalies(loanData: {
 
 /**
  * Predict loan default probability for a specific loan
+ * Enterprise feature - requires advancedAnalytics feature flag
  */
 export async function predictLoanDefault(
   agencyId: string,
-  loanId: string
+  loanId: string,
+  agencyFeatures?: { advancedAnalytics?: boolean }
 ): Promise<{
   defaultProbability: number; // 0-1
   confidence: number; // 0-1
@@ -279,6 +287,11 @@ export async function predictLoanDefault(
   factors: string[];
   recommendations: string[];
 }> {
+  // Enterprise feature check
+  if (agencyFeatures && !agencyFeatures.advancedAnalytics) {
+    throw new Error('Advanced AI predictions are available on Enterprise plan only. Please upgrade to access this feature.');
+  }
+  
   try {
     const { doc, getDoc } = await import('firebase/firestore');
     const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);

@@ -565,7 +565,7 @@ export function AccountingPage() {
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+              <thead className="text-xs text-slate-700 dark:text-neutral-300 uppercase bg-slate-50 dark:bg-neutral-800/50 border-b dark:border-neutral-800">
                 <tr>
                   <th className="px-4 py-3 text-left">Date</th>
                   <th className="px-4 py-3 text-left">Type</th>
@@ -725,7 +725,7 @@ export function AccountingPage() {
 
                 <div className="max-h-96 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 sticky top-0">
+                    <thead className="bg-slate-50 dark:bg-neutral-800/50 sticky top-0">
                       <tr>
                         <th className="px-4 py-2 text-left">Date</th>
                         <th className="px-4 py-2 text-left">Description</th>

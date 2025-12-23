@@ -57,7 +57,7 @@ export function CreateOrganizationPage() {
   // Show loading if user is not loaded yet
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-slate-600">Loading...</p>
@@ -214,7 +214,7 @@ export function CreateOrganizationPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-3xl shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
@@ -293,7 +293,7 @@ export function CreateOrganizationPage() {
             <div className="space-y-2">
               <Label htmlFor="logo">Logo (Optional)</Label>
               <div className="flex items-center gap-4">
-                <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted">
                   <Upload className="w-8 h-8 text-slate-400 mb-2" />
                   <span className="text-sm text-slate-500">Upload Logo</span>
                   <input

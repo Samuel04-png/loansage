@@ -14,11 +14,19 @@ import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, FileText, Users } 
 import { generateRevenueForecast, calculatePortfolioHealth } from '../../../lib/analytics/forecasting';
 import type { ForecastData, PortfolioHealth } from '../../../types/features';
 import { useTheme } from '../../../components/providers/ThemeProvider';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
+import { predictPortfolioDefaults } from '../../../lib/ai/predictive-analytics';
+import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
+import { Lock } from 'lucide-react';
 
 export function AnalyticsPage() {
   const { profile } = useAuth();
   const { resolvedTheme } = useTheme();
+  const { features, plan } = useFeatureGate();
   const [forecastMonths, setForecastMonths] = useState(12);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  
+  const hasAdvancedAnalytics = features.advancedAnalytics;
 
   const { data: forecast, isLoading: forecastLoading } = useQuery({
     queryKey: ['revenue-forecast', profile?.agency_id, forecastMonths],
@@ -36,6 +44,16 @@ export function AnalyticsPage() {
       return calculatePortfolioHealth(profile.agency_id);
     },
     enabled: !!profile?.agency_id,
+  });
+
+  // Advanced predictions (Enterprise only)
+  const { data: portfolioPredictions, isLoading: predictionsLoading } = useQuery({
+    queryKey: ['portfolio-predictions', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id || !hasAdvancedAnalytics) return null;
+      return predictPortfolioDefaults(profile.agency_id, '90days', { advancedAnalytics: true });
+    },
+    enabled: !!profile?.agency_id && hasAdvancedAnalytics,
   });
 
   if (forecastLoading || healthLoading) {
@@ -197,6 +215,15 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        feature="Advanced AI Predictions"
+        currentPlan={plan}
+        requiredPlan="enterprise"
+      />
     </div>
   );
 }

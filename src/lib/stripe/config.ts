@@ -2,8 +2,11 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 
 // Stripe configuration
 export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
-export const STRIPE_PRODUCT_ID = 'prod_TYWEIL2gnwQmvD';
-export const STRIPE_PRICE_ID = 'price_1SbPCBELOV3w2OwuwlZDaIwz';
+
+// Note: Price IDs are managed in functions/src/plan-config.ts
+// These are kept for reference only (Professional plan)
+export const STRIPE_PRODUCT_ID = 'prod_TYWEIL2gnwQmvD'; // Professional plan product ($35/month)
+export const STRIPE_PRICE_ID = 'price_1SbPCBELOV3w2OwuwlZDaIwz'; // Professional plan price ($35/month)
 
 // Initialize Stripe
 let stripePromise: Promise<Stripe | null>;

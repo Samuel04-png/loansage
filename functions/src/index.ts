@@ -32,3 +32,5 @@ export {
   dailyBackup,
 } from './advanced-automation';
 export { sendWelcomeEmail, sendAnnouncementEmail } from './welcome-email';
+export { migrateAgenciesToNewPlans, migrateSingleAgency } from './migrate-agencies';
+export { apiGetLoans, apiGetCustomers, apiGetStats } from './api-endpoints';

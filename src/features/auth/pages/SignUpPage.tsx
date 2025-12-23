@@ -143,7 +143,7 @@ export function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen flex bg-background">
       {/* Left Side - Illustration */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-50 via-purple-50 to-pink-50">
         <AnimatedIllustration variant="signup" />
@@ -162,7 +162,7 @@ export function SignUpPage() {
             {/* Noise texture overlay */}
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSBiYXNlRnJlcXVlbmN5PSIwLjkiIG51bU9jdGF2ZXM9IjQiIHJlc3VsdD0ibm9pc2UiLz48ZmVDb2xvck1hdHJpeCBpbj0ibm9pc2UiIHR5cGU9InNhdHVyYXRlIiB2YWx1ZXM9IjAiLz48L2ZpbHRlcj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbHRlcj0idXJsKCNub2lzZSkiIG9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')] opacity-30 rounded-3xl pointer-events-none"></div>
             
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-6 sm:p-8">
+            <div className="relative bg-card rounded-3xl border border-border shadow-2xl p-6 sm:p-8">
               {/* Logo */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -184,7 +184,7 @@ export function SignUpPage() {
                 transition={{ delay: 0.3 }}
                 className="text-center mb-6"
               >
-                <h1 className="text-2xl font-bold text-slate-900 mb-1">
+                <h1 className="text-2xl font-bold text-foreground mb-1">
                   Welcome to TengaLoans 🚀
                 </h1>
                 <p className="text-sm text-slate-600">
@@ -374,7 +374,7 @@ export function SignUpPage() {
                       </div>
                       <div className="flex-1">
                         <div className={`font-semibold text-xs ${
-                          selectedRole === 'admin' ? 'text-primary-900' : 'text-slate-900'
+                          selectedRole === 'admin' ? 'text-primary-900 dark:text-primary-300' : 'text-foreground'
                         }`}>
                           Create Agency
                         </div>
@@ -491,7 +491,7 @@ export function SignUpPage() {
                     <div className="w-full border-t border-slate-200"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-3 text-slate-500">Or continue with</span>
+                    <span className="bg-card px-3 text-muted-foreground">Or continue with</span>
                   </div>
                 </motion.div>
 

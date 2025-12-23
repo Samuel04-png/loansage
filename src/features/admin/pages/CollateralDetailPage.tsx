@@ -7,7 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { ArrowLeft, Image as ImageIcon, FileText, DollarSign, Calendar, CheckCircle2, Clock, XCircle, MapPin, Sparkles, TrendingUp, Shield, BarChart3, Percent, AlertTriangle, Info } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, FileText, DollarSign, Calendar, CheckCircle2, Clock, XCircle, MapPin, Sparkles, TrendingUp, Shield, BarChart3, Percent, AlertTriangle, Info, Lock } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
@@ -17,14 +17,20 @@ import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
+import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
 
 export function CollateralDetailPage() {
   const { loanId, collateralId } = useParams<{ loanId?: string; collateralId: string }>();
   const { profile } = useAuth();
+  const { features, plan } = useFeatureGate();
   const [aiValuation, setAiValuation] = useState<any>(null);
   const [loadingValuation, setLoadingValuation] = useState(false);
   const [marketValue, setMarketValue] = useState<number | null>(null);
   const [loadingMarketValue, setLoadingMarketValue] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  
+  const hasCollateralValuation = features.collateralValuation;
 
   // Fetch loan details
   const { data: loan } = useQuery({
@@ -118,6 +124,11 @@ export function CollateralDetailPage() {
   const fetchMarketValue = async () => {
     if (!collateral || loadingMarketValue) return;
     
+    if (!hasCollateralValuation) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+    
     setLoadingMarketValue(true);
     try {
       const { estimateCollateralPrice } = await import('../../../lib/ai/collateral-pricing');
@@ -136,6 +147,7 @@ export function CollateralDetailPage() {
       setAiValuation(pricingResult);
     } catch (error) {
       console.error('Failed to fetch market value:', error);
+      toast.error('Failed to fetch market value');
     } finally {
       setLoadingMarketValue(false);
     }
@@ -237,14 +249,14 @@ export function CollateralDetailPage() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-4 gap-4"
         >
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">
                     Collateral Value
                   </p>
-                  <p className="text-xl font-bold text-neutral-900">
+                  <p className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
                     {formatCurrency(collateralValue, collateral.currency || 'ZMW')}
                   </p>
                 </div>
@@ -255,7 +267,7 @@ export function CollateralDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -273,7 +285,7 @@ export function CollateralDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -301,7 +313,7 @@ export function CollateralDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -331,7 +343,7 @@ export function CollateralDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardHeader>
               <CardTitle>Collateral Information</CardTitle>
             </CardHeader>
@@ -395,7 +407,7 @@ export function CollateralDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardHeader>
               <CardTitle>Related Information</CardTitle>
             </CardHeader>
@@ -551,8 +563,17 @@ export function CollateralDetailPage() {
                     disabled={loadingMarketValue}
                     className="mt-2"
                   >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Get Market Value
+                    {hasCollateralValuation ? (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Get Market Value
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4 mr-2" />
+                        Upgrade for Market Value
+                      </>
+                    )}
                   </Button>
                 )}
                 {loanCoverageRatio > 0 && (
@@ -641,7 +662,7 @@ export function CollateralDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ImageIcon className="w-5 h-5" />
@@ -675,7 +696,7 @@ export function CollateralDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
         >
-          <Card className="rounded-xl border border-neutral-200/50 shadow-sm bg-white">
+          <Card className="rounded-xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-sm bg-white dark:bg-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
@@ -717,6 +738,15 @@ export function CollateralDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        feature="Collateral Market Valuation"
+        currentPlan={plan}
+        requiredPlan="professional"
+      />
     </div>
   );
 }

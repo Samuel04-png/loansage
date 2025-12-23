@@ -331,18 +331,18 @@ export function CollateralsPage() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                    <TableHead className="font-semibold text-neutral-700">Collateral Details</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Loan Information</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Type & Specs</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Estimated Value</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Loan Amount</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Coverage Ratio</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Condition</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Location</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                    <TableHead className="font-semibold text-neutral-700">Created</TableHead>
-                    <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Collateral Details</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Loan Information</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Type & Specs</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Estimated Value</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Loan Amount</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Coverage Ratio</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Condition</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Location</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Status</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Created</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

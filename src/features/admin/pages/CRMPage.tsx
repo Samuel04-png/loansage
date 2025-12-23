@@ -27,6 +27,12 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
+import {
   Users,
   MessageSquare,
   Calendar,
@@ -43,6 +49,8 @@ import {
   UserCheck,
   UserX,
   AlertCircle,
+  MoreVertical,
+  Eye,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDateSafe, formatDateTime } from '../../../lib/utils';
@@ -217,7 +225,7 @@ export function CRMPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-neutral-900 flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-3">
           <Users className="w-8 h-8 text-[#006BFF]" />
           Customer Relationship Management
         </h1>
@@ -326,13 +334,13 @@ export function CRMPage() {
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Segment</TableHead>
-                    <TableHead>Total Borrowed</TableHead>
-                    <TableHead>Active Loans</TableHead>
-                    <TableHead>Loan Count</TableHead>
-                    <TableHead>Actions</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Customer</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Segment</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Total Borrowed</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Active Loans</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Loan Count</TableHead>
+                    <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -348,22 +356,31 @@ export function CRMPage() {
                       <TableCell>{formatCurrency(customer.totalBorrowed)}</TableCell>
                       <TableCell>{customer.activeLoans}</TableCell>
                       <TableCell>{customer.loanCount}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Link to={`/admin/customers/${customer.id}`}>
-                            <Button variant="ghost" size="sm">View</Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCustomerId(customer.id);
-                              setInteractionDialogOpen(true);
-                            }}
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                          </Button>
-                        </div>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/admin/customers/${customer.id}`} className="cursor-pointer">
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedCustomerId(customer.id);
+                                setInteractionDialogOpen(true);
+                              }}
+                            >
+                              <MessageSquare className="mr-2 h-4 w-4" />
+                              Record Interaction
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}

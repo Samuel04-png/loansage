@@ -3,6 +3,8 @@ import { Button } from '../../../components/ui/button';
 import { HelpCircle, Book, MessageCircle, Video, FileText, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '../../../components/ui/input';
+import { PrioritySupportBadge } from '../../../components/pricing/PrioritySupportBadge';
+import { PrioritySupportInfo } from '../../../components/pricing/PrioritySupportInfo';
 
 const helpCategories = [
   {
@@ -110,11 +112,14 @@ export function HelpPage() {
             <CardDescription>Comprehensive guides</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" asChild>
-              <a href="https://docs.tengaloans.com" target="_blank" rel="noopener noreferrer">
-                View Docs
-              </a>
-            </Button>
+            <a 
+              href="https://docs.tengaloans.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-xl text-sm font-semibold h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 w-full transition-all duration-300"
+            >
+              View Docs
+            </a>
           </CardContent>
         </Card>
 
@@ -124,25 +129,35 @@ export function HelpPage() {
             <CardDescription>Learn by watching</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" asChild>
-              <a href="https://youtube.com/tengaloans" target="_blank" rel="noopener noreferrer">
-                Watch Videos
-              </a>
-            </Button>
+            <a 
+              href="https://youtube.com/tengaloans" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-xl text-sm font-semibold h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 w-full transition-all duration-300"
+            >
+              Watch Videos
+            </a>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Contact Support</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Contact Support
+              <PrioritySupportBadge />
+            </CardTitle>
             <CardDescription>Get help from our team</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" className="w-full" asChild>
-              <a href="mailto:support@tengaloans.com">
+            <div className="space-y-2">
+              <a 
+                href="mailto:support@tengaloans.com"
+                className="inline-flex items-center justify-center rounded-xl text-sm font-semibold h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 w-full transition-all duration-300"
+              >
                 Email Support
               </a>
-            </Button>
+              <PrioritySupportInfo />
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -103,7 +103,7 @@ export function ResetPasswordPage() {
             transition={{ duration: 0.5 }}
             className="w-full max-w-md"
           >
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 sm:p-10">
+            <div className="relative bg-card rounded-3xl border border-border shadow-2xl p-8 sm:p-10">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: [0, 1.2, 1] }}
@@ -119,7 +119,7 @@ export function ResetPasswordPage() {
                 transition={{ delay: 0.3 }}
                 className="text-center mb-8"
               >
-                <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                <h1 className="text-3xl font-bold text-foreground mb-2">
                   Password reset successful ✨
                 </h1>
                 <p className="text-slate-600">
@@ -154,7 +154,7 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen flex bg-background">
       {/* Left Side - Illustration */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-50 via-purple-50 to-pink-50">
         <AnimatedIllustration variant="reset" />
@@ -168,7 +168,7 @@ export function ResetPasswordPage() {
           transition={{ duration: 0.6 }}
           className="w-full max-w-md"
         >
-          <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 sm:p-10">
+          <div className="relative bg-card rounded-3xl border border-border shadow-2xl p-8 sm:p-10">
             {/* Logo */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}

@@ -132,7 +132,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen flex bg-background">
       {/* Left Side - Illustration */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-50 via-purple-50 to-pink-50">
         <AnimatedIllustration variant="login" />
@@ -150,7 +150,7 @@ export function LoginPage() {
           <div className="relative">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSBiYXNlRnJlcXVlbmN5PSIwLjkiIG51bU9jdGF2ZXM9IjQiIHJlc3VsdD0ibm9pc2UiLz48ZmVDb2xvck1hdHJpeCBpbj0ibm9pc2UiIHR5cGU9InNhdHVyYXRlIiB2YWx1ZXM9IjAiLz48L2ZpbHRlcj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbHRlcj0idXJsKCNub2lzZSkiIG9wYWNpdHk9IjAuMDMiLz48L3N2Zz4=')] opacity-30 rounded-3xl pointer-events-none"></div>
             
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl p-8 sm:p-10">
+            <div className="relative bg-card rounded-3xl border border-border shadow-2xl p-8 sm:p-10">
               {/* Logo */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -172,7 +172,7 @@ export function LoginPage() {
                 transition={{ delay: 0.3 }}
                 className="text-center mb-8"
               >
-                <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                <h1 className="text-3xl font-bold text-foreground mb-2">
                   Welcome Back! 👋
                 </h1>
                 <p className="text-slate-600">
@@ -275,7 +275,7 @@ export function LoginPage() {
                 >
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+                    className="w-full h-12"
                     disabled={loading}
                   >
                     {loading ? (
@@ -300,7 +300,7 @@ export function LoginPage() {
                     <div className="w-full border-t border-slate-200"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-4 text-slate-500">Or continue with</span>
+                    <span className="bg-card px-4 text-muted-foreground">Or continue with</span>
                   </div>
                 </motion.div>
 

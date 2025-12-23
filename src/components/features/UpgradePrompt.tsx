@@ -36,20 +36,22 @@ export function UpgradePrompt({
         )}
         
         <div className="flex flex-col gap-2">
-          <Button asChild className="w-full">
-            <Link to="/admin/plans">
-              <Zap className="mr-2 h-4 w-4" />
-              Upgrade to {requiredPlan === 'enterprise' ? 'Enterprise' : 'Professional'}
-            </Link>
-          </Button>
+          <Link 
+            to="/admin/plans"
+            className="inline-flex items-center justify-center rounded-xl text-sm font-semibold h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0 bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white shadow-md hover:shadow-lg w-full transition-all duration-300"
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            Upgrade to {requiredPlan === 'enterprise' ? 'Enterprise' : 'Professional'}
+          </Link>
           
           {requiredPlan === 'professional' && (
-            <Button variant="outline" asChild className="w-full">
-              <Link to="/admin/plans">
-                <Crown className="mr-2 h-4 w-4" />
-                View Enterprise Plan
-              </Link>
-            </Button>
+            <Link 
+              to="/admin/plans"
+              className="inline-flex items-center justify-center rounded-xl text-sm font-semibold h-11 md:h-10 px-4 py-2 min-h-[44px] md:min-h-0 border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100 w-full transition-all duration-300"
+            >
+              <Crown className="mr-2 h-4 w-4" />
+              View Enterprise Plan
+            </Link>
           )}
         </div>
         

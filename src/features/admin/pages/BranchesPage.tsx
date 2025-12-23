@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
-import { Building2, Plus, Edit, Trash2, TrendingUp, Users, DollarSign, FileText } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, TrendingUp, Users, DollarSign, FileText, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   createBranch,
@@ -40,6 +40,8 @@ import {
   getBranchStatistics,
 } from '../../../lib/branches/branch-manager';
 import type { Branch } from '../../../types/features';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
+import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
 
 const branchSchema = z.object({
   name: z.string().min(2, 'Branch name is required'),
@@ -55,9 +57,13 @@ type BranchFormData = z.infer<typeof branchSchema>;
 
 export function BranchesPage() {
   const { profile } = useAuth();
+  const { features, plan } = useFeatureGate();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  
+  const hasMultiBranch = features.multiBranch;
 
   const { data: branches = [], isLoading } = useQuery({
     queryKey: ['branches', profile?.agency_id],
@@ -159,6 +165,32 @@ export function BranchesPage() {
 
   if (isLoading) {
     return <div className="p-6">Loading...</div>;
+  }
+
+  if (!hasMultiBranch) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Lock className="w-16 h-16 mx-auto mb-4 text-neutral-400" />
+            <h2 className="text-2xl font-bold mb-2">Multi-Branch Support</h2>
+            <p className="text-neutral-600 mb-6">
+              This feature is available on the Enterprise plan. Upgrade to manage multiple branch locations.
+            </p>
+            <Button onClick={() => setUpgradeModalOpen(true)}>
+              Upgrade to Enterprise
+            </Button>
+          </CardContent>
+        </Card>
+        <UpgradeModal
+          open={upgradeModalOpen}
+          onOpenChange={setUpgradeModalOpen}
+          feature="Multi-Branch Support"
+          currentPlan={plan}
+          requiredPlan="enterprise"
+        />
+      </div>
+    );
   }
 
   return (

@@ -210,7 +210,7 @@ export function PaymentsPage() {
           ) : filteredRepayments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
+                <thead className="text-xs text-slate-700 dark:text-neutral-300 uppercase bg-slate-50 dark:bg-neutral-800/50 border-b border-slate-100 dark:border-neutral-800">
                   <tr>
                     <th className="px-6 py-3">Loan Number</th>
                     <th className="px-6 py-3">Amount</th>

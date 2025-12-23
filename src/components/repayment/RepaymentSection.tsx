@@ -441,17 +441,17 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                      <TableHead className="font-semibold text-neutral-700">#</TableHead>
-                      <TableHead className="font-semibold text-neutral-700">Date</TableHead>
-                      <TableHead className="font-semibold text-neutral-700 text-right">Total Amount</TableHead>
-                      <TableHead className="font-semibold text-neutral-700 text-right">Interest</TableHead>
-                      <TableHead className="font-semibold text-neutral-700 text-right">Principal</TableHead>
-                      <TableHead className="font-semibold text-neutral-700 text-right">Remaining Balance</TableHead>
-                      <TableHead className="font-semibold text-neutral-700">Payment Method</TableHead>
-                      <TableHead className="font-semibold text-neutral-700">Transaction ID</TableHead>
-                      <TableHead className="font-semibold text-neutral-700">Recorded By</TableHead>
-                      <TableHead className="font-semibold text-neutral-700">Notes</TableHead>
+                    <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">#</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Date</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Total Amount</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Interest</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Principal</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Remaining Balance</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Payment Method</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Transaction ID</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Recorded By</TableHead>
+                      <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

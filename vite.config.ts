@@ -103,7 +103,7 @@ export default defineConfig(({ mode }) => {
             clientsClaim: true,
           },
           devOptions: {
-            enabled: true,
+            enabled: false, // Disable service worker in development to avoid connection errors
             type: 'module',
           },
         }) as any,

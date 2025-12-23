@@ -46,6 +46,9 @@ import {
 import { formatDateSafe, formatDateTime } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
+import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
+import { scheduleComplianceReports } from '../../../lib/compliance/compliance-automation';
 
 interface ComplianceChecklist {
   id: string;
@@ -73,10 +76,14 @@ interface RegulatoryReport {
 
 export function CompliancePage() {
   const { profile, user } = useAuth();
+  const { features, plan } = useFeatureGate();
   const queryClient = useQueryClient();
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  
+  const hasScheduledReports = features.scheduledReports;
   const [newChecklistItem, setNewChecklistItem] = useState({
     name: '',
     category: 'general',
@@ -419,6 +426,22 @@ export function CompliancePage() {
 
         {/* Regulatory Reports */}
         <TabsContent value="reports" className="space-y-6">
+          {/* Scheduled Reports - Enterprise Only */}
+          {!hasScheduledReports && (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <Lock className="w-12 h-12 mx-auto mb-4 text-neutral-400" />
+                <h3 className="text-lg font-semibold mb-2">Scheduled Reports Automation</h3>
+                <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                  Automatically generate and email reports on a schedule. Available on Enterprise plan.
+                </p>
+                <Button onClick={() => setUpgradeModalOpen(true)}>
+                  Upgrade to Enterprise
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Regulatory Reports</CardTitle>
@@ -642,6 +665,15 @@ export function CompliancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Upgrade Modal for Scheduled Reports */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        feature="Scheduled Reports Automation"
+        currentPlan={plan}
+        requiredPlan="enterprise"
+      />
     </div>
   );
 }

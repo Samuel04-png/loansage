@@ -26,8 +26,11 @@ import {
   PieChart,
   Settings,
   Headphones,
-  PlayCircle
+  PlayCircle,
+  Building2,
+  Crown
 } from 'lucide-react';
+import { PLAN_CONFIG, type PlanCode } from '../../../lib/pricing/plan-config';
 
 export function LandingPage() {
   return (
@@ -475,100 +478,133 @@ export function LandingPage() {
               Simple, Transparent Pricing
             </h2>
             <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-              One simple plan. Full access. No hidden fees. Start your 14-day free trial today.
+              Choose the plan that's right for your agency. Start your free trial today.
             </p>
           </motion.div>
 
-          <div className="max-w-4xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              className="relative rounded-3xl border-2 border-primary-300 p-10 bg-white shadow-2xl"
-            >
-              <div className="absolute -top-5 left-1/2 -translate-x-1/2">
-                <span className="bg-gradient-to-r from-primary-600 to-primary-700 text-white text-sm font-semibold px-6 py-2 rounded-full shadow-lg">
-                  Most Popular
-                </span>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {(['starter', 'professional', 'enterprise'] as PlanCode[]).map((planCode, index) => {
+              const planConfig = PLAN_CONFIG[planCode];
+              const isPopular = planCode === 'professional';
+              const Icon = planCode === 'starter' ? Building2 : planCode === 'professional' ? Zap : Crown;
               
-              <div className="text-center mb-10">
-                <div className="mb-4">
-                  <span className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-lg animate-pulse">
-                    <Sparkles className="w-4 h-4" />
-                    December Special: Free Trial for 1 Month!
-                  </span>
-                </div>
-                <h3 className="text-3xl font-bold text-slate-900 mb-3">Agency Full Access</h3>
-                <p className="text-slate-600 text-lg mb-8">Everything you need to manage your microfinance operations</p>
-                <div className="flex items-baseline justify-center gap-3 mb-4">
-                  <span className="text-6xl font-extrabold bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent">
-                    $35
-                  </span>
-                  <span className="text-2xl text-slate-600">/month</span>
-                </div>
-                <p className="text-sm text-slate-500 mb-2">Billed monthly • Cancel anytime</p>
-                <p className="text-sm font-semibold text-green-600">🎉 Start with a FREE month in December - No credit card required!</p>
-              </div>
+              const planFeatures: Record<PlanCode, string[]> = {
+                starter: [
+                  '1 loan type',
+                  'Max 50 customers',
+                  'Max 30 active loans',
+                  'Basic loan tracking',
+                  'Email notifications',
+                  'Core loan management',
+                  'Customer management',
+                ],
+                professional: [
+                  'Unlimited customers',
+                  'Unlimited loans',
+                  'Up to 3 loan types',
+                  'Collateral-based loans',
+                  'Repayment tracking + history',
+                  'AI risk insights & alerts',
+                  'In-app + email notifications',
+                  'Multi-user support',
+                  'Standard analytics dashboard',
+                ],
+                enterprise: [
+                  'Unlimited loan types',
+                  'Multi-branch support',
+                  'Advanced AI predictions',
+                  'Collateral market valuation',
+                  'Scheduled reports (CSV / PDF)',
+                  'API access',
+                  'White-label branding',
+                  'Priority support',
+                  'Advanced analytics',
+                ],
+              };
 
-              <div className="grid md:grid-cols-2 gap-6 mb-10">
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Award className="w-5 h-5 text-primary-600" />
-                    Core Features
-                  </h4>
-                  {[
-                    'Unlimited loans & borrowers',
-                    'Multi-tenant architecture',
-                    'White-labeling & branding',
-                    'AI-powered risk assessment',
-                    'Real-time analytics & reports',
-                    'Document management',
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-slate-700">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-primary-600" />
-                    Advanced Features
-                  </h4>
-                  {[
-                    'Role-based access control',
-                    'Mobile app (iOS & Android)',
-                    'Offline mode support',
-                    'Custom workflows',
-                    'API access',
-                    'Priority support',
-                  ].map((feature, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-slate-700">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              const features = planFeatures[planCode];
 
-              <div className="text-center">
-                <Link to="/auth/signup" className="block">
-                  <Button
-                    size="lg"
-                    className="w-full h-14 rounded-xl font-semibold text-lg bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Start Free Trial
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </Link>
-                <p className="text-sm text-slate-500 mt-4">
-                  No credit card required • 14-day free trial • Cancel anytime
-                </p>
-              </div>
-            </motion.div>
+              return (
+                <motion.div
+                  key={planCode}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  whileHover={{ y: -8, scale: 1.02 }}
+                  className={`relative rounded-3xl border-2 p-8 bg-white shadow-xl ${
+                    isPopular ? 'border-primary-300 shadow-2xl' : 'border-slate-200'
+                  }`}
+                >
+                  {isPopular && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <span className="bg-gradient-to-r from-primary-600 to-primary-700 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg">
+                        Most Popular
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="text-center mb-8">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 ${
+                      isPopular ? 'bg-primary-600' : 'bg-slate-100'
+                    }`}>
+                      <Icon className={`w-6 h-6 ${isPopular ? 'text-white' : 'text-slate-600'}`} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-900 mb-2">{planConfig.name}</h3>
+                    <p className="text-slate-600 text-sm mb-6">{planConfig.description}</p>
+                    <div className="flex items-baseline justify-center gap-2 mb-2">
+                      <span className={`text-5xl font-extrabold ${
+                        isPopular 
+                          ? 'bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent'
+                          : 'text-slate-900'
+                      }`}>
+                        ${planConfig.price}
+                      </span>
+                      <span className="text-xl text-slate-600">/month</span>
+                    </div>
+                    {planCode === 'starter' && (
+                      <p className="text-sm text-slate-500">Free trial • Upgrade anytime</p>
+                    )}
+                    {planCode !== 'starter' && (
+                      <p className="text-sm text-slate-500">Billed monthly • Cancel anytime</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 mb-8 min-h-[280px]">
+                    {features.map((feature, featureIndex) => (
+                      <div key={featureIndex} className="flex items-start gap-3">
+                        <CheckCircle2 className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                          isPopular ? 'text-primary-600' : 'text-green-600'
+                        }`} />
+                        <span className="text-sm text-slate-700">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-center">
+                    <Link to="/auth/signup" className="block">
+                      <Button
+                        size="lg"
+                        className={`w-full h-12 rounded-xl font-semibold ${
+                          isPopular
+                            ? 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+                        } transition-all`}
+                      >
+                        {planCode === 'starter' ? 'Start Free Trial' : 'Subscribe Now'}
+                        <ArrowRight className="ml-2 w-4 h-4" />
+                      </Button>
+                    </Link>
+                    {planCode === 'starter' && (
+                      <p className="text-xs text-slate-500 mt-3">
+                        No credit card required
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -578,14 +614,13 @@ export function LandingPage() {
               className="text-center mt-12"
             >
               <p className="text-slate-600 mb-4">
-                All features included. No per-user fees. No setup costs.
+                All plans include full access. No per-user fees. No setup costs.
               </p>
               <Link to="/contact" className="text-primary-600 hover:text-primary-700 font-semibold inline-flex items-center gap-2">
                 Need a custom enterprise plan? Contact us
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </motion.div>
-          </div>
         </div>
       </section>
 

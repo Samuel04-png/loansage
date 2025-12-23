@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
+import { PLAN_CONFIG, getPriceIdForPlan, getPlanFromPriceId, type PlanCode } from './plan-config';
 
 // Get Stripe secret key from environment variable
 // For Vercel: Set in Vercel dashboard as STRIPE_SECRET_KEY
@@ -40,11 +41,47 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
 
-  const { agencyId, priceId, successUrl, cancelUrl } = data;
+  console.log('createCheckoutSession called with data:', JSON.stringify(data, null, 2));
 
-  if (!agencyId || !priceId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
+  const { agencyId, plan, priceId, successUrl, cancelUrl } = data as {
+    agencyId?: string;
+    plan?: PlanCode;
+    priceId?: string;
+    successUrl?: string;
+    cancelUrl?: string;
+  };
+
+  // Validate required parameters with specific error messages
+  if (!agencyId || typeof agencyId !== 'string' || agencyId.trim() === '') {
+    console.error('Missing or invalid agencyId:', agencyId);
+    throw new functions.https.HttpsError('invalid-argument', 'Missing or invalid agencyId parameter');
   }
+
+  // If plan is provided, use it; otherwise require priceId
+  if (!plan && !priceId) {
+    console.error('Missing both plan and priceId');
+    throw new functions.https.HttpsError('invalid-argument', 'Missing plan or priceId parameter. Please provide either a plan code or a Stripe price ID.');
+  }
+
+  // Validate plan if provided
+  if (plan && !['starter', 'professional', 'enterprise'].includes(plan)) {
+    console.error('Invalid plan code:', plan);
+    throw new functions.https.HttpsError('invalid-argument', `Invalid plan code: ${plan}. Must be 'starter', 'professional', or 'enterprise'.`);
+  }
+
+  // Resolve price ID from plan if provided
+  const resolvedPriceId = priceId || (plan ? getPriceIdForPlan(plan) : null);
+  
+  if (!resolvedPriceId) {
+    // If plan is starter, it's free so no checkout needed
+    if (plan === 'starter') {
+      throw new functions.https.HttpsError('failed-precondition', 'Starter plan is free and does not require checkout');
+    }
+    throw new functions.https.HttpsError('failed-precondition', 'Price ID not configured for plan. Please contact support.');
+  }
+
+  // Validate plan if provided
+  const resolvedPlan: PlanCode = plan || getPlanFromPriceId(resolvedPriceId);
 
   try {
     // Get agency data
@@ -83,7 +120,7 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
       payment_method_types: ['card'],
       line_items: [
         {
-          price: priceId,
+          price: resolvedPriceId,
           quantity: 1,
         },
       ],
@@ -92,6 +129,7 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
       cancel_url: cancelUrl || `${process.env.APP_URL || 'https://tengaloans.com'}/admin/plans?payment=cancelled`,
       metadata: {
         agencyId,
+        plan: resolvedPlan,
         userId: context.auth.uid,
       },
     });
@@ -138,6 +176,11 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
         await handleCheckoutCompleted(session);
         break;
       }
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionUpdated(subscription);
+        break;
+      }
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
         await handlePaymentSucceeded(invoice);
@@ -162,9 +205,50 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
+/**
+ * Apply plan configuration to agency
+ */
+async function applyPlanToAgency(
+  agencyId: string,
+  plan: PlanCode,
+  subscriptionId?: string
+): Promise<void> {
+  const planConfig = PLAN_CONFIG[plan];
+  
+  await admin.firestore().doc(`agencies/${agencyId}`).update({
+    plan,
+    loanTypeLimit: planConfig.limits.loanTypeLimit,
+    maxCustomers: planConfig.limits.maxCustomers,
+    maxActiveLoans: planConfig.limits.maxActiveLoans,
+    features: planConfig.features,
+    ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+    subscriptionStatus: 'active',
+    subscriptionStartDate: admin.firestore.FieldValue.serverTimestamp(),
+    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const agencyId = session.metadata?.agencyId;
+  const agencyId = session.metadata?.agencyId as string | undefined;
   if (!agencyId) return;
+
+  // Get plan from metadata or resolve from subscription
+  let plan: PlanCode = (session.metadata?.plan as PlanCode) || 'professional';
+  
+  // If no plan in metadata, try to get from subscription
+  if (session.subscription && typeof session.subscription === 'string') {
+    try {
+      const stripe = getStripe();
+      const subscription = await stripe.subscriptions.retrieve(session.subscription);
+      const priceId = subscription.items.data[0]?.price?.id;
+      if (priceId) {
+        plan = getPlanFromPriceId(priceId);
+      }
+    } catch (error) {
+      console.error('Error retrieving subscription:', error);
+    }
+  }
 
   // Save payment record
   const paymentData = {
@@ -185,15 +269,40 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     .doc(session.id)
     .set(paymentData);
 
-  // Update agency subscription status to paid plan
-  await admin.firestore().doc(`agencies/${agencyId}`).update({
-    planType: 'paid',
-    subscriptionStatus: 'active',
-    subscriptionId: session.subscription as string,
-    subscriptionStartDate: admin.firestore.FieldValue.serverTimestamp(),
-    lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // Apply plan configuration to agency
+  await applyPlanToAgency(agencyId, plan, session.subscription as string);
+}
+
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+  
+  // Find agency by Stripe customer ID
+  const agenciesSnapshot = await admin.firestore()
+    .collection('agencies')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get();
+
+  if (agenciesSnapshot.empty) return;
+
+  const agencyId = agenciesSnapshot.docs[0].id;
+  
+  // Get plan from subscription price
+  const priceId = subscription.items.data[0]?.price?.id;
+  if (!priceId) return;
+  
+  const plan = getPlanFromPriceId(priceId);
+  
+  // Only update if subscription is active or trialing
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    await applyPlanToAgency(agencyId, plan, subscription.id);
+  } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+    // Keep plan but update status
+    await admin.firestore().doc(`agencies/${agencyId}`).update({
+      subscriptionStatus: 'past_due',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
@@ -230,9 +339,8 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     .doc(invoice.id)
     .set(paymentData, { merge: true });
 
-  // Update agency subscription - payment succeeded
+  // Update subscription status (plan should already be set from checkout or subscription.updated)
   await admin.firestore().doc(`agencies/${agencyId}`).update({
-    planType: 'paid',
     subscriptionStatus: 'active',
     lastPaymentDate: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -277,7 +385,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
   
-  // Check if should downgrade to free plan (after 35 days of no payment)
+  // Check if should downgrade to starter plan (after 35 days of no payment)
   const agencyDoc = await admin.firestore().doc(`agencies/${agencyId}`).get();
   const agencyData = agencyDoc.data();
   const lastPayment = agencyData?.lastPaymentDate?.toDate?.() || agencyData?.lastPaymentDate;
@@ -285,11 +393,10 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   if (lastPayment) {
     const daysSincePayment = (Date.now() - lastPayment.getTime()) / (1000 * 60 * 60 * 24);
     if (daysSincePayment > 35) {
-      // Downgrade to free plan
+      // Downgrade to starter plan
+      await applyPlanToAgency(agencyId, 'starter');
       await admin.firestore().doc(`agencies/${agencyId}`).update({
-        planType: 'free',
         subscriptionStatus: 'expired',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
   }
@@ -308,12 +415,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   const agencyId = agenciesSnapshot.docs[0].id;
 
-  // Update agency subscription status - cancelled, downgrade to free
+  // Downgrade to starter plan
+  await applyPlanToAgency(agencyId, 'starter');
   await admin.firestore().doc(`agencies/${agencyId}`).update({
-    planType: 'free',
     subscriptionStatus: 'cancelled',
-    subscriptionId: null,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    stripeSubscriptionId: null,
   });
 }
 

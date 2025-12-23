@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
-import { Palette, Sun, Moon, Monitor, Check, Loader2 } from 'lucide-react';
+import { Palette, Sun, Moon, Monitor, Check, Loader2, Lock } from 'lucide-react';
 import { useTheme } from '../../../components/providers/ThemeProvider';
 import { useAgency } from '../../../hooks/useAgency';
 import { useAuth } from '../../../hooks/useAuth';
@@ -11,6 +11,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { applyWhitelabelStyles } from '../../../lib/whitelabel';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
+import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
 
 const themes = [
   { id: 'light', name: 'Light', icon: Sun, description: 'Clean and bright interface' },
@@ -22,11 +24,15 @@ export function ThemesPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { agency, updateAgency } = useAgency();
   const { profile } = useAuth();
+  const { features, plan } = useFeatureGate();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [primaryColor, setPrimaryColor] = useState(agency?.primary_color || '#006BFF');
   const [secondaryColor, setSecondaryColor] = useState(agency?.secondary_color || '#3B82FF');
   const [tertiaryColor, setTertiaryColor] = useState(agency?.tertiary_color || '#4F46E5');
+  
+  const hasWhiteLabel = features.whiteLabel;
 
   // Update local state when agency changes
   useEffect(() => {
@@ -177,127 +183,173 @@ export function ThemesPage() {
         </CardContent>
       </Card>
 
-      {/* Brand Colors */}
+      {/* Brand Colors - Enterprise Only */}
       {profile?.role === 'admin' && (
         <Card>
           <CardHeader>
-            <CardTitle>Brand Colors</CardTitle>
-            <CardDescription>Customize your agency's brand colors</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Brand Colors
+                  {!hasWhiteLabel && (
+                    <Lock className="w-4 h-4 text-neutral-400" />
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {hasWhiteLabel 
+                    ? "Customize your agency's brand colors"
+                    : "White-label branding available on Enterprise plan"}
+                </CardDescription>
+              </div>
+              {!hasWhiteLabel && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUpgradeModalOpen(true)}
+                >
+                  Upgrade to Enterprise
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="primaryColor">Primary Color</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    id="primaryColor"
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    placeholder="#006BFF"
-                    className="flex-1"
-                  />
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for primary buttons and accents</p>
+            {!hasWhiteLabel ? (
+              <div className="py-8 text-center">
+                <Lock className="w-16 h-16 mx-auto mb-4 text-neutral-400" />
+                <h3 className="text-lg font-semibold mb-2">White-Label Branding</h3>
+                <p className="text-neutral-600 dark:text-neutral-400 mb-4">
+                  Customize your agency's logo, colors, and branding on the Enterprise plan.
+                </p>
+                <Button onClick={() => setUpgradeModalOpen(true)}>
+                  Upgrade to Enterprise
+                </Button>
               </div>
+            ) : (
+              <Fragment>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="primaryColor">Primary Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        id="primaryColor"
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        placeholder="#006BFF"
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for primary buttons and accents</p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="secondaryColor">Secondary Color</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    id="secondaryColor"
-                    value={secondaryColor}
-                    onChange={(e) => setSecondaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={secondaryColor}
-                    onChange={(e) => setSecondaryColor(e.target.value)}
-                    placeholder="#3B82FF"
-                    className="flex-1"
-                  />
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for secondary elements</p>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="secondaryColor">Secondary Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        id="secondaryColor"
+                        value={secondaryColor}
+                        onChange={(e) => setSecondaryColor(e.target.value)}
+                        className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={secondaryColor}
+                        onChange={(e) => setSecondaryColor(e.target.value)}
+                        placeholder="#3B82FF"
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for secondary elements</p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="tertiaryColor">Tertiary Color</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    id="tertiaryColor"
-                    value={tertiaryColor}
-                    onChange={(e) => setTertiaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={tertiaryColor}
-                    onChange={(e) => setTertiaryColor(e.target.value)}
-                    placeholder="#4F46E5"
-                    className="flex-1"
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="tertiaryColor">Tertiary Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        id="tertiaryColor"
+                        value={tertiaryColor}
+                        onChange={(e) => setTertiaryColor(e.target.value)}
+                        className="w-16 h-10 rounded border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                      />
+                      <Input
+                        type="text"
+                        value={tertiaryColor}
+                        onChange={(e) => setTertiaryColor(e.target.value)}
+                        placeholder="#4F46E5"
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for accents and highlights</p>
+                  </div>
                 </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Used for accents and highlights</p>
-              </div>
-            </div>
 
-            {/* Color Preview */}
-            <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
-              <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">Preview</p>
-              <div className="flex gap-2">
-                <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Primary
+                {/* Color Preview */}
+                <div className="p-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                  <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">Preview</p>
+                  <div className="flex gap-2">
+                    <div 
+                      className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      Primary
+                    </div>
+                    <div 
+                      className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                      style={{ backgroundColor: secondaryColor }}
+                    >
+                      Secondary
+                    </div>
+                    <div 
+                      className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                      style={{ backgroundColor: tertiaryColor }}
+                    >
+                      Tertiary
+                    </div>
+                    <div 
+                      className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
+                      style={{ background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor}, ${tertiaryColor})` }}
+                    >
+                      Gradient
+                    </div>
+                  </div>
                 </div>
-                <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
-                  style={{ backgroundColor: secondaryColor }}
-                >
-                  Secondary
-                </div>
-                <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
-                  style={{ backgroundColor: tertiaryColor }}
-                >
-                  Tertiary
-                </div>
-                <div 
-                  className="flex-1 h-12 rounded-lg flex items-center justify-center text-white font-semibold shadow-sm"
-                  style={{ background: `linear-gradient(to right, ${primaryColor}, ${secondaryColor}, ${tertiaryColor})` }}
-                >
-                  Gradient
-                </div>
-              </div>
-            </div>
 
-            <Button
-              onClick={handleColorSave}
-              disabled={saving}
-              className="w-full bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Brand Colors'
-              )}
-            </Button>
+                <Button
+                  onClick={handleColorSave}
+                  disabled={saving}
+                  className="w-full bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Brand Colors'
+                  )}
+                </Button>
+              </Fragment>
+            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        feature="White-Label Branding"
+        currentPlan={plan}
+        requiredPlan="enterprise"
+      />
     </div>
   );
 }

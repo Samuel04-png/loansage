@@ -177,7 +177,7 @@ export function CustomersPage() {
         transition={{ duration: 0.3, delay: 0.1 }}
       >
         <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
-          <CardHeader className="pb-4 border-b border-neutral-200/50">
+          <CardHeader className="pb-4 border-b border-neutral-200/50 dark:border-neutral-800/50">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
               <Input
@@ -207,13 +207,13 @@ export function CustomersPage() {
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="hover:bg-transparent border-b border-neutral-200">
-                        <TableHead className="font-semibold text-neutral-700">Customer</TableHead>
-                        <TableHead className="font-semibold text-neutral-700">ID</TableHead>
-                        <TableHead className="font-semibold text-neutral-700">NRC</TableHead>
-                        <TableHead className="font-semibold text-neutral-700">Risk Score</TableHead>
-                        <TableHead className="font-semibold text-neutral-700">Status</TableHead>
-                        <TableHead className="font-semibold text-neutral-700 text-right">Actions</TableHead>
+                      <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Customer</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">ID</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">NRC</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Risk Score</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Status</TableHead>
+                        <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -251,9 +251,9 @@ export function CustomersPage() {
                           </TableCell>
                           <TableCell>
                             {cust.status === 'active' ? (
-                              <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Active</Badge>
+                              <Badge variant="success">Active</Badge>
                             ) : (
-                              <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Inactive</Badge>
+                              <Badge variant="warning">Inactive</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">

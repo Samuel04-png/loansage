@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Loader2, CreditCard } from 'lucide-react';
-import { getStripe, STRIPE_PRICE_ID, isStripeConfigured } from '../../lib/stripe/config';
+import { isStripeConfigured } from '../../lib/stripe/config';
 import { useAuth } from '../../hooks/useAuth';
 import { useAgency } from '../../hooks/useAgency';
 import toast from 'react-hot-toast';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../lib/firebase/config';
 
+import { type PlanCode } from '../../lib/pricing/plan-config';
+
 interface CheckoutButtonProps {
+  plan?: PlanCode;
   priceId?: string;
   onSuccess?: () => void;
   className?: string;
@@ -16,7 +19,8 @@ interface CheckoutButtonProps {
 }
 
 export function CheckoutButton({ 
-  priceId = STRIPE_PRICE_ID, 
+  plan,
+  priceId,
   onSuccess,
   className,
   children 
@@ -36,16 +40,47 @@ export function CheckoutButton({
       return;
     }
 
+    // Require either plan or priceId
+    if (!plan && !priceId) {
+      toast.error('Plan or price ID is required');
+      return;
+    }
+
+    // Don't allow checkout for starter plan (it's free)
+    if (plan === 'starter') {
+      toast.error('Starter plan is free and does not require payment');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Call Cloud Function to create checkout session
-      const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
-      const result = await createCheckoutSession({
+      // Prepare parameters object - ensure all values are properly defined
+      const params = {
         agencyId: profile.agency_id,
-        priceId,
+        ...(plan && { plan }),
+        ...(priceId && { priceId }),
         successUrl: `${window.location.origin}/admin/settings?payment=success`,
         cancelUrl: `${window.location.origin}/admin/plans?payment=cancelled`,
-      });
+      };
+
+      // Validate before sending
+      if (!params.agencyId) {
+        toast.error('Agency ID is missing. Please refresh the page and try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!params.plan && !params.priceId) {
+        toast.error('Plan information is missing. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Sending checkout request with params:', params);
+
+      // Call Cloud Function to create checkout session
+      const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
+      const result = await createCheckoutSession(params);
 
       const { checkoutUrl } = result.data as { checkoutUrl: string };
 
@@ -57,7 +92,18 @@ export function CheckoutButton({
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-      toast.error(error.message || 'Failed to start checkout process');
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('Error details:', error.details);
+      
+      // Provide more specific error messages
+      if (error.code === 'functions/invalid-argument') {
+        toast.error(error.message || 'Invalid parameters. Please refresh the page and try again.');
+      } else if (error.code === 'functions/failed-precondition') {
+        toast.error(error.message || 'Unable to process checkout. Please contact support.');
+      } else {
+        toast.error(error.message || 'Failed to start checkout process. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

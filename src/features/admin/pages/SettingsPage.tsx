@@ -1117,7 +1117,7 @@ export function SettingsPage() {
               {employees.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+                    <thead className="text-xs text-slate-700 dark:text-neutral-300 uppercase bg-slate-50 dark:bg-neutral-800/50 border-b dark:border-neutral-800">
                       <tr>
                         <th className="px-6 py-3 text-left">Employee</th>
                         <th className="px-6 py-3 text-left">Role</th>
