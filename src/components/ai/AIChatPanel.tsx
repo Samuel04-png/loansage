@@ -24,10 +24,12 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { createLoanTransaction } from '../../lib/firebase/loan-transactions';
-import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase/config';
-import { createAuditLog } from '../../lib/firebase/firestore-helpers';
+import { createAuditLog, createCustomer } from '../../lib/firebase/firestore-helpers';
 import { useQueryClient } from '@tanstack/react-query';
+import { approveLoan, rejectLoan, disburseLoan, LoanStatus } from '../../lib/loans/workflow';
+import { UserRole } from '../../types/loan-workflow';
 
 interface AIChatPanelProps {
   open: boolean;
@@ -169,14 +171,15 @@ export function AIChatPanel({
       });
 
       // Extract actions from response if in action/auto mode
-      let pendingAction = null;
+      let pendingActions = [];
       if ((mode === 'action' || mode === 'auto') && response.actions && response.actions.length > 0) {
-        const primaryAction = response.actions[0];
-        pendingAction = {
-          type: primaryAction.type,
-          data: primaryAction.data,
-          description: primaryAction.label || 'Perform action',
-        };
+        // Handle both single action and multiple actions
+        const actionsToProcess = Array.isArray(response.actions[0]) ? response.actions[0] : response.actions;
+        pendingActions = actionsToProcess.map((action: any) => ({
+          type: action.type,
+          data: action.data,
+          description: action.label || 'Perform action',
+        }));
       }
 
       const aiMessage: ChatMessage = {
@@ -187,15 +190,23 @@ export function AIChatPanel({
         data: response.data,
         suggestions: response.suggestions,
         actions: response.actions,
-        pendingAction: pendingAction || undefined,
+        pendingAction: pendingActions.length > 0 ? pendingActions[0] : undefined,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Auto mode: Execute action immediately if pending
-      if (mode === 'auto' && pendingAction) {
-        setTimeout(() => {
-          handleExecuteAction(pendingAction.type, pendingAction.data, aiMessage.id);
+      // Auto mode: Execute actions immediately if pending (handle multiple actions)
+      if (mode === 'auto' && pendingActions.length > 0) {
+        setTimeout(async () => {
+          // Execute actions sequentially
+          for (let i = 0; i < pendingActions.length; i++) {
+            const action = pendingActions[i];
+            // Wait for previous action to complete (except first one)
+            if (i > 0) {
+              await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between actions
+            }
+            await handleExecuteAction(action.type, action.data, aiMessage.id);
+          }
         }, 1000); // Small delay to show the message first
       }
     } catch (error: any) {
@@ -290,6 +301,9 @@ ${errorMessage}
       return;
     }
 
+    // Check if user is admin (admin or manager role)
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'manager';
+
     try {
       switch (actionType) {
         case 'create_loan': {
@@ -307,18 +321,88 @@ ${errorMessage}
           // If customerName is provided but not customerId, try to find customer
           let finalCustomerId = customerId;
           if (!finalCustomerId && customerName) {
-            const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
-            const customersQuery = query(
-              customersRef,
-              where('fullName', '==', customerName)
-            );
-            const customersSnapshot = await getDocs(customersQuery);
-            
-            if (!customersSnapshot.empty) {
-              finalCustomerId = customersSnapshot.docs[0].id;
-            } else {
-              toast.error(`Customer "${customerName}" not found. Please create the customer first.`);
-              return;
+            // First, try to find by ID (in case customerId is actually an ID passed as name)
+            try {
+              const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customerName.trim());
+              const { getDoc } = await import('firebase/firestore');
+              const customerDoc = await getDoc(customerRef);
+              if (customerDoc.exists()) {
+                finalCustomerId = customerDoc.id;
+              }
+            } catch (error) {
+              // Not an ID, continue to search by name
+            }
+
+            if (!finalCustomerId) {
+              // Search by name (case-insensitive and flexible)
+              const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+              const customersSnapshot = await getDocs(customersRef);
+              
+              const searchName = customerName.trim().toLowerCase();
+              
+              // Try multiple search strategies
+              const matchingCustomer = customersSnapshot.docs.find((doc) => {
+                const data = doc.data();
+                const fullName = (data.fullName || data.name || data.full_name || '').trim().toLowerCase();
+                const phone = (data.phone || '').trim();
+                const nrc = (data.nrc || data.nrc_number || '').trim().toLowerCase();
+                const email = (data.email || '').trim().toLowerCase();
+                const searchLower = searchName.toLowerCase();
+                
+                // Exact match (case-insensitive)
+                if (fullName === searchLower) return true;
+                
+                // Partial match in name
+                if (fullName && fullName.includes(searchLower)) return true;
+                if (searchLower.includes(fullName)) return true;
+                
+                // Match by phone
+                if (phone && (phone === searchName || phone.includes(searchName) || searchName.includes(phone))) return true;
+                
+                // Match by NRC
+                if (nrc && nrc === searchLower) return true;
+                
+                // Match by email
+                if (email && email === searchLower) return true;
+                
+                // Match individual words (for "First Last" vs "Last, First")
+                const searchWords = searchLower.split(/\s+/).filter(w => w.length > 2);
+                const nameWords = fullName.split(/\s+/).filter(w => w.length > 2);
+                if (searchWords.length > 0 && nameWords.length > 0) {
+                  const allSearchWordsMatch = searchWords.every(sw => 
+                    nameWords.some(nw => nw.includes(sw) || sw.includes(nw))
+                  );
+                  if (allSearchWordsMatch && nameWords.length === searchWords.length) return true;
+                }
+                
+                return false;
+              });
+              
+              if (matchingCustomer) {
+                finalCustomerId = matchingCustomer.id;
+              } else {
+                // Customer not found - don't show error, let the AI handle it conversationally
+                // Update the message to indicate customer not found so AI can ask for details
+                if (messageId) {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === messageId
+                        ? {
+                            ...msg,
+                            pendingAction: undefined,
+                            content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n⚠️ **Customer Not Found:** I couldn't find "${customerName}" in the system. The AI will help you create this customer first, then we can create the loan. Please provide the customer details when asked.`,
+                          }
+                        : msg
+                    )
+                  );
+                }
+                // Don't return - let user continue the conversation with AI
+                toast.info(
+                  `Customer "${customerName}" not found. The AI will help you create them first.`,
+                  { duration: 5000 }
+                );
+                return;
+              }
             }
           }
 
@@ -371,6 +455,26 @@ ${errorMessage}
 
         case 'update_loan_status': {
           const { loanId, status, loanNumber } = actionData;
+
+          // Check if trying to approve/reject/disburse without admin permission
+          const restrictedStatuses = ['approved', 'rejected', 'disbursed'];
+          if (restrictedStatuses.includes(status) && !isAdmin) {
+            toast.error('This status change requires admin permissions. Only administrators can approve, reject, or disburse loans.');
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** Changing loan status to "${status}" requires admin permissions. Please contact an administrator.`,
+                      }
+                    : msg
+                )
+              );
+            }
+            return;
+          }
 
           // If loanNumber is provided but not loanId, try to find loan
           let finalLoanId = loanId;
@@ -453,6 +557,523 @@ ${errorMessage}
                       ...msg,
                       pendingAction: undefined,
                       content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan status updated from "${currentStatus}" to "${status}"`,
+                    }
+                  : msg
+              )
+            );
+          }
+          break;
+        }
+
+        case 'add_payment': {
+          const { loanId, loanNumber, amount } = actionData;
+          
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          // Navigate to payment page
+          navigate(`/admin/loans/${finalLoanId}?tab=repayments`);
+          onOpenChange(false);
+          toast.success('Opening payment dialog...');
+          break;
+        }
+
+        case 'create_customer': {
+          const { fullName, phone, email, nrc, address, employer, employmentStatus, monthlyIncome, jobTitle } = actionData;
+          
+          if (!fullName || !phone || !nrc || !address) {
+            toast.error('Missing required fields: fullName, phone, nrc, and address are required.');
+            return;
+          }
+
+          const result = await createCustomer(profile.agency_id, {
+            fullName,
+            phone,
+            email: email || undefined,
+            nrc,
+            address,
+            employer: employer || undefined,
+            employmentStatus: employmentStatus || undefined,
+            monthlyIncome: monthlyIncome ? parseFloat(monthlyIncome) : undefined,
+            jobTitle: jobTitle || undefined,
+            createdBy: user.id,
+          });
+
+          toast.success(`Customer "${fullName}" created successfully!`);
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+          
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      pendingAction: undefined,
+                      content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Customer "${fullName}" created successfully (ID: ${result.id})`,
+                    }
+                  : msg
+              )
+            );
+          }
+          break;
+        }
+
+        case 'update_customer': {
+          const { customerId, customerName, ...updateFields } = actionData;
+          
+          let finalCustomerId = customerId;
+          if (!finalCustomerId && customerName) {
+            const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+            const customersQuery = query(customersRef, where('fullName', '==', customerName));
+            const customersSnapshot = await getDocs(customersQuery);
+            if (!customersSnapshot.empty) {
+              finalCustomerId = customersSnapshot.docs[0].id;
+            } else {
+              toast.error(`Customer "${customerName}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalCustomerId) {
+            toast.error('Customer ID or name is required.');
+            return;
+          }
+
+          const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', finalCustomerId);
+          const updateData: any = {
+            ...updateFields,
+            updatedAt: serverTimestamp(),
+          };
+
+          // Remove undefined values
+          Object.keys(updateData).forEach(key => {
+            if (updateData[key] === undefined) {
+              delete updateData[key];
+            }
+          });
+
+          await updateDoc(customerRef, updateData);
+          
+          // Create audit log
+          await createAuditLog(profile.agency_id, {
+            actorId: user.id,
+            action: 'update_customer',
+            targetCollection: 'customers',
+            targetId: finalCustomerId,
+            metadata: updateFields,
+          }).catch(() => {});
+
+          toast.success('Customer updated successfully!');
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+          queryClient.invalidateQueries({ queryKey: ['customer', finalCustomerId] });
+          
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      pendingAction: undefined,
+                      content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Customer updated successfully`,
+                    }
+                  : msg
+              )
+            );
+          }
+          break;
+        }
+
+        case 'approve_loan': {
+          // Check admin permission
+          if (!isAdmin) {
+            toast.error('This action requires admin permissions. Only administrators can approve loans.');
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** Approving loans requires admin permissions. Please contact an administrator.`,
+                      }
+                    : msg
+                )
+              );
+            }
+            return;
+          }
+
+          const { loanId, loanNumber, notes } = actionData;
+          
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          const userRole = profile.role === 'admin' ? UserRole.ADMIN : 
+                          profile.role === 'manager' ? UserRole.MANAGER :
+                          profile.role === 'accountant' ? UserRole.ACCOUNTANT : 
+                          UserRole.LOAN_OFFICER;
+
+          const result = await approveLoan(
+            finalLoanId,
+            profile.agency_id,
+            user.id,
+            userRole,
+            notes || 'Approved via AI assistant'
+          );
+
+          if (result.success) {
+            toast.success('Loan approved successfully!');
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+            
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan approved successfully`,
+                      }
+                    : msg
+                )
+              );
+            }
+          } else {
+            throw new Error(result.error || 'Failed to approve loan');
+          }
+          break;
+        }
+
+        case 'reject_loan': {
+          // Check admin permission
+          if (!isAdmin) {
+            toast.error('This action requires admin permissions. Only administrators can reject loans.');
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** Rejecting loans requires admin permissions. Please contact an administrator.`,
+                      }
+                    : msg
+                )
+              );
+            }
+            return;
+          }
+
+          const { loanId, loanNumber, reason } = actionData;
+          
+          if (!reason) {
+            toast.error('Rejection reason is required.');
+            return;
+          }
+          
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          const userRole = profile.role === 'admin' ? UserRole.ADMIN : 
+                          profile.role === 'manager' ? UserRole.MANAGER :
+                          profile.role === 'accountant' ? UserRole.ACCOUNTANT : 
+                          UserRole.LOAN_OFFICER;
+
+          const result = await rejectLoan(
+            finalLoanId,
+            profile.agency_id,
+            user.id,
+            userRole,
+            reason
+          );
+
+          if (result.success) {
+            toast.success('Loan rejected.');
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+            
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan rejected: ${reason}`,
+                      }
+                    : msg
+                )
+              );
+            }
+          } else {
+            throw new Error(result.error || 'Failed to reject loan');
+          }
+          break;
+        }
+
+        case 'disburse_loan': {
+          // Check admin permission
+          if (!isAdmin) {
+            toast.error('This action requires admin permissions. Only administrators can disburse loans.');
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** Disbursing loans requires admin permissions. Please contact an administrator.`,
+                      }
+                    : msg
+                )
+              );
+            }
+            return;
+          }
+
+          const { loanId, loanNumber, disbursementDate } = actionData;
+          
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          const userRole = profile.role === 'admin' ? UserRole.ADMIN : 
+                          profile.role === 'manager' ? UserRole.MANAGER :
+                          profile.role === 'accountant' ? UserRole.ACCOUNTANT : 
+                          UserRole.LOAN_OFFICER;
+
+          const result = await disburseLoan(
+            finalLoanId,
+            profile.agency_id,
+            user.id,
+            userRole,
+            disbursementDate ? new Date(disbursementDate) : undefined
+          );
+
+          if (result.success) {
+            toast.success('Loan disbursed successfully!');
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+            
+            if (messageId) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? {
+                        ...msg,
+                        pendingAction: undefined,
+                        content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan disbursed successfully`,
+                      }
+                    : msg
+                )
+              );
+            }
+          } else {
+            throw new Error(result.error || 'Failed to disburse loan');
+          }
+          break;
+        }
+
+        case 'update_loan': {
+          const { loanId, loanNumber, ...updateFields } = actionData;
+          
+          let finalLoanId = loanId;
+          if (!finalLoanId && loanNumber) {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+            const loansSnapshot = await getDocs(loansQuery);
+            if (!loansSnapshot.empty) {
+              finalLoanId = loansSnapshot.docs[0].id;
+            } else {
+              toast.error(`Loan with number "${loanNumber}" not found.`);
+              return;
+            }
+          }
+
+          if (!finalLoanId) {
+            toast.error('Loan ID or loan number is required.');
+            return;
+          }
+
+          const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', finalLoanId);
+          
+          const updateData: any = {
+            ...updateFields,
+            updatedAt: serverTimestamp(),
+          };
+
+          // Remove undefined values
+          Object.keys(updateData).forEach(key => {
+            if (updateData[key] === undefined) {
+              delete updateData[key];
+            }
+          });
+
+          await updateDoc(loanRef, updateData);
+          
+          // Create audit log
+          await createAuditLog(profile.agency_id, {
+            actorId: user.id,
+            action: 'update_loan',
+            targetCollection: 'loans',
+            targetId: finalLoanId,
+            metadata: updateFields,
+          }).catch(() => {});
+
+          toast.success('Loan updated successfully!');
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+          queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+          
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      pendingAction: undefined,
+                      content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Loan updated successfully`,
+                    }
+                  : msg
+              )
+            );
+          }
+          break;
+        }
+
+        case 'add_note': {
+          const { loanId, loanNumber, customerId, customerName, note, noteType = 'loan' } = actionData;
+          
+          if (!note) {
+            toast.error('Note text is required.');
+            return;
+          }
+
+          if (noteType === 'loan') {
+            let finalLoanId = loanId;
+            if (!finalLoanId && loanNumber) {
+              const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+              const loansQuery = query(loansRef, where('loanNumber', '==', loanNumber));
+              const loansSnapshot = await getDocs(loansQuery);
+              if (!loansSnapshot.empty) {
+                finalLoanId = loansSnapshot.docs[0].id;
+              } else {
+                toast.error(`Loan with number "${loanNumber}" not found.`);
+                return;
+              }
+            }
+
+            if (!finalLoanId) {
+              toast.error('Loan ID or loan number is required.');
+              return;
+            }
+
+            const notesRef = collection(db, 'agencies', profile.agency_id, 'loans', finalLoanId, 'notes');
+            await addDoc(notesRef, {
+              note,
+              createdBy: user.id,
+              createdAt: serverTimestamp(),
+            });
+
+            toast.success('Note added to loan successfully!');
+            queryClient.invalidateQueries({ queryKey: ['loan', finalLoanId] });
+          } else {
+            let finalCustomerId = customerId;
+            if (!finalCustomerId && customerName) {
+              const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+              const customersQuery = query(customersRef, where('fullName', '==', customerName));
+              const customersSnapshot = await getDocs(customersQuery);
+              if (!customersSnapshot.empty) {
+                finalCustomerId = customersSnapshot.docs[0].id;
+              } else {
+                toast.error(`Customer "${customerName}" not found.`);
+                return;
+              }
+            }
+
+            if (!finalCustomerId) {
+              toast.error('Customer ID or name is required.');
+              return;
+            }
+
+            const notesRef = collection(db, 'agencies', profile.agency_id, 'customers', finalCustomerId, 'notes');
+            await addDoc(notesRef, {
+              note,
+              createdBy: user.id,
+              createdAt: serverTimestamp(),
+            });
+
+            toast.success('Note added to customer successfully!');
+            queryClient.invalidateQueries({ queryKey: ['customer', finalCustomerId] });
+          }
+          
+          if (messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? {
+                      ...msg,
+                      pendingAction: undefined,
+                      content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n✅ **Action Completed:** Note added successfully`,
                     }
                   : msg
               )
