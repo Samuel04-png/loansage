@@ -543,7 +543,7 @@ export function LoanDetailPage() {
               )}
 
               {/* Change Status - Show for non-terminal statuses */}
-              {loan.status !== 'closed' && loan.status !== 'settled' && loan.status !== 'rejected' && (
+              {loan.status !== 'closed' && loan.status !== 'rejected' && (
                 <Button
                   onClick={() => setStatusDialogOpen(true)}
                   variant="outline"
