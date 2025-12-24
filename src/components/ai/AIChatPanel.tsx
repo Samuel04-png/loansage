@@ -1111,7 +1111,41 @@ ${errorMessage}
       }
     } catch (error: any) {
       console.error('Action execution error:', error);
-      toast.error(`Failed to execute action: ${error.message || 'Unknown error'}`);
+      
+      // Handle permission errors specifically
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      let userFriendlyMessage = errorMessage;
+      let errorTitle = 'Action Failed';
+      
+      if (errorMessage.includes('Missing or insufficient permissions') || errorMessage.includes('permission-denied')) {
+        userFriendlyMessage = `**Permission Denied**
+
+This action requires additional permissions that your account doesn't have.
+
+**Possible reasons:**
+- This action is restricted to administrators or managers
+- Your account doesn't have the required role to perform this operation
+- The item you're trying to access doesn't belong to your agency
+
+**What you can do:**
+- Contact an administrator to grant you the necessary permissions
+- Check with your manager if you should have access to this action`;
+        errorTitle = 'Permission Denied';
+        toast.error('This action requires additional permissions. Please contact an administrator.');
+      } else if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
+        userFriendlyMessage = `**Item Not Found**
+
+${errorMessage}
+
+**What you can do:**
+- Verify the item ID or name is correct
+- Check if the item has been deleted
+- Try refreshing the page`;
+        errorTitle = 'Item Not Found';
+        toast.error('The requested item was not found.');
+      } else {
+        toast.error(`Failed to execute action: ${errorMessage}`);
+      }
       
       // Update message to show error
       if (messageId) {
@@ -1121,7 +1155,7 @@ ${errorMessage}
               ? {
                   ...msg,
                   pendingAction: undefined,
-                  content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **Action Failed:** ${error?.message || 'Unknown error'}`,
+                  content: `${typeof msg.content === 'string' ? msg.content : String(msg.content || '')}\n\n❌ **${errorTitle}:**\n\n${userFriendlyMessage}`,
                 }
               : msg
           )

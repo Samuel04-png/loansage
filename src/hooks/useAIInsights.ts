@@ -82,6 +82,11 @@ export function useAIInsights(enabled: boolean = true) {
     staleTime: 60000, // Cache for 1 minute
   });
 
+  // Auto-analyze when data changes (use ref to prevent infinite loops)
+  const analysisDataRef = useRef(analysisData);
+  const aiEnabledRef = useRef(aiEnabled);
+  const lastAnalysisHashRef = useRef<string>('');
+
   // Analyze when data is available
   const analyze = useCallback(async () => {
     if (!analysisData || !aiEnabled || isAnalyzing) return;
@@ -92,15 +97,14 @@ export function useAIInsights(enabled: boolean = true) {
       customers: analysisData.customers?.length || 0,
       payments: analysisData.payments?.length || 0,
     });
-    const lastAnalysisHash = useRef<string>('');
     
-    if (lastAnalysisHash.current === dataHash && insights.length > 0) {
+    if (lastAnalysisHashRef.current === dataHash && insights.length > 0) {
       return; // Already analyzed this data
     }
 
     setIsAnalyzing(true);
     try {
-      lastAnalysisHash.current = dataHash;
+      lastAnalysisHashRef.current = dataHash;
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise<AIInsight[]>((_, reject) => {
         setTimeout(() => reject(new Error('Analysis timeout')), 30000); // 30 second timeout
@@ -155,12 +159,7 @@ export function useAIInsights(enabled: boolean = true) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [analysisData, aiEnabled, isAnalyzing, addAlert]);
-
-  // Auto-analyze when data changes (use ref to prevent infinite loops)
-  const analysisDataRef = useRef(analysisData);
-  const aiEnabledRef = useRef(aiEnabled);
-  const lastAnalysisHashRef = useRef<string>('');
+  }, [analysisData, aiEnabled, isAnalyzing, addAlert, insights.length]);
   
   useEffect(() => {
     analysisDataRef.current = analysisData;
