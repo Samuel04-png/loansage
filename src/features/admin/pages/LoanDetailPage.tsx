@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../components/ui/dialog';
-import {
+import { 
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -157,7 +157,7 @@ export function LoanDetailPage() {
         
         if (!loanSnap.exists()) return null;
         
-        const loanData = { id: loanSnap.id, ...loanSnap.data() };
+        const loanData = { id: loanSnap.id, ...loanSnap.data() } as any;
 
         // Get customer info - check both customerId and customer_id fields
         const customerId = loanData.customerId || loanData.customer_id;
@@ -471,20 +471,20 @@ export function LoanDetailPage() {
         <div className="flex flex-col gap-6">
           {/* Top Row: Title and Back Button */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/admin/loans">
+        <div className="flex items-center gap-4">
+          <Link to="/admin/loans">
                 <Button variant="outline" size="icon" className="rounded-xl">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
-              <div>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
                 <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Loan Details</h1>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 font-mono mt-0.5">
                   {loan.loanNumber || loan.id.substring(0, 12)}
-                </p>
-              </div>
-            </div>
-            {getStatusBadge(loan.status)}
+            </p>
+          </div>
+        </div>
+          {getStatusBadge(loan.status)}
           </div>
 
           {/* Action Buttons Row */}
@@ -493,36 +493,36 @@ export function LoanDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Submit for Review */}
               {permissions.canSubmit && (
-                <Button
+              <Button
                   onClick={handleSubmitLoan}
                   className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
-                >
+              >
                   <Send className="mr-2 h-4 w-4" />
                   Submit for Review
-                </Button>
+              </Button>
               )}
 
 
               {/* Manage Repayments - Show for active/approved/disbursed loans */}
               {permissions.canManageRepayments && (
-                <Button
+              <Button
                   onClick={() => setActiveTab('repayments')}
                   variant="outline"
                   className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
-                >
+              >
                   <FileText className="mr-2 h-4 w-4" />
                   Manage Repayments
-                </Button>
-              )}
+            </Button>
+          )}
 
               {/* Add Payment - Quick action for active loans */}
               {(loan.status === 'active' || loan.status === 'approved' || loan.status === 'disbursed') && (
-                <Button
+          <Button
                   onClick={() => {
                     setActiveTab('repayments');
                     setPaymentDialogOpen(true);
                   }}
-                  variant="outline"
+            variant="outline"
                   className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
@@ -533,13 +533,13 @@ export function LoanDetailPage() {
               {/* Close Loan - Show for active loans */}
               {permissions.canClose && loan.status === 'active' && (
                 <Button
-                  onClick={() => setStatusDialogOpen(true)}
+            onClick={() => setStatusDialogOpen(true)}
                   variant="outline"
                   className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
-                >
+          >
                   <Clock className="mr-2 h-4 w-4" />
                   Close Loan
-                </Button>
+          </Button>
               )}
 
               {/* Change Status - Show for non-terminal statuses */}
@@ -634,18 +634,18 @@ export function LoanDetailPage() {
                       Change Status
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => setDeleteDialogOpen(true)}
+            onClick={() => setDeleteDialogOpen(true)}
                       className="cursor-pointer text-red-600 focus:text-red-600 rounded-lg"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
                       Delete Loan
                     </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
         </div>
+      </div>
       </motion.div>
 
       {/* Tabs */}
@@ -1117,7 +1117,7 @@ export function LoanDetailPage() {
             queryClient.invalidateQueries({ queryKey: ['loans'] });
             setSelectedAction(null);
           }}
-        />
+          />
       )}
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
