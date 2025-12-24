@@ -459,6 +459,8 @@ export async function createCustomer(
     monthlyIncome?: number;
     jobTitle?: string;
     employmentDuration?: string;
+    lastEmploymentDate?: string;
+    unemploymentReason?: string;
     guarantorName?: string;
     guarantorPhone?: string;
     guarantorNRC?: string;
@@ -482,6 +484,8 @@ export async function createCustomer(
     monthlyIncome: data.monthlyIncome || null,
     jobTitle: data.jobTitle || null,
     employmentDuration: data.employmentDuration || null,
+    lastEmploymentDate: data.lastEmploymentDate || null,
+    unemploymentReason: data.unemploymentReason || null,
     guarantorName: data.guarantorName || null,
     guarantorPhone: data.guarantorPhone || null,
     guarantorNRC: data.guarantorNRC || null,

@@ -4,7 +4,7 @@
  */
 
 import { callDeepSeekAPI, parseAIResponse, isDeepSeekConfigured } from './deepseek-client';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, limit } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { createNotification, notifyPaymentOverdue, notifyLoanDefault } from '../firebase/notifications';
 
@@ -33,7 +33,7 @@ export async function analyzeLoanRisk(
     
     if (loanDoc.empty) return null;
     
-    const loan = { id: loanDoc.docs[0].id, ...loanDoc.docs[0].data() };
+    const loan = { id: loanDoc.docs[0].id, ...loanDoc.docs[0].data() } as any;
     
     // Fetch repayments
     const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loanId, 'repayments');

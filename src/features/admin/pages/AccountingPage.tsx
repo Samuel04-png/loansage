@@ -1,18 +1,20 @@
-import { useState, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { collection, getDocs } from 'firebase/firestore';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { collection, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
-import { DollarSign, TrendingUp, TrendingDown, Calendar, FileText, Download, Filter, Search, Loader2, Upload, CheckCircle2, AlertCircle, FileCheck } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Calendar, FileText, Download, Filter, Search, Loader2, Upload, CheckCircle2, AlertCircle, FileCheck, Eye, Edit } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { parseBankStatementFile, matchBankTransactions, generateReconciliationReport } from '../../../lib/accounting/bank-reconciliation';
 import toast from 'react-hot-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../../components/ui/dialog';
+import { Select } from '../../../components/ui/select';
+import { Label } from '../../../components/ui/label';
 
 export function AccountingPage() {
   const { profile } = useAuth();
@@ -23,6 +25,9 @@ export function AccountingPage() {
   const [reconciliationMatches, setReconciliationMatches] = useState<any[]>([]);
   const [reconciliationReport, setReconciliationReport] = useState<any>(null);
   const [processingReconciliation, setProcessingReconciliation] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<'paid' | 'pending' | 'overdue'>('pending');
   const bankStatementFileRef = useRef<HTMLInputElement>(null);
 
   // Get all loans for financial calculations
@@ -143,6 +148,58 @@ export function AccountingPage() {
       defaultedCount: defaultedLoans.length,
     };
   })() : null;
+
+  // Initialize newStatus when selectedTransaction changes
+  useEffect(() => {
+    if (selectedTransaction) {
+      setNewStatus(selectedTransaction.status || 'pending');
+    }
+  }, [selectedTransaction]);
+
+  // Update transaction status mutation
+  const updateTransactionStatus = useMutation({
+    mutationFn: async ({ repayment, newStatus }: { repayment: any; newStatus: 'paid' | 'pending' | 'overdue' }) => {
+      if (!profile?.agency_id || !repayment.loanId || !repayment.id) {
+        throw new Error('Missing required information');
+      }
+
+      const repaymentRef = doc(db, 'agencies', profile.agency_id, 'loans', repayment.loanId, 'repayments', repayment.id);
+      
+      const updateData: any = {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      };
+
+      // If marking as paid, set paidAt and ensure amountPaid equals amountDue
+      if (newStatus === 'paid') {
+        updateData.paidAt = serverTimestamp();
+        // If amountPaid is less than amountDue, set it to amountDue
+        const amountDue = Number(repayment.amountDue || 0);
+        const amountPaid = Number(repayment.amountPaid || 0);
+        if (amountPaid < amountDue) {
+          updateData.amountPaid = amountDue;
+        }
+      } else if (newStatus === 'pending') {
+        // If reverting to pending, clear paidAt
+        updateData.paidAt = null;
+      }
+
+      await updateDoc(repaymentRef, updateData);
+
+      // Update loan summary after status change
+      const { updateLoanAfterPayment } = await import('../../../lib/firebase/repayment-helpers');
+      await updateLoanAfterPayment(profile.agency_id, repayment.loanId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounting-repayments'] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-loans'] });
+      toast.success('Transaction status updated successfully');
+      setTransactionDetailOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update transaction status');
+    },
+  });
 
   // Monthly breakdown for chart
   const monthlyData = loans ? (() => {
@@ -574,6 +631,7 @@ export function AccountingPage() {
                   <th className="px-4 py-3 text-left">Loan Officer</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -596,7 +654,7 @@ export function AccountingPage() {
                   })
                   .slice(0, 20)
                   .map((repayment: any) => (
-                    <tr key={`${repayment.loanId}-${repayment.id}`} className="border-b hover:bg-slate-50">
+                    <tr key={`${repayment.loanId}-${repayment.id}`} className="border-b hover:bg-slate-50 dark:hover:bg-neutral-800/50">
                       <td className="px-4 py-3">
                         {formatDateSafe(repayment.paidAt || repayment.dueDate)}
                       </td>
@@ -620,6 +678,19 @@ export function AccountingPage() {
                           <Badge variant="warning">Pending</Badge>
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTransaction(repayment);
+                            setTransactionDetailOpen(true);
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -627,6 +698,262 @@ export function AccountingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Transaction Detail Dialog */}
+      <Dialog 
+        open={transactionDetailOpen} 
+        onOpenChange={(open) => {
+          setTransactionDetailOpen(open);
+          if (open && selectedTransaction) {
+            setNewStatus(selectedTransaction.status || 'pending');
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+            <DialogDescription>
+              Complete information about this transaction
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedTransaction && (
+            <div className="space-y-6 py-4" onLoad={() => setNewStatus(selectedTransaction.status || 'pending')}>
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Transaction ID</label>
+                  <p className="mt-1 text-sm font-mono">{selectedTransaction.id || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Loan ID</label>
+                  <p className="mt-1 text-sm font-mono">{selectedTransaction.loanId || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Type</label>
+                  <p className="mt-1 text-sm">
+                    {selectedTransaction.status === 'paid' ? 'Collection' : 'Due Payment'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Status</label>
+                  <div className="mt-1">
+                    {selectedTransaction.status === 'paid' ? (
+                      <Badge variant="success">Paid</Badge>
+                    ) : (
+                      <Badge variant="warning">Pending</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Due Date</label>
+                  <p className="mt-1 text-sm">
+                    {selectedTransaction.dueDate ? formatDateSafe(selectedTransaction.dueDate) : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">
+                    {selectedTransaction.status === 'paid' ? 'Paid Date' : 'Expected Payment Date'}
+                  </label>
+                  <p className="mt-1 text-sm">
+                    {selectedTransaction.paidAt 
+                      ? formatDateSafe(selectedTransaction.paidAt) 
+                      : selectedTransaction.dueDate 
+                        ? formatDateSafe(selectedTransaction.dueDate) 
+                        : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Amount Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Amount Due</label>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatCurrency(Number(selectedTransaction.amountDue || 0), 'ZMW')}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Amount Paid</label>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(Number(selectedTransaction.amountPaid || 0), 'ZMW')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Payment Breakdown */}
+              {selectedTransaction.interestPortion && selectedTransaction.principalPortion && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Interest Portion</label>
+                    <p className="mt-1 text-sm">
+                      {formatCurrency(Number(selectedTransaction.interestPortion || 0), 'ZMW')}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Principal Portion</label>
+                    <p className="mt-1 text-sm">
+                      {formatCurrency(Number(selectedTransaction.principalPortion || 0), 'ZMW')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Remaining Balance */}
+              {selectedTransaction.remainingBalance !== undefined && (
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Remaining Balance</label>
+                  <p className="mt-1 text-lg font-semibold">
+                    {formatCurrency(Number(selectedTransaction.remainingBalance || 0), 'ZMW')}
+                  </p>
+                </div>
+              )}
+
+              {/* Customer & Officer Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Customer</label>
+                  <p className="mt-1 text-sm">{selectedTransaction.customerName || 'N/A'}</p>
+                  {selectedTransaction.customerId && (
+                    <p className="mt-1 text-xs text-slate-400 font-mono">{selectedTransaction.customerId}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Loan Officer</label>
+                  <p className="mt-1 text-sm">{selectedTransaction.loanOfficerName || 'N/A'}</p>
+                  {selectedTransaction.loanOfficerId && (
+                    <p className="mt-1 text-xs text-slate-400 font-mono">{selectedTransaction.loanOfficerId}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              {selectedTransaction.status === 'paid' && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-sm font-semibold">Payment Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Payment Method</label>
+                      <p className="mt-1 text-sm capitalize">
+                        {selectedTransaction.paymentMethod || selectedTransaction.method || 'Cash'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Transaction ID</label>
+                      <p className="mt-1 text-sm font-mono">
+                        {selectedTransaction.transactionId || selectedTransaction.paymentTransactionId || 'N/A'}
+                      </p>
+                    </div>
+                    {selectedTransaction.recordedBy && (
+                      <div>
+                        <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Recorded By</label>
+                        <p className="mt-1 text-sm">{selectedTransaction.recordedByName || selectedTransaction.recordedBy || 'N/A'}</p>
+                      </div>
+                    )}
+                    {selectedTransaction.recordedAt && (
+                      <div>
+                        <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Recorded At</label>
+                        <p className="mt-1 text-sm">
+                          {formatDateSafe(selectedTransaction.recordedAt)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {(selectedTransaction.notes || selectedTransaction.description) && (
+                <div className="pt-4 border-t">
+                  <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Notes</label>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-neutral-300 whitespace-pre-wrap">
+                    {selectedTransaction.notes || selectedTransaction.description || 'N/A'}
+                  </p>
+                </div>
+              )}
+
+              {/* Additional Metadata */}
+              {(selectedTransaction.createdAt || selectedTransaction.updatedAt) && (
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  {selectedTransaction.createdAt && (
+                    <div>
+                      <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Created At</label>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {formatDateSafe(selectedTransaction.createdAt)}
+                      </p>
+                    </div>
+                  )}
+                  {selectedTransaction.updatedAt && (
+                    <div>
+                      <label className="text-sm font-medium text-slate-500 dark:text-neutral-400">Last Updated</label>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {formatDateSafe(selectedTransaction.updatedAt)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-4">
+            <div className="flex items-center gap-3 flex-1">
+              <Label htmlFor="status-select" className="text-sm font-medium whitespace-nowrap">
+                Update Status:
+              </Label>
+              <Select
+                id="status-select"
+                value={newStatus}
+                onChange={(e) => {
+                  setNewStatus(e.target.value as 'paid' | 'pending' | 'overdue');
+                }}
+                className="flex-1"
+              >
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setTransactionDetailOpen(false)}
+              >
+                Close
+              </Button>
+              {selectedTransaction && selectedTransaction.status !== newStatus && (
+                <Button
+                  onClick={() => {
+                    if (selectedTransaction) {
+                      updateTransactionStatus.mutate({
+                        repayment: selectedTransaction,
+                        newStatus,
+                      });
+                    }
+                  }}
+                  disabled={updateTransactionStatus.isPending}
+                >
+                  {updateTransactionStatus.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Update Status
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bank Reconciliation Dialog */}
       <Dialog open={reconciliationDialogOpen} onOpenChange={setReconciliationDialogOpen}>

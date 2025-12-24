@@ -37,6 +37,8 @@ const customerSchema = z.object({
   monthlyIncome: z.string().optional(),
   jobTitle: z.string().optional(),
   employmentDuration: z.string().optional(),
+  lastEmploymentDate: z.string().optional(),
+  unemploymentReason: z.string().optional(),
   guarantorName: z.string().optional(),
   guarantorPhone: z.string().optional(),
   guarantorNRC: z.string().optional(),
@@ -65,9 +67,12 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
   } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
   });
+
+  const employmentStatus = watch('employmentStatus');
 
   const handleFileChange = (type: 'front' | 'back', file: File | null) => {
     if (file) {
@@ -105,6 +110,8 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
         guarantorPhone: data.guarantorPhone || undefined,
         guarantorNRC: data.guarantorNRC || undefined,
         guarantorRelationship: data.guarantorRelationship || undefined,
+        lastEmploymentDate: data.lastEmploymentDate || undefined,
+        unemploymentReason: data.unemploymentReason || undefined,
         createdBy: user.id,
       });
 
@@ -356,43 +363,96 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
                   </select>
                 </div>
 
-                <div>
-                  <Label htmlFor="employer">Employer / Company Name</Label>
-                  <Input
-                    id="employer"
-                    placeholder="Company name or self-employed"
-                    {...register('employer')}
-                  />
-                </div>
+                {/* Show fields based on employment status */}
+                
+                {/* Employer/Company Name - Show for: employed, self-employed */}
+                {(employmentStatus === 'employed' || employmentStatus === 'self-employed') && (
+                  <div>
+                    <Label htmlFor="employer">
+                      {employmentStatus === 'employed' ? 'Employer / Company Name' : 'Business Name'}
+                    </Label>
+                    <Input
+                      id="employer"
+                      placeholder={employmentStatus === 'employed' ? 'Company name' : 'Business name'}
+                      {...register('employer')}
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <Label htmlFor="jobTitle">Job Title / Occupation</Label>
-                  <Input
-                    id="jobTitle"
-                    placeholder="e.g., Teacher, Business Owner"
-                    {...register('jobTitle')}
-                  />
-                </div>
+                {/* Job Title/Occupation - Show for: employed, self-employed, student */}
+                {(employmentStatus === 'employed' || employmentStatus === 'self-employed' || employmentStatus === 'student') && (
+                  <div>
+                    <Label htmlFor="jobTitle">
+                      {employmentStatus === 'employed' ? 'Job Title / Occupation' : 
+                       employmentStatus === 'self-employed' ? 'Business Type / Occupation' :
+                       'Course / Field of Study'}
+                    </Label>
+                    <Input
+                      id="jobTitle"
+                      placeholder={
+                        employmentStatus === 'employed' ? 'e.g., Teacher, Accountant' :
+                        employmentStatus === 'self-employed' ? 'e.g., Retailer, Farmer' :
+                        'e.g., Computer Science, Medicine'
+                      }
+                      {...register('jobTitle')}
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <Label htmlFor="employmentDuration">Employment Duration</Label>
-                  <Input
-                    id="employmentDuration"
-                    placeholder="e.g., 2 years"
-                    {...register('employmentDuration')}
-                  />
-                </div>
+                {/* Employment Duration - Show for: employed, self-employed */}
+                {(employmentStatus === 'employed' || employmentStatus === 'self-employed') && (
+                  <div>
+                    <Label htmlFor="employmentDuration">
+                      {employmentStatus === 'employed' ? 'Employment Duration' : 'Years in Business'}
+                    </Label>
+                    <Input
+                      id="employmentDuration"
+                      placeholder="e.g., 2 years"
+                      {...register('employmentDuration')}
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <Label htmlFor="monthlyIncome">Monthly Income (ZMW)</Label>
-                  <Input
-                    id="monthlyIncome"
-                    type="number"
-                    placeholder="0.00"
-                    step="0.01"
-                    {...register('monthlyIncome')}
-                  />
-                </div>
+                {/* Monthly Income - Show for: employed, self-employed, retired, student */}
+                {(employmentStatus === 'employed' || employmentStatus === 'self-employed' || employmentStatus === 'retired' || employmentStatus === 'student') && (
+                  <div>
+                    <Label htmlFor="monthlyIncome">
+                      {employmentStatus === 'retired' ? 'Monthly Pension/Income (ZMW)' : 
+                       employmentStatus === 'student' ? 'Monthly Allowance/Income (ZMW)' :
+                       'Monthly Income (ZMW)'}
+                    </Label>
+                    <Input
+                      id="monthlyIncome"
+                      type="number"
+                      placeholder="0.00"
+                      step="0.01"
+                      {...register('monthlyIncome')}
+                    />
+                  </div>
+                )}
+
+                {/* Unemployed Status Fields */}
+                {employmentStatus === 'unemployed' && (
+                  <>
+                    <div>
+                      <Label htmlFor="lastEmploymentDate">Last Employment Date</Label>
+                      <Input
+                        id="lastEmploymentDate"
+                        type="date"
+                        {...register('lastEmploymentDate')}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="unemploymentReason">Reason for Unemployment</Label>
+                      <Textarea
+                        id="unemploymentReason"
+                        placeholder="e.g., Laid off, Company closure, Resigned, etc."
+                        rows={3}
+                        {...register('unemploymentReason')}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
