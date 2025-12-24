@@ -427,16 +427,31 @@ export async function createEmployee(
     role: 'admin' | 'loan_officer' | 'manager' | 'collections' | 'underwriter';
   }
 ) {
+  // Validation: Ensure required employee fields are present
+  if (!data.userId || !data.email || !data.name || !data.role) {
+    throw new Error('Missing required employee fields: userId, email, name, and role are required');
+  }
+
+  // Validation: Ensure role is a valid employee role (not customer)
+  const validEmployeeRoles = ['admin', 'loan_officer', 'manager', 'collections', 'underwriter'];
+  if (!validEmployeeRoles.includes(data.role)) {
+    throw new Error(`Invalid employee role: ${data.role}. Must be one of: ${validEmployeeRoles.join(', ')}`);
+  }
+
   if (isDemoMode) {
     return { id: 'demo-employee-id', ...data };
   }
 
   const employeeId = generateId();
+  // Explicitly use 'employees' subcollection to avoid any confusion
   const employeeRef = doc(db, 'agencies', agencyId, 'employees', employeeId);
   
   await setDoc(employeeRef, {
     id: employeeId,
-    ...data,
+    userId: data.userId,
+    email: data.email,
+    name: data.name,
+    role: data.role,
     status: 'active',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -468,17 +483,34 @@ export async function createCustomer(
     createdBy: string;
   }
 ) {
+  // Validation: Ensure required customer fields are present
+  if (!data.fullName || !data.phone || !data.nrc || !data.address || !data.createdBy) {
+    throw new Error('Missing required customer fields: fullName, phone, nrc, address, and createdBy are required');
+  }
+
+  // Validation: Ensure employee-specific fields are not present (userId, role)
+  if ((data as any).userId) {
+    throw new Error('Customer cannot have userId field. Use createEmployee instead.');
+  }
+  if ((data as any).role) {
+    throw new Error('Customer cannot have role field. Use createEmployee instead.');
+  }
+
   if (isDemoMode) {
     return { id: 'demo-customer-id', ...data };
   }
 
   const customerId = generateId();
+  // Explicitly use 'customers' subcollection to avoid any confusion
   const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
   
   await setDoc(customerRef, {
     id: customerId,
-    ...data,
+    fullName: data.fullName,
+    phone: data.phone,
     email: data.email || null,
+    nrc: data.nrc,
+    address: data.address,
     employer: data.employer || null,
     employmentStatus: data.employmentStatus || null,
     monthlyIncome: data.monthlyIncome || null,
@@ -490,6 +522,7 @@ export async function createCustomer(
     guarantorPhone: data.guarantorPhone || null,
     guarantorNRC: data.guarantorNRC || null,
     guarantorRelationship: data.guarantorRelationship || null,
+    createdBy: data.createdBy,
     status: 'active',
     profilePhotoURL: null,
     createdAt: serverTimestamp(),

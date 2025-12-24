@@ -595,46 +595,6 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
               </div>
             </div>
 
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Optional Loan Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="loanType">Loan Type</Label>
-                  <select
-                    id="loanType"
-                    {...register('loanType')}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="">Select loan type</option>
-                    <option value="personal">Personal Loan</option>
-                    <option value="business">Business Loan</option>
-                    <option value="agricultural">Agricultural Loan</option>
-                    <option value="emergency">Emergency Loan</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label htmlFor="initialLoanAmount">Initial Loan Amount</Label>
-                  <Input
-                    id="initialLoanAmount"
-                    type="number"
-                    placeholder="0.00"
-                    step="0.01"
-                    {...register('initialLoanAmount')}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <Label htmlFor="collateralDetails">Collateral Details</Label>
-                <Textarea
-                  id="collateralDetails"
-                  placeholder="Describe any collateral..."
-                  rows={2}
-                  {...register('collateralDetails')}
-                />
-              </div>
-            </div>
           </form>
         </DrawerBody>
 

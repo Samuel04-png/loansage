@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
+import { useAgency } from '../../../hooks/useAgency';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -34,6 +35,7 @@ import { cn } from '../../../lib/utils';
 
 export function EmployeesPage() {
   const { profile, user } = useAuth();
+  const { agency } = useAgency();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false);
@@ -238,8 +240,15 @@ export function EmployeesPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-                              {emp.name || 'N/A'}
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                {emp.name || 'N/A'}
+                              </span>
+                              {agency?.createdBy === emp.userId && (
+                                <Badge className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] text-white text-xs font-semibold px-2 py-0.5">
+                                  Employer
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-xs text-neutral-500">{emp.email}</div>
                           </div>

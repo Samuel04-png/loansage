@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, getDocs, query as firestoreQuery, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
+import { useAgency } from '../../../hooks/useAgency';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -26,6 +27,7 @@ import { cn } from '../../../lib/utils';
 export function EmployeeDetailPage() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const { profile } = useAuth();
+  const { agency } = useAgency();
 
   // Fetch employee details
   const { data: employee, isLoading: employeeLoading, error: employeeError } = useQuery({
@@ -236,6 +238,9 @@ export function EmployeeDetailPage() {
     return null;
   }
 
+  // Check if this employee is the employer (agency creator)
+  const isEmployer = agency?.createdBy === employee?.userId;
+
   return (
     <div className="space-y-6">
       {/* Header - Reference Style */}
@@ -258,7 +263,14 @@ export function EmployeeDetailPage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-2xl font-bold text-neutral-900 mb-1">{employee.name || employee.user?.full_name || 'Employee'}</h2>
+            <div className="flex items-center gap-3 mb-1">
+              <h2 className="text-2xl font-bold text-neutral-900">{employee.name || employee.user?.full_name || 'Employee'}</h2>
+              {isEmployer && (
+                <Badge className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] text-white text-sm font-semibold px-3 py-1">
+                  Employer
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-neutral-600">{employee.email || employee.user?.email || 'No contact info'}</p>
           </div>
         </div>
@@ -291,9 +303,16 @@ export function EmployeeDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Role</p>
-                    <Badge className="bg-neutral-100 text-neutral-600 border-neutral-200 mt-1">
-                      {employee.role?.replace('_', ' ') || 'N/A'}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge className="bg-neutral-100 text-neutral-600 border-neutral-200">
+                        {employee.role?.replace('_', ' ') || 'N/A'}
+                      </Badge>
+                      {isEmployer && (
+                        <Badge className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] text-white text-xs font-semibold">
+                          Employer
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Status</p>
