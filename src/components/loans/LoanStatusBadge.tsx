@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 interface LoanStatusBadgeProps {
-  status: LoanStatus;
+  status: LoanStatus | string | undefined;
   className?: string;
 }
 
@@ -72,6 +72,17 @@ const statusConfig: Record<LoanStatus, { label: string; variant: 'default' | 'se
 
 export function LoanStatusBadge({ status, className }: LoanStatusBadgeProps) {
   const config = statusConfig[status];
+  
+  // Handle undefined status or missing config
+  if (!config || !status) {
+    return (
+      <Badge variant="outline" className={`flex items-center gap-1 ${className || ''}`}>
+        <Clock className="w-3 h-3" />
+        {status || 'Unknown'}
+      </Badge>
+    );
+  }
+
   const Icon = config.icon;
 
   return (
