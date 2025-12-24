@@ -26,9 +26,20 @@ const signUpSchema = z.object({
   agreeToTerms: z.boolean().refine((val) => val === true, {
     message: 'You must agree to the terms and conditions',
   }),
+  hasReferralLink: z.boolean().optional(),
+  referralCode: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
+}).refine((data) => {
+  // If hasReferralLink is true, referralCode must be provided
+  if (data.hasReferralLink && (!data.referralCode || data.referralCode.trim() === '')) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Referral code is required when you have a referral link',
+  path: ['referralCode'],
 });
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
@@ -40,6 +51,7 @@ export function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [hasReferralLink, setHasReferralLink] = useState(false);
   const { setUser, setSession, setProfile } = useAuthStore();
 
   const {
@@ -53,30 +65,48 @@ export function SignUpPage() {
     defaultValues: {
       role: 'admin',
       agreeToTerms: false,
+      hasReferralLink: false,
+      referralCode: '',
     },
   });
+
+  // Watch for referral code checkbox changes
+  const watchedHasReferralLink = watch('hasReferralLink');
 
   const agreeToTerms = watch('agreeToTerms');
 
   const selectedRole = watch('role');
   const emailValue = watch('email');
 
-  // Show referral code if present
+  // Pre-fill referral code if present in URL
   useEffect(() => {
     if (referralCode) {
-      toast.success(`You were referred by someone! Using referral code: ${referralCode}`, { duration: 5000 });
+      setHasReferralLink(true);
+      setValue('hasReferralLink', true);
+      setValue('referralCode', referralCode);
+      toast.success(`You were referred by someone! Referral code pre-filled.`, { duration: 3000 });
     }
-  }, [referralCode]);
+  }, [referralCode, setValue]);
 
   const onSubmit = async (data: SignUpFormData) => {
     setLoading(true);
     try {
+      // Use referral code from form if provided, otherwise from URL
+      let finalReferralCode: string | undefined = undefined;
+      if (data.hasReferralLink && data.referralCode) {
+        // Extract code from full URL if it's a link, or use as-is if it's just a code
+        const urlMatch = data.referralCode.match(/[?&]ref=([^&]+)/);
+        finalReferralCode = urlMatch ? urlMatch[1] : data.referralCode.trim();
+      } else if (referralCode) {
+        finalReferralCode = referralCode;
+      }
+
       const result = await authService.signUp({
         email: data.email,
         password: data.password,
         fullName: data.fullName,
         role: data.role,
-        referralCode: referralCode || undefined,
+        referralCode: finalReferralCode,
       });
 
       if (result.user && result.session) {
@@ -420,6 +450,57 @@ export function SignUpPage() {
                       <AlertCircle className="w-4 h-4" />
                       {errors.role.message}
                     </motion.p>
+                  )}
+                </motion.div>
+
+                {/* Referral Link Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.62 }}
+                  className="space-y-2 p-3 border border-slate-200 rounded-xl bg-slate-50/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="hasReferralLink"
+                      checked={watchedHasReferralLink || false}
+                      onCheckedChange={(checked) => {
+                        setHasReferralLink(checked as boolean);
+                        setValue('hasReferralLink', checked as boolean);
+                        if (!checked) {
+                          setValue('referralCode', '');
+                        }
+                      }}
+                    />
+                    <Label htmlFor="hasReferralLink" className="text-xs font-normal text-slate-700 cursor-pointer">
+                      I have a referral link
+                    </Label>
+                  </div>
+                  {watchedHasReferralLink && (
+                    <div className="space-y-1.5 mt-2">
+                      <Label htmlFor="referralCode" className="text-xs font-semibold text-slate-700">
+                        Referral Code or Link
+                      </Label>
+                      <Input
+                        id="referralCode"
+                        placeholder="TENGALOANS-XXXXXXXX or paste full referral link"
+                        className="h-9 rounded-lg border-2 border-slate-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all text-sm"
+                        {...register('referralCode')}
+                      />
+                      <p className="text-xs text-slate-500">
+                        Enter your referral code or paste the full referral link
+                      </p>
+                      {errors.referralCode && (
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-xs text-red-600 flex items-center gap-1"
+                        >
+                          <AlertCircle className="w-3 h-3" />
+                          {errors.referralCode.message}
+                        </motion.p>
+                      )}
+                    </div>
                   )}
                 </motion.div>
 

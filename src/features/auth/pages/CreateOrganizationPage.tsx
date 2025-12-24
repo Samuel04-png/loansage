@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +9,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import { Checkbox } from '../../../components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { Loader2, Building2, Upload, AlertCircle, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
@@ -26,6 +27,17 @@ const organizationSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional(),
   secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional(),
   themeMode: z.enum(['light', 'dark', 'auto']).optional(),
+  hasReferralLink: z.boolean().optional(),
+  referralCode: z.string().optional(),
+}).refine((data) => {
+  // If hasReferralLink is true, referralCode must be provided
+  if (data.hasReferralLink && (!data.referralCode || data.referralCode.trim() === '')) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Referral code is required when you have a referral link',
+  path: ['referralCode'],
 });
 
 type OrganizationFormData = z.infer<typeof organizationSchema>;
@@ -37,6 +49,7 @@ export function CreateOrganizationPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [step, setStep] = useState(1);
   const [selectedLoanTypes, setSelectedLoanTypes] = useState<LoanTypeId[]>(['collateral_based', 'salary_based', 'personal_unsecured']);
+  const [hasReferralLink, setHasReferralLink] = useState(false);
   const { user } = useAuthStore();
   const { setProfile } = useAuthStore();
 
@@ -44,6 +57,7 @@ export function CreateOrganizationPage() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
@@ -51,8 +65,41 @@ export function CreateOrganizationPage() {
       primaryColor: '#0ea5e9',
       secondaryColor: '#0284c7',
       themeMode: 'light',
+      hasReferralLink: false,
+      referralCode: '',
     },
   });
+
+  // Watch for referral code checkbox changes
+  const watchedHasReferralLink = watch('hasReferralLink');
+
+  // Check if user already has a referral code from signup
+  useEffect(() => {
+    const checkExistingReferralCode = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('../../../lib/firebase/config');
+        const userRef = doc(db, 'users', user.id);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.referral_code) {
+            // User already has a referral code from signup
+            setHasReferralLink(true);
+            setValue('hasReferralLink', true);
+            setValue('referralCode', userData.referral_code);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to check existing referral code:', error);
+      }
+    };
+
+    checkExistingReferralCode();
+  }, [user?.id, setValue]);
 
   // Show loading if user is not loaded yet
   if (!user) {
@@ -75,6 +122,71 @@ export function CreateOrganizationPage() {
 
     setLoading(true);
     try {
+      // Handle referral code - use form input if provided, otherwise check user document
+      let referralCodeToUse: string | null = null;
+      if (data.hasReferralLink && data.referralCode) {
+        // Extract code from full URL if it's a link, or use as-is if it's just a code
+        const urlMatch = data.referralCode.match(/[?&]ref=([^&]+)/);
+        referralCodeToUse = urlMatch ? urlMatch[1] : data.referralCode.trim();
+      } else {
+        // Check if user already has a referral code from signup
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('../../../lib/firebase/config');
+          const userRef = doc(db, 'users', user.id);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            referralCodeToUse = userData.referral_code || null;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch user referral code:', error);
+        }
+      }
+
+      // Process referral if code exists
+      if (referralCodeToUse) {
+        try {
+          const { doc, getDoc, updateDoc, collection, getDocs } = await import('firebase/firestore');
+          const { db } = await import('../../../lib/firebase/config');
+          // Extract user ID from referral code (format: TENGALOANS-XXXXXXXX)
+          const codeParts = referralCodeToUse.split('-');
+          if (codeParts.length === 2 && codeParts[0] === 'TENGALOANS') {
+            // Search for user with matching ID prefix
+            const usersRef = collection(db, 'users');
+            const usersSnapshot = await getDocs(usersRef);
+            const matchingUser = usersSnapshot.docs.find(doc => 
+              doc.id.slice(0, 8).toUpperCase() === codeParts[1].toUpperCase()
+            );
+            if (matchingUser) {
+              const referredByUserId = matchingUser.id;
+              
+              // Update referrer's stats
+              const referrerRef = doc(db, 'users', referredByUserId);
+              const referrerSnap = await getDoc(referrerRef);
+              if (referrerSnap.exists()) {
+                const referrerData = referrerSnap.data();
+                const referralCount = (referrerData.referralCount || 0) + 1;
+                await updateDoc(referrerRef, {
+                  referralCount,
+                  updated_at: new Date().toISOString(),
+                });
+              }
+
+              // Update current user's referral info
+              const { updateUserDocument } = await import('../../../lib/firebase/firestore-helpers');
+              await updateUserDocument(user.id, {
+                referred_by: referredByUserId,
+                referral_code: referralCodeToUse,
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to process referral:', error);
+          // Continue even if referral processing fails
+        }
+      }
+
       // Create agency first (without logo)
       const newAgency = await createAgency({
         name: data.name,
@@ -287,6 +399,45 @@ export function CreateOrganizationPage() {
                   <AlertCircle className="w-3 h-3" />
                   {errors.address.message}
                 </p>
+              )}
+            </div>
+
+            {/* Referral Link Section */}
+            <div className="space-y-3 p-4 border border-border rounded-lg bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="hasReferralLink"
+                  checked={watchedHasReferralLink || false}
+                  onCheckedChange={(checked) => {
+                    setHasReferralLink(checked as boolean);
+                    setValue('hasReferralLink', checked as boolean);
+                    if (!checked) {
+                      setValue('referralCode', '');
+                    }
+                  }}
+                />
+                <Label htmlFor="hasReferralLink" className="font-normal cursor-pointer">
+                  I have a referral link
+                </Label>
+              </div>
+              {watchedHasReferralLink && (
+                <div className="space-y-2 mt-2">
+                  <Label htmlFor="referralCode">Referral Code or Link *</Label>
+                  <Input
+                    id="referralCode"
+                    placeholder="TENGALOANS-XXXXXXXX or paste full referral link"
+                    {...register('referralCode')}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter your referral code or paste the full referral link
+                  </p>
+                  {errors.referralCode && (
+                    <p className="text-sm text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {errors.referralCode.message}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 

@@ -325,16 +325,22 @@ SMART CUSTOMER NAME EXTRACTION (CRITICAL):
 - The system will handle fuzzy matching, but you should provide the best match from available data`;
     }
 
-    const aiResponse = await callDeepSeekAPI([
+    // Ensure question is a string
+    const questionStr = question != null ? String(question) : '';
+    
+    const aiResponseRaw = await callDeepSeekAPI([
       {
         role: 'system',
         content: systemPrompt,
       },
       {
         role: 'user',
-        content: question,
+        content: questionStr,
       },
     ], { temperature: 0.3, maxTokens: 1500 });
+    
+    // Ensure AI response is always a string
+    const aiResponse = aiResponseRaw != null ? String(aiResponseRaw) : 'I apologize, but I received an invalid response. Please try again.';
     
     // Extract suggestions and actions from response
     const suggestions = extractSuggestions(aiResponse);
@@ -481,7 +487,9 @@ async function enrichLoanData(loans: any[], agencyId: string): Promise<any[]> {
  * Fetch relevant data based on question
  */
 async function fetchRelevantData(question: string, context: { agencyId: string; filters?: any }): Promise<any> {
-  const questionLower = question.toLowerCase();
+  // Safely convert question to string and lowercase
+  const questionStr = question != null ? String(question) : '';
+  const questionLower = questionStr.toLowerCase();
   const data: any = {};
   
   const loansRef = collection(db, 'agencies', context.agencyId, 'loans');

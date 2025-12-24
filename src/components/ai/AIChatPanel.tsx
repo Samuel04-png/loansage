@@ -140,13 +140,21 @@ export function AIChatPanel({
   }, [open, onOpenChange]);
 
   const handleSend = async (customMessage?: string) => {
-    const messageToSend = customMessage || input.trim();
+    // Ensure message is a string - convert objects/other types to string
+    let messageToSend: string;
+    if (customMessage) {
+      messageToSend = typeof customMessage === 'string' ? customMessage : String(customMessage);
+    } else {
+      const inputValue = input;
+      messageToSend = typeof inputValue === 'string' ? inputValue.trim() : String(inputValue || '').trim();
+    }
+    
     if (!messageToSend || isLoading || !profile?.agency_id) return;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: messageToSend,
+      content: messageToSend, // Now guaranteed to be a string
       timestamp: new Date(),
     };
 
@@ -182,10 +190,17 @@ export function AIChatPanel({
         }));
       }
 
+      // Ensure answer is always a string
+      const answerContent = typeof response.answer === 'string' 
+        ? response.answer 
+        : response.answer != null 
+          ? String(response.answer) 
+          : 'I apologize, but I received an invalid response. Please try again.';
+
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: response.answer,
+        content: answerContent,
         timestamp: new Date(),
         data: response.data,
         suggestions: response.suggestions,
@@ -338,16 +353,24 @@ ${errorMessage}
               const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
               const customersSnapshot = await getDocs(customersRef);
               
-              const searchName = customerName.trim().toLowerCase();
+              // Safely convert customerName to string and handle null/undefined
+              const customerNameStr = customerName != null ? String(customerName) : '';
+              if (!customerNameStr.trim()) {
+                toast.error('Customer name is required');
+                return;
+              }
+              
+              const searchName = customerNameStr.trim().toLowerCase();
               
               // Try multiple search strategies
               const matchingCustomer = customersSnapshot.docs.find((doc) => {
                 const data = doc.data();
-                const fullName = (data.fullName || data.name || data.full_name || '').trim().toLowerCase();
-                const phone = (data.phone || '').trim();
-                const nrc = (data.nrc || data.nrc_number || '').trim().toLowerCase();
-                const email = (data.email || '').trim().toLowerCase();
-                const searchLower = searchName.toLowerCase();
+                // Safely convert all fields to strings before calling string methods
+                const fullName = String(data.fullName || data.name || data.full_name || '').trim().toLowerCase();
+                const phone = String(data.phone || '').trim();
+                const nrc = String(data.nrc || data.nrc_number || '').trim().toLowerCase();
+                const email = String(data.email || '').trim().toLowerCase();
+                const searchLower = searchName; // Already lowercase
                 
                 // Exact match (case-insensitive)
                 if (fullName === searchLower) return true;
