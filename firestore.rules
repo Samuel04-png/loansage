@@ -347,6 +347,14 @@ service cloud.firestore {
         allow update: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
         allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
       }
+      
+      // Import logs subcollection (for bulk import audit trails)
+      match /import_logs/{logId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        allow update: if false; // Import logs are immutable
+        allow delete: if false; // Import logs cannot be deleted
+      }
     }
     
     // AI logs collection (read-only for employees, full access for admins)

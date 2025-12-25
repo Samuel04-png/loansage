@@ -5,12 +5,15 @@ import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
-import { Upload, Download, FileText, Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
+import { Upload, Download, FileText, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { exportLoans, exportCustomers, exportEmployees } from '../../../lib/data-export';
 import { importCustomersFromCSV, importLoansFromCSV, findCustomerByIdentifier } from '../../../lib/data-import';
 import { createCustomer } from '../../../lib/firebase/firestore-helpers';
 import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
+import { BulkImportWizard } from '../components/BulkImportWizard';
+import { getImportHistory } from '../../../lib/data-import/bulk-import-service';
 
 export function DataManagementPage() {
   const { profile, user } = useAuth();
@@ -142,165 +145,266 @@ export function DataManagementPage() {
     }
   };
 
+  // Fetch import history
+  const { data: importHistory } = useQuery({
+    queryKey: ['import-history', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return [];
+      return await getImportHistory(profile.agency_id, 10);
+    },
+    enabled: !!profile?.agency_id,
+  });
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Data Management</h2>
-        <p className="text-slate-600">Import and export your data</p>
+        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Data Management</h2>
+        <p className="text-neutral-600 dark:text-neutral-400">Import and export your data with smart assistance</p>
       </div>
 
-      {/* Export Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Export Data</CardTitle>
-          <CardDescription>Download your data as CSV files</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-3 gap-4">
-            <Button
-              variant="outline"
-              className="h-auto flex-col py-6"
-              onClick={() => handleExport('loans')}
-              disabled={!loans || loans.length === 0}
-            >
-              <Download className="w-8 h-8 mb-2 text-primary-600" />
-              <span className="font-semibold">Export Loans</span>
-              <span className="text-xs text-slate-500 mt-1">
-                {loans?.length || 0} loans
-              </span>
-            </Button>
+      <Tabs defaultValue="import" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="import" className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            Bulk Import
+          </TabsTrigger>
+          <TabsTrigger value="export" className="flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            Export
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="w-4 h-4" />
+            History
+          </TabsTrigger>
+        </TabsList>
 
-            <Button
-              variant="outline"
-              className="h-auto flex-col py-6"
-              onClick={() => handleExport('customers')}
-              disabled={!customers || customers.length === 0}
-            >
-              <Download className="w-8 h-8 mb-2 text-primary-600" />
-              <span className="font-semibold">Export Customers</span>
-              <span className="text-xs text-slate-500 mt-1">
-                {customers?.length || 0} customers
-              </span>
-            </Button>
+        {/* Bulk Import */}
+        <TabsContent value="import">
+          <Card className="border-2 border-neutral-200 dark:border-neutral-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#006BFF]" />
+                Bulk Import
+              </CardTitle>
+              <CardDescription>
+                Import customers and loans from Excel or CSV files with intelligent column mapping, data cleaning, and match suggestions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BulkImportWizard
+                onComplete={() => {
+                  toast.success('Import completed successfully!');
+                }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <Button
-              variant="outline"
-              className="h-auto flex-col py-6"
-              onClick={() => handleExport('employees')}
-              disabled={!employees || employees.length === 0}
-            >
-              <Download className="w-8 h-8 mb-2 text-primary-600" />
-              <span className="font-semibold">Export Employees</span>
-              <span className="text-xs text-slate-500 mt-1">
-                {employees?.length || 0} employees
-              </span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Export Section */}
+        <TabsContent value="export">
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Data</CardTitle>
+              <CardDescription>Download your data as CSV files</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col py-6"
+                  onClick={() => handleExport('loans')}
+                  disabled={!loans || loans.length === 0}
+                >
+                  <Download className="w-8 h-8 mb-2 text-[#006BFF]" />
+                  <span className="font-semibold">Export Loans</span>
+                  <span className="text-xs text-neutral-500 mt-1">
+                    {loans?.length || 0} loans
+                  </span>
+                </Button>
 
-      {/* Import Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Import Data</CardTitle>
-          <CardDescription>Import customers or loans from CSV files</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm font-medium mb-2">Select file to import</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-            />
-          </div>
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col py-6"
+                  onClick={() => handleExport('customers')}
+                  disabled={!customers || customers.length === 0}
+                >
+                  <Download className="w-8 h-8 mb-2 text-[#006BFF]" />
+                  <span className="font-semibold">Export Customers</span>
+                  <span className="text-xs text-neutral-500 mt-1">
+                    {customers?.length || 0} customers
+                  </span>
+                </Button>
 
-          <div className="flex gap-2">
-            <Button
-              onClick={() => handleImport('customers')}
-              disabled={importing}
-              variant="outline"
-            >
-              {importing && importType === 'customers' ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import Customers
-                </>
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col py-6"
+                  onClick={() => handleExport('employees')}
+                  disabled={!employees || employees.length === 0}
+                >
+                  <Download className="w-8 h-8 mb-2 text-[#006BFF]" />
+                  <span className="font-semibold">Export Employees</span>
+                  <span className="text-xs text-neutral-500 mt-1">
+                    {employees?.length || 0} employees
+                  </span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Legacy Import (Simple) */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Simple Import (Legacy)</CardTitle>
+              <CardDescription>Quick import with basic mapping</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-2">Select file to import</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-neutral-800 dark:file:text-neutral-300"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleImport('customers')}
+                  disabled={importing}
+                  variant="outline"
+                >
+                  {importing && importType === 'customers' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import Customers
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  onClick={() => handleImport('loans')}
+                  disabled={importing}
+                  variant="outline"
+                >
+                  {importing && importType === 'loans' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Import Loans
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {importResult && (
+                <div className="mt-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    {importResult.success > 0 && (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    )}
+                    {importResult.failed > 0 && (
+                      <XCircle className="w-5 h-5 text-red-600" />
+                    )}
+                    <span className="font-semibold">Import Results</span>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-emerald-600">✓ Successfully imported: {importResult.success}</p>
+                    {importResult.failed > 0 && (
+                      <p className="text-red-600">✗ Failed: {importResult.failed}</p>
+                    )}
+                    {importResult.errors.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">
+                          View errors ({importResult.errors.length})
+                        </summary>
+                        <ul className="mt-2 space-y-1 text-xs text-neutral-600 dark:text-neutral-400 list-disc list-inside">
+                          {importResult.errors.slice(0, 10).map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                          {importResult.errors.length > 10 && (
+                            <li>... and {importResult.errors.length - 10} more errors</li>
+                          )}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                </div>
               )}
-            </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <Button
-              onClick={() => handleImport('loans')}
-              disabled={importing}
-              variant="outline"
-            >
-              {importing && importType === 'loans' ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importing...
-                </>
+        {/* Import History */}
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Import History</CardTitle>
+              <CardDescription>View past import operations and their results</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {importHistory && importHistory.length > 0 ? (
+                <div className="space-y-4">
+                  {importHistory.map((importLog: any) => (
+                    <div
+                      key={importLog.id}
+                      className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                          {importLog.fileName}
+                        </div>
+                        <div className="text-sm text-neutral-600 dark:text-neutral-400">
+                          {importLog.timestamp?.toDate?.()?.toLocaleString() || 'Unknown date'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <div className="text-neutral-600 dark:text-neutral-400">Success</div>
+                          <div className="font-semibold text-emerald-600">
+                            {importLog.result?.success || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-600 dark:text-neutral-400">Failed</div>
+                          <div className="font-semibold text-red-600">
+                            {importLog.result?.failed || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-600 dark:text-neutral-400">Created</div>
+                          <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {importLog.result?.created?.customers || 0} customers, {importLog.result?.created?.loans || 0} loans
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-neutral-600 dark:text-neutral-400">File Size</div>
+                          <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {(importLog.fileSize / 1024).toFixed(2)} KB
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import Loans
-                </>
+                <div className="text-center py-12 text-neutral-600 dark:text-neutral-400">
+                  No import history yet
+                </div>
               )}
-            </Button>
-          </div>
-
-          {importResult && (
-            <div className="mt-4 p-4 bg-slate-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                {importResult.success > 0 && (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                )}
-                {importResult.failed > 0 && (
-                  <XCircle className="w-5 h-5 text-red-600" />
-                )}
-                <span className="font-semibold">Import Results</span>
-              </div>
-              <div className="space-y-1 text-sm">
-                <p className="text-emerald-600">✓ Successfully imported: {importResult.success}</p>
-                {importResult.failed > 0 && (
-                  <p className="text-red-600">✗ Failed: {importResult.failed}</p>
-                )}
-                {importResult.errors.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-slate-600 hover:text-slate-900">
-                      View errors ({importResult.errors.length})
-                    </summary>
-                    <ul className="mt-2 space-y-1 text-xs text-slate-600 list-disc list-inside">
-                      {importResult.errors.slice(0, 10).map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                      {importResult.errors.length > 10 && (
-                        <li>... and {importResult.errors.length - 10} more errors</li>
-                      )}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div className="text-sm text-blue-900">
-                <p className="font-semibold mb-1">CSV Format Requirements</p>
-                <p className="mb-2">For Customers: Full Name, Email, Phone, NRC/ID, Address, Employer</p>
-                <p>For Loans: Customer Name (or ID), Amount, Interest Rate, Duration (Months), Loan Type, Disbursement Date</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

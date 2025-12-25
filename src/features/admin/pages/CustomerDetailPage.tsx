@@ -16,11 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
-import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp, Plus } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp, Plus, Edit } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
+import { EditCustomerDrawer } from '../components/EditCustomerDrawer';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
@@ -31,6 +32,7 @@ export function CustomerDetailPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
+  const [editCustomerDrawerOpen, setEditCustomerDrawerOpen] = useState(false);
 
   // Fetch customer details
   const { data: customer, isLoading: customerLoading, error: customerError } = useQuery({
@@ -301,13 +303,23 @@ export function CustomerDetailPage() {
             </div>
           </div>
         </div>
-        <Button 
-          onClick={() => setNewLoanDrawerOpen(true)} 
-          className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Loan
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setEditCustomerDrawerOpen(true)}
+            variant="outline"
+            className="rounded-xl"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Customer
+          </Button>
+          <Button 
+            onClick={() => setNewLoanDrawerOpen(true)} 
+            className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Loan
+          </Button>
+        </div>
       </motion.div>
 
       {/* Customer Info Card - Reference Style */}
@@ -596,6 +608,18 @@ export function CustomerDetailPage() {
           queryClient.invalidateQueries({ queryKey: ['customer', profile?.agency_id, customerId] });
         }}
       />
+
+      {customer && (
+        <EditCustomerDrawer
+          open={editCustomerDrawerOpen}
+          onOpenChange={setEditCustomerDrawerOpen}
+          customer={customer}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['customer', profile?.agency_id, customerId] });
+            queryClient.invalidateQueries({ queryKey: ['customers', profile?.agency_id] });
+          }}
+        />
+      )}
     </div>
   );
 }

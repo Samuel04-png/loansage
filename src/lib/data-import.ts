@@ -117,7 +117,7 @@ function parseExcel(file: File): Promise<{ headers: string[]; rows: any[] }> {
 /**
  * Detect file type and parse accordingly
  */
-async function parseFile(file: File): Promise<{ headers: string[]; rows: any[] }> {
+export async function parseFile(file: File): Promise<{ headers: string[]; rows: any[] }> {
   const fileName = file.name.toLowerCase();
   
   if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {

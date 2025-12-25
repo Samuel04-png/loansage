@@ -532,6 +532,66 @@ export async function createCustomer(
   return { id: customerId, ...data };
 }
 
+/**
+ * Update customer information
+ */
+export async function updateCustomer(
+  agencyId: string,
+  customerId: string,
+  data: {
+    fullName?: string;
+    phone?: string;
+    email?: string;
+    nrc?: string;
+    address?: string;
+    employer?: string;
+    employmentStatus?: 'employed' | 'self-employed' | 'unemployed' | 'retired' | 'student';
+    monthlyIncome?: number;
+    jobTitle?: string;
+    employmentDuration?: string;
+    lastEmploymentDate?: string;
+    unemploymentReason?: string;
+    guarantorName?: string;
+    guarantorPhone?: string;
+    guarantorNRC?: string;
+    guarantorRelationship?: string;
+    profilePhotoURL?: string;
+  }
+) {
+  if (isDemoMode) {
+    return { id: customerId, ...data };
+  }
+
+  const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
+  
+  const updateData: any = {
+    updatedAt: serverTimestamp(),
+  };
+
+  // Only include fields that are provided
+  if (data.fullName !== undefined) updateData.fullName = data.fullName;
+  if (data.phone !== undefined) updateData.phone = data.phone;
+  if (data.email !== undefined) updateData.email = data.email || null;
+  if (data.nrc !== undefined) updateData.nrc = data.nrc;
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.employer !== undefined) updateData.employer = data.employer || null;
+  if (data.employmentStatus !== undefined) updateData.employmentStatus = data.employmentStatus || null;
+  if (data.monthlyIncome !== undefined) updateData.monthlyIncome = data.monthlyIncome || null;
+  if (data.jobTitle !== undefined) updateData.jobTitle = data.jobTitle || null;
+  if (data.employmentDuration !== undefined) updateData.employmentDuration = data.employmentDuration || null;
+  if (data.lastEmploymentDate !== undefined) updateData.lastEmploymentDate = data.lastEmploymentDate || null;
+  if (data.unemploymentReason !== undefined) updateData.unemploymentReason = data.unemploymentReason || null;
+  if (data.guarantorName !== undefined) updateData.guarantorName = data.guarantorName || null;
+  if (data.guarantorPhone !== undefined) updateData.guarantorPhone = data.guarantorPhone || null;
+  if (data.guarantorNRC !== undefined) updateData.guarantorNRC = data.guarantorNRC || null;
+  if (data.guarantorRelationship !== undefined) updateData.guarantorRelationship = data.guarantorRelationship || null;
+  if (data.profilePhotoURL !== undefined) updateData.profilePhotoURL = data.profilePhotoURL || null;
+
+  await updateDoc(customerRef, updateData);
+
+  return { id: customerId, ...updateData };
+}
+
 // Link customer to user after invitation acceptance
 export async function linkCustomerToUser(
   agencyId: string,
