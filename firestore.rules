@@ -33,7 +33,10 @@ service cloud.firestore {
     }
     
     function isLoanOfficer() {
-      return isAdmin() || isEmployee();
+      let userRole = getUserRole();
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let employeeCategory = userDoc != null && userDoc.data != null ? userDoc.data.employee_category : null;
+      return isAdmin() || isEmployee() || userRole == 'loan_officer' || employeeCategory == 'loan_officer';
     }
     
     function belongsToAgency(agencyId) {
@@ -218,12 +221,12 @@ service cloud.firestore {
         allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
           // Admin can update any loan
           isAdmin() ||
-          // Loan officer can only update DRAFT loans they created
+          // Loan officer can only update DRAFT loans they created (submit for review)
           (isLoanOfficer() && 
            resource != null && 
            resource.data.status == 'draft' && 
-           resource.data.createdBy == request.auth.uid &&
-           request.resource.data.status in ['draft', 'pending']) ||
+           (resource.data.createdBy == request.auth.uid || resource.data.created_by == request.auth.uid) &&
+           request.resource.data.status == 'pending') ||
           // Accountant can update status for PENDING/UNDER_REVIEW loans
           (isAccountant() && 
            resource != null && 

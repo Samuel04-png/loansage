@@ -234,7 +234,7 @@ Format as JSON with: rating, flags (array), behaviorAssessment`;
         role: 'user',
         content: aiPrompt,
       },
-    ], { temperature: 0.3, maxTokens: 500 });
+    ], { temperature: 0.3, maxTokens: 500, agencyId });
     
     // Parse AI response
     const aiData = JSON.parse(aiResponse.match(/\{[\s\S]*\}/)?.[0] || '{}');

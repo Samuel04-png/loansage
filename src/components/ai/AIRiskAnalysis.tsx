@@ -4,6 +4,7 @@ import { Badge } from '../ui/badge';
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, TrendingDown, Brain } from 'lucide-react';
 import { calculateCustomerRiskScore, getLoanApprovalRecommendation, predictDefaultProbability } from '../../lib/ai/risk-scoring';
 import { detectLoanAnomalies } from '../../lib/ai/predictive-analytics';
+import { useAuth } from '../../hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
 interface AIRiskAnalysisProps {
@@ -33,6 +34,7 @@ interface AIRiskAnalysisProps {
 export function AIRiskAnalysis({ loanData, customerData, collateralData }: AIRiskAnalysisProps) {
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { profile } = useAuth();
 
   useEffect(() => {
     const performAnalysis = async () => {
@@ -57,7 +59,7 @@ export function AIRiskAnalysis({ loanData, customerData, collateralData }: AIRis
       };
 
       // Calculate risk score (now async with DeepSeek)
-      const riskScore = await calculateCustomerRiskScore(riskFactors);
+      const riskScore = await calculateCustomerRiskScore(riskFactors, profile?.agency_id);
       
       // Get approval recommendation (now async)
       const recommendation = await getLoanApprovalRecommendation(riskFactors);

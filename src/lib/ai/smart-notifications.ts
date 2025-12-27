@@ -87,6 +87,7 @@ Return ONLY valid JSON.`;
             content: prompt,
           },
         ], {
+          agencyId,
           temperature: 0.3,
           maxTokens: 1000,
         });

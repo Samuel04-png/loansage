@@ -60,6 +60,7 @@ export function LoanAnalysisPage() {
     setGeneratingPDF(true);
     try {
       const summary = await generateLoanSummary({
+        agencyId: profile?.agency_id,
         borrower: {
           name: customer.fullName || customer.name,
           nrc: customer.nrc || '',
@@ -300,11 +301,13 @@ function StressTestTab({ loan, customer }: any) {
 function LoanSummaryTab({ loan, customer }: any) {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const { profile } = useAuth();
 
   const generateSummary = async () => {
     setLoading(true);
     try {
       const result = await generateLoanSummary({
+        agencyId: profile?.agency_id,
         borrower: {
           name: customer.fullName || customer.name,
           nrc: customer.nrc || '',

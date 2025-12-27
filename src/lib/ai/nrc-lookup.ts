@@ -194,6 +194,7 @@ Return ONLY valid JSON, no additional text.`;
       ], {
         temperature: 0.2,
         maxTokens: 2000,
+        agencyId,
       });
 
       const aiResult = parseAIResponse<{

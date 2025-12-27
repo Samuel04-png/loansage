@@ -60,6 +60,7 @@ export interface ImportAnalysis {
 export async function analyzeColumnMappings(
   headers: string[],
   sampleRows: any[],
+  agencyId: string,
   existingCustomers?: any[],
   existingLoans?: any[]
 ): Promise<ColumnMapping[]> {
@@ -124,6 +125,7 @@ Return ONLY valid JSON array, no additional text.`;
     ], {
       temperature: 0.3,
       maxTokens: 2000,
+      agencyId,
     });
 
     // Parse JSON response
@@ -160,7 +162,8 @@ Return ONLY valid JSON array, no additional text.`;
  */
 export async function analyzeDataQuality(
   rows: any[],
-  columnMappings: ColumnMapping[]
+  columnMappings: ColumnMapping[],
+  agencyId: string
 ): Promise<DataCleaningSuggestion[]> {
   const prompt = `Analyze this data for cleaning and normalization needs.
 
@@ -201,6 +204,7 @@ Return ONLY valid JSON array.`;
     ], {
       temperature: 0.2,
       maxTokens: 2000,
+      agencyId,
     });
 
     const jsonMatch = response.match(/\[[\s\S]*\]/);
@@ -220,6 +224,7 @@ Return ONLY valid JSON array.`;
 export async function suggestMatches(
   rows: any[],
   columnMappings: ColumnMapping[],
+  agencyId: string,
   existingCustomers: any[],
   existingLoans: any[]
 ): Promise<MatchSuggestion[]> {
@@ -289,6 +294,7 @@ Return ONLY valid JSON array.`;
     ], {
       temperature: 0.2,
       maxTokens: 3000,
+      agencyId,
     });
 
     const jsonMatch = response.match(/\[[\s\S]*\]/);
@@ -418,6 +424,7 @@ export function validateImportData(
 export async function analyzeImport(
   headers: string[],
   rows: any[],
+  agencyId: string,
   existingCustomers: any[] = [],
   existingLoans: any[] = []
 ): Promise<ImportAnalysis> {
@@ -428,17 +435,19 @@ export async function analyzeImport(
   const columnMappings = await analyzeColumnMappings(
     headers,
     rows.slice(0, 5),
+    agencyId,
     existingCustomers,
     existingLoans
   );
 
   // Analyze data quality
-  const dataCleaningSuggestions = await analyzeDataQuality(rows, columnMappings);
+  const dataCleaningSuggestions = await analyzeDataQuality(rows, columnMappings, agencyId);
 
   // Suggest matches
   const matchSuggestions = await suggestMatches(
     rows,
     columnMappings,
+    agencyId,
     existingCustomers,
     existingLoans
   );

@@ -84,7 +84,7 @@ interface RiskScore {
  * Calculate customer risk score based on historical data
  * Uses DeepSeek API for intelligent risk assessment when available
  */
-export async function calculateCustomerRiskScore(factors: RiskFactors): Promise<RiskScore> {
+export async function calculateCustomerRiskScore(factors: RiskFactors, agencyId?: string): Promise<RiskScore> {
   // Try to use DeepSeek API for intelligent risk assessment if configured
   if (isDeepSeekConfigured()) {
     try {
@@ -155,6 +155,11 @@ Consider:
 
 Return ONLY valid JSON, no additional text.`;
 
+      if (!agencyId) {
+        console.warn('agencyId not provided, skipping AI risk assessment');
+        return calculateCustomerRiskScoreRuleBased(factors);
+      }
+
       const response = await callDeepSeekAPI([
         {
           role: 'system',
@@ -167,6 +172,7 @@ Return ONLY valid JSON, no additional text.`;
       ], {
         temperature: 0.2, // Very low temperature for consistent risk assessment
         maxTokens: 2000,
+        agencyId,
       });
 
       const aiResult = parseAIResponse<RiskScore>(response, {

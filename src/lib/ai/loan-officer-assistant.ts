@@ -337,7 +337,7 @@ SMART CUSTOMER NAME EXTRACTION (CRITICAL):
         role: 'user',
         content: questionStr,
       },
-    ], { temperature: 0.3, maxTokens: 1500 });
+    ], { temperature: 0.3, maxTokens: 1500, agencyId: context.agencyId });
     
     // Ensure AI response is always a string
     const aiResponse = aiResponseRaw != null ? String(aiResponseRaw) : 'I apologize, but I received an invalid response. Please try again.';

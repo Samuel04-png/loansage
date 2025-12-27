@@ -66,7 +66,7 @@ const LOCATION_MULTIPLIERS: Record<string, number> = {
   other: 0.85,
 };
 
-export async function estimateCollateralPrice(input: CollateralPricingInput): Promise<PricingResult> {
+export async function estimateCollateralPrice(input: CollateralPricingInput & { agencyId?: string }): Promise<PricingResult> {
   const {
     type,
     description = '',
@@ -125,35 +125,41 @@ Consider:
 
 Return ONLY valid JSON, no additional text.`;
 
-      const response = await callDeepSeekAPI([
-        {
-          role: 'system',
-          content: 'You are an expert appraiser for the Zambian market. Provide accurate, realistic valuations in ZMW (Zambian Kwacha). Always respond with valid JSON only.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ], {
-        temperature: 0.3, // Lower temperature for more consistent pricing
-        maxTokens: 1500,
-      });
+      if (!input.agencyId) {
+        console.warn('agencyId not provided, skipping AI collateral pricing');
+        // Fall through to rule-based pricing
+      } else {
+        const response = await callDeepSeekAPI([
+          {
+            role: 'system',
+            content: 'You are an expert appraiser for the Zambian market. Provide accurate, realistic valuations in ZMW (Zambian Kwacha). Always respond with valid JSON only.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ], {
+          temperature: 0.3, // Lower temperature for more consistent pricing
+          maxTokens: 1500,
+          agencyId: input.agencyId,
+        });
 
-      const aiResult = parseAIResponse<PricingResult>(response, {
-        estimatedMarketValue: 0,
-        estimatedSalePrice: 0,
-        auctionPrice: 0,
-        collateralValueRange: { min: 0, max: 0, average: 0 },
-        confidence: 'low',
-        factors: { positive: [], negative: [] },
-        marketAnalysis: '',
-        recommendedAction: 'hold',
-        trendIndicator: 'stable',
-      });
+        const aiResult = parseAIResponse<PricingResult>(response, {
+          estimatedMarketValue: 0,
+          estimatedSalePrice: 0,
+          auctionPrice: 0,
+          collateralValueRange: { min: 0, max: 0, average: 0 },
+          confidence: 'low',
+          factors: { positive: [], negative: [] },
+          marketAnalysis: '',
+          recommendedAction: 'hold',
+          trendIndicator: 'stable',
+        });
 
-      // Validate and use AI result if it looks reasonable
-      if (aiResult.estimatedMarketValue > 0 && aiResult.marketAnalysis) {
-        return aiResult;
+        // Validate and use AI result if it looks reasonable
+        if (aiResult.estimatedMarketValue > 0 && aiResult.marketAnalysis) {
+          return aiResult;
+        }
       }
     } catch (error) {
       console.warn('DeepSeek API call failed, falling back to rule-based pricing:', error);

@@ -258,7 +258,7 @@ Keep each message under 100 characters.`;
     const aiPromise = callDeepSeekAPI([
       { role: 'system', content: 'You are an embedded intelligence system. Provide only short, actionable insights. Never act like a chatbot.' },
       { role: 'user', content: analysisPrompt },
-    ], { temperature: 0.3, maxTokens: 500 });
+    ], { temperature: 0.3, maxTokens: 500, agencyId: context.agencyId });
 
     const response = await Promise.race([aiPromise, timeoutPromise]);
 

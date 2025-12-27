@@ -120,6 +120,7 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
       const analysisResult = await analyzeImport(
         parsedData.headers,
         parsedData.rows,
+        profile.agency_id,
         existingCustomers || [],
         existingLoans || []
       );

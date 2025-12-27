@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
 import { useWhitelabel } from '../../../lib/whitelabel';
+import { useFeatureGate } from '../../../hooks/useFeatureGate';
 import { Logo } from '../../../components/Logo';
 import { Button } from '../../../components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
@@ -84,6 +85,7 @@ export function AdminLayout() {
   const { profile, signOut } = useAuth();
   const { agency } = useAgency();
   const { logoUrl, agencyName } = useWhitelabel();
+  const { plan } = useFeatureGate();
   const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -541,6 +543,37 @@ export function AdminLayout() {
 
           {/* Bottom Section */}
           <div className="p-4 border-t border-neutral-200/50 dark:border-neutral-800/50 space-y-3">
+            {/* Plan Indicator */}
+            {!sidebarCollapsed && (
+              <Link
+                to="/admin/plans"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-[#006BFF] to-[#4F46E5] text-white hover:from-[#0052CC] hover:to-[#4338CA] transition-all group"
+              >
+                <CreditCard className="w-4 h-4 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate capitalize">{plan} Plan</p>
+                  <p className="text-xs opacity-90">View pricing</p>
+                </div>
+                <ChevronRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              </Link>
+            )}
+            {sidebarCollapsed && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to="/admin/plans"
+                      className="flex items-center justify-center w-full h-10 rounded-lg bg-gradient-to-r from-[#006BFF] to-[#4F46E5] text-white hover:from-[#0052CC] hover:to-[#4338CA] transition-all"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="bg-neutral-900 text-white text-xs">
+                    {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {/* User Profile */}
             <DropdownMenu open={showUserMenu} onOpenChange={setShowUserMenu}>
               <DropdownMenuTrigger asChild>

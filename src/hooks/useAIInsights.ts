@@ -110,7 +110,10 @@ export function useAIInsights(enabled: boolean = true) {
         setTimeout(() => reject(new Error('Analysis timeout')), 30000); // 30 second timeout
       });
 
-      const analysisPromise = analyzeLoanSystem(analysisData);
+      const analysisPromise = analyzeLoanSystem({
+        ...analysisData,
+        agencyId: profile.agency_id,
+      });
       const newInsights = await Promise.race([analysisPromise, timeoutPromise]);
       
       setInsights(newInsights);

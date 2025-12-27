@@ -50,6 +50,7 @@ export async function callDeepSeekAPI(
     maxTokens?: number;
     model?: string;
     retries?: number;
+    agencyId?: string;
   } = {}
 ): Promise<string> {
   const {
@@ -57,7 +58,12 @@ export async function callDeepSeekAPI(
     maxTokens = 2000,
     model = 'deepseek-chat',
     retries = 2, // Default to 2 retries
+    agencyId,
   } = options;
+
+  if (!agencyId) {
+    throw new Error('agencyId is required for DeepSeek API calls');
+  }
 
   let lastError: any = null;
   
@@ -69,6 +75,7 @@ export async function callDeepSeekAPI(
         temperature,
         maxTokens,
         model,
+        agencyId,
       });
 
       const data = result.data as { content: string; usage?: any; model?: string };
@@ -205,6 +212,17 @@ export async function testDeepSeekConnection(): Promise<{ success: boolean; mess
   }
 
   try {
+    // Get agencyId from current user context
+    const { useAuthStore } = await import('../../stores/authStore');
+    const { profile } = useAuthStore.getState();
+    
+    if (!profile?.agency_id) {
+      return {
+        success: false,
+        message: 'You must be logged in and have an agency to test Byte&Berry Copilot.',
+      };
+    }
+
     const response = await callDeepSeekAPI([
       {
         role: 'system',
@@ -217,6 +235,7 @@ export async function testDeepSeekConnection(): Promise<{ success: boolean; mess
     ], {
       temperature: 0.1,
       maxTokens: 10,
+      agencyId: profile.agency_id,
     });
 
     if (response && response.toLowerCase().includes('hello')) {

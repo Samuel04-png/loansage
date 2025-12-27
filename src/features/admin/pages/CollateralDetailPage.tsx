@@ -133,6 +133,7 @@ export function CollateralDetailPage() {
     try {
       const { estimateCollateralPrice } = await import('../../../lib/ai/collateral-pricing');
       const pricingResult = await estimateCollateralPrice({
+        agencyId: profile?.agency_id,
         type: collateral.type || 'other',
         name: collateral.name || '',
         description: collateral.description || '',

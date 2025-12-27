@@ -9,6 +9,7 @@ import { estimateCollateralPrice } from './collateral-pricing';
 import { calculateProfitProjection } from './profit-projection';
 
 export interface LoanSummaryInput {
+  agencyId?: string;
   borrower: {
     name: string;
     nrc: string;
@@ -143,12 +144,13 @@ export async function generateLoanSummary(input: LoanSummaryInput): Promise<Loan
   };
 
   // Calculate risk score
-  const riskScore = await calculateCustomerRiskScore(riskFactors);
+  const riskScore = await calculateCustomerRiskScore(riskFactors, input.agencyId);
 
   // Estimate collateral pricing if provided
   let collateralAnalysis;
   if (input.collateral) {
     const pricing = await estimateCollateralPrice({
+      agencyId: input.agencyId,
       type: input.collateral.type,
       description: input.collateral.description,
       brand: input.collateral.brand,

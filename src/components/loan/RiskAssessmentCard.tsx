@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Loader2, AlertTriangle, CheckCircle2, Info, TrendingUp, TrendingDown, ShieldAlert } from 'lucide-react';
 import { calculateCustomerRiskScore, RiskFactors } from '../../lib/ai/risk-scoring';
+import { useAuth } from '../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
 interface RiskAssessmentCardProps {
@@ -19,11 +20,12 @@ interface RiskAssessmentCardProps {
 export function RiskAssessmentCard({ riskFactors, onScoreCalculated }: RiskAssessmentCardProps) {
   const [loading, setLoading] = useState(false);
   const [riskScore, setRiskScore] = useState<any>(null);
+  const { profile } = useAuth();
 
   const calculateRisk = async () => {
     setLoading(true);
     try {
-      const score = await calculateCustomerRiskScore(riskFactors);
+      const score = await calculateCustomerRiskScore(riskFactors, profile?.agency_id);
       setRiskScore(score);
       onScoreCalculated?.(score);
     } catch (error: any) {

@@ -265,7 +265,7 @@ Respond with JSON: { confidence: number, adjustments: { ... } }`;
         role: 'user',
         content: prompt,
       },
-    ], { temperature: 0.2, maxTokens: 300 });
+    ], { temperature: 0.2, maxTokens: 300, agencyId });
     
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
