@@ -35,6 +35,41 @@ export type LoanTypeId =
 export type LoanTypeCategory = 'secured' | 'unsecured' | 'conditional' | 'hybrid';
 
 /**
+ * Loan step identifier
+ */
+export type LoanStepId = 
+  | 'borrower'
+  | 'terms'
+  | 'collateral'
+  | 'collateral_valuation'
+  | 'employment'
+  | 'business'
+  | 'guarantor_optional'
+  | 'review';
+
+/**
+ * Loan step definition with metadata
+ */
+export interface LoanStep {
+  id: LoanStepId;
+  optional?: boolean;
+  skippable?: boolean;
+}
+
+/**
+ * Loan type rules (system-owned, defines requirements)
+ */
+export interface LoanTypeRules {
+  requiresCollateral?: boolean;
+  requiresGuarantor?: boolean;
+  requiresEmployer?: boolean;
+  requiresBusinessInfo?: boolean;
+  allowsGuarantor?: boolean;
+  requiresCollateralValuation?: boolean;
+  [key: string]: any;
+}
+
+/**
  * Interest calculation method
  */
 export type InterestCalculationMethod = 'simple' | 'compound' | 'flat' | 'reducing_balance';
@@ -129,6 +164,15 @@ export interface DurationConfig {
 }
 
 /**
+ * Agency-specific overrides for loan type (safe, limited)
+ */
+export interface LoanTypeOverrides {
+  disableGuarantor?: boolean;
+  disableCollateralValuation?: boolean;
+  [key: string]: boolean | undefined;
+}
+
+/**
  * Per-loan-type configuration
  */
 export interface LoanTypeConfig {
@@ -171,6 +215,9 @@ export interface LoanTypeConfig {
   color?: string;
   badge?: string;
   
+  // Agency overrides (safe, limited)
+  overrides?: LoanTypeOverrides;
+  
   // Metadata
   createdAt: Date;
   updatedAt: Date;
@@ -202,6 +249,13 @@ export interface AgencyLoanConfig {
 }
 
 /**
+ * Loan flow definition
+ */
+export interface LoanFlow {
+  steps: LoanStep[];
+}
+
+/**
  * Loan type template
  * Used to initialize loan types for new agencies
  */
@@ -210,6 +264,8 @@ export interface LoanTypeTemplate {
   name: string;
   description: string;
   category: LoanTypeCategory;
+  flow: LoanFlow;
+  rules: LoanTypeRules;
   defaultConfig: Omit<LoanTypeConfig, 'id' | 'enabled' | 'createdAt' | 'updatedAt' | 'createdBy'>;
 }
 

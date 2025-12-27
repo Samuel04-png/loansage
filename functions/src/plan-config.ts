@@ -5,6 +5,24 @@
 
 export type PlanCode = 'starter' | 'professional' | 'enterprise';
 
+export interface PlanQuotas {
+  maxActiveLoans: number | null;
+  maxCustomers: number | null;
+  maxUsers: number | null;
+  maxBranches: number | null;
+  storageGbIncluded: number;
+  perFileMbMax: number;
+  collateralPhotosPerLoan: number;
+  notificationsMonthly: number;
+  aiRiskCallsMonthly: number;
+  collateralValuationsMonthly: number;
+  scheduledAiChecksPerDay: number;
+  scheduledReportsPerMonth: number;
+  apiReadsMonthly: number | null;
+  apiWritesMonthly: number | null;
+  scheduledDocsPerRun: number; // Cap documents processed per scheduled run per agency
+}
+
 export interface PlanConfig {
   limits: {
     loanTypeLimit: number | null;
@@ -12,63 +30,119 @@ export interface PlanConfig {
     maxActiveLoans: number | null;
   };
   features: {
-    aiInsights: boolean;
-    collateralValuation: boolean;
-    apiAccess: boolean;
+    aiInsights: 'disabled' | 'rule_based' | 'deepseek';
+    collateralValuation: 'disabled' | 'basic' | 'market_based';
+    apiAccess: 'none' | 'read_only' | 'read_write';
     multiBranch: boolean;
     whiteLabel: boolean;
     scheduledReports: boolean;
     advancedAnalytics: boolean;
+    pdfExport: boolean;
   };
+  quotas: PlanQuotas;
 }
 
 export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
   starter: {
     limits: {
-      loanTypeLimit: 1,
-      maxCustomers: 50,
-      maxActiveLoans: 30,
+      loanTypeLimit: null,
+      maxCustomers: 200,
+      maxActiveLoans: 100,
     },
     features: {
-      aiInsights: false,
-      collateralValuation: false,
-      apiAccess: false,
+      aiInsights: 'rule_based', // No DeepSeek calls
+      collateralValuation: 'basic',
+      apiAccess: 'none',
       multiBranch: false,
       whiteLabel: false,
       scheduledReports: false,
       advancedAnalytics: false,
+      pdfExport: false,
+    },
+    quotas: {
+      maxActiveLoans: 100,
+      maxCustomers: 200,
+      maxUsers: 3,
+      maxBranches: 1,
+      storageGbIncluded: 2,
+      perFileMbMax: 5,
+      collateralPhotosPerLoan: 3,
+      notificationsMonthly: 300,
+      aiRiskCallsMonthly: 50,
+      collateralValuationsMonthly: 50,
+      scheduledAiChecksPerDay: 0,
+      scheduledReportsPerMonth: 0,
+      apiReadsMonthly: null,
+      apiWritesMonthly: null,
+      scheduledDocsPerRun: 0,
     },
   },
   professional: {
     limits: {
-      loanTypeLimit: 3,
-      maxCustomers: null, // Unlimited
-      maxActiveLoans: null, // Unlimited
+      loanTypeLimit: null,
+      maxCustomers: 2000,
+      maxActiveLoans: 1000,
     },
     features: {
-      aiInsights: true,
-      collateralValuation: true,
-      apiAccess: false,
-      multiBranch: false,
+      aiInsights: 'deepseek',
+      collateralValuation: 'market_based',
+      apiAccess: 'read_only',
+      multiBranch: true,
       whiteLabel: false,
-      scheduledReports: false,
+      scheduledReports: true,
       advancedAnalytics: true,
+      pdfExport: true,
+    },
+    quotas: {
+      maxActiveLoans: 1000,
+      maxCustomers: 2000,
+      maxUsers: 10,
+      maxBranches: 5,
+      storageGbIncluded: 25,
+      perFileMbMax: 10,
+      collateralPhotosPerLoan: 6,
+      notificationsMonthly: 5000,
+      aiRiskCallsMonthly: 500,
+      collateralValuationsMonthly: 300,
+      scheduledAiChecksPerDay: 50,
+      scheduledReportsPerMonth: 30,
+      apiReadsMonthly: 100_000,
+      apiWritesMonthly: 10_000,
+      scheduledDocsPerRun: 200, // batch cap per run per agency
     },
   },
   enterprise: {
     limits: {
-      loanTypeLimit: null, // Unlimited
-      maxCustomers: null, // Unlimited
-      maxActiveLoans: null, // Unlimited
+      loanTypeLimit: null,
+      maxCustomers: 20000,
+      maxActiveLoans: 10000,
     },
     features: {
-      aiInsights: true,
-      collateralValuation: true,
-      apiAccess: true,
+      aiInsights: 'deepseek',
+      collateralValuation: 'market_based',
+      apiAccess: 'read_write',
       multiBranch: true,
       whiteLabel: true,
       scheduledReports: true,
       advancedAnalytics: true,
+      pdfExport: true,
+    },
+    quotas: {
+      maxActiveLoans: 10_000,
+      maxCustomers: 20_000,
+      maxUsers: null,
+      maxBranches: null,
+      storageGbIncluded: 200,
+      perFileMbMax: 25,
+      collateralPhotosPerLoan: 12,
+      notificationsMonthly: 50_000,
+      aiRiskCallsMonthly: 5000,
+      collateralValuationsMonthly: 2000,
+      scheduledAiChecksPerDay: 1000,
+      scheduledReportsPerMonth: 500,
+      apiReadsMonthly: 5_000_000,
+      apiWritesMonthly: 500_000,
+      scheduledDocsPerRun: 2000,
     },
   },
 };
@@ -131,4 +205,4 @@ export function getPlanFromPriceId(priceId: string): PlanCode {
   // This handles edge cases where price IDs might not match exactly
   return 'professional';
 }
-
+ 

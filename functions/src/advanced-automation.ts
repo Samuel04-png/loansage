@@ -5,6 +5,7 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { getScheduledDocsPerRunCap, isAutomationEnabled } from './usage-ledger';
 
 /**
  * Daily interest accrual calculation
@@ -17,17 +18,43 @@ export const dailyInterestAccrual = functions.pubsub
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
     
-    // Get all active loans
+    // Get all active loans (guard per-agency during processing)
     const activeLoans = await db.collection('loans')
       .where('status', 'in', ['active', 'disbursed'])
       .get();
     
     const batch = db.batch();
     let processed = 0;
+    const perAgencyProcessed: Record<string, number> = {};
+    const perAgencyCapCache: Record<string, number> = {};
+    const automationEnabledCache: Record<string, boolean> = {};
     
     for (const loanDoc of activeLoans.docs) {
       const loan = loanDoc.data();
       const loanId = loanDoc.id;
+      const agencyId = loan.agencyId;
+
+      if (!agencyId) continue;
+
+      // Check automation enabled for this agency (cached)
+      if (automationEnabledCache[agencyId] === undefined) {
+        automationEnabledCache[agencyId] = await isAutomationEnabled(agencyId);
+      }
+      if (!automationEnabledCache[agencyId]) {
+        continue; // Skip Starter or disabled automation
+      }
+
+      // Enforce per-run cap per agency (cached)
+      if (perAgencyCapCache[agencyId] === undefined) {
+        perAgencyCapCache[agencyId] = await getScheduledDocsPerRunCap(agencyId);
+      }
+      const cap = perAgencyCapCache[agencyId];
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = perAgencyProcessed[agencyId] || 0;
+        if (perAgencyProcessed[agencyId] >= cap) {
+          continue;
+        }
+      }
       
       // Calculate daily interest
       const principal = loan.principalAmount || loan.loanAmount || 0;
@@ -47,7 +74,7 @@ export const dailyInterestAccrual = functions.pubsub
       const transactionRef = db.collection('loanTransactions').doc();
       batch.set(transactionRef, {
         loanId,
-        agencyId: loan.agencyId,
+        agencyId,
         type: 'interest_accrual',
         amount: dailyInterest,
         date: now,
@@ -56,6 +83,9 @@ export const dailyInterestAccrual = functions.pubsub
       });
       
       processed++;
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = (perAgencyProcessed[agencyId] || 0) + 1;
+      }
       
       // Commit batch every 500 operations (Firestore limit)
       if (processed % 500 === 0) {
@@ -92,6 +122,10 @@ export const paymentReminders = functions.pubsub
       .where('dueDate', '>=', now)
       .get();
     
+    const perAgencyProcessed: Record<string, number> = {};
+    const perAgencyCapCache: Record<string, number> = {};
+    const automationEnabledCache: Record<string, boolean> = {};
+
     for (const repaymentDoc of dueRepayments.docs) {
       const repayment = repaymentDoc.data();
       
@@ -100,6 +134,28 @@ export const paymentReminders = functions.pubsub
       if (!loanDoc.exists) continue;
       
       const loan = loanDoc.data();
+      const agencyId = loan?.agencyId;
+      if (!agencyId) continue;
+
+      // Check automation enabled
+      if (automationEnabledCache[agencyId] === undefined) {
+        automationEnabledCache[agencyId] = await isAutomationEnabled(agencyId);
+      }
+      if (!automationEnabledCache[agencyId]) {
+        continue;
+      }
+
+      // Cap per agency
+      if (perAgencyCapCache[agencyId] === undefined) {
+        perAgencyCapCache[agencyId] = await getScheduledDocsPerRunCap(agencyId);
+      }
+      const cap = perAgencyCapCache[agencyId];
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = perAgencyProcessed[agencyId] || 0;
+        if (perAgencyProcessed[agencyId] >= cap) {
+          continue;
+        }
+      }
       
       // Get customer details
       const customerDoc = await db.collection('customers').doc(loan?.customerId).get();
@@ -109,7 +165,7 @@ export const paymentReminders = functions.pubsub
       
       // Create notification
       await db.collection('notifications').add({
-        agencyId: loan?.agencyId,
+        agencyId,
         userId: customer?.userId,
         type: 'payment_reminder',
         title: 'Payment Due Soon',
@@ -121,6 +177,10 @@ export const paymentReminders = functions.pubsub
       });
       
       // TODO: Send SMS/Email via integration
+
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = (perAgencyProcessed[agencyId] || 0) + 1;
+      }
     }
     
     console.log(`Sent payment reminders for ${dueRepayments.size} repayments`);
@@ -144,6 +204,10 @@ export const overdueLoanChecker = functions.pubsub
       .where('dueDate', '<', now)
       .get();
     
+    const perAgencyProcessed: Record<string, number> = {};
+    const perAgencyCapCache: Record<string, number> = {};
+    const automationEnabledCache: Record<string, boolean> = {};
+
     for (const repaymentDoc of overdueRepayments.docs) {
       const repayment = repaymentDoc.data();
       
@@ -152,6 +216,28 @@ export const overdueLoanChecker = functions.pubsub
       if (!loanDoc.exists) continue;
       
       const loan = loanDoc.data();
+      const agencyId = loan?.agencyId;
+      if (!agencyId) continue;
+
+      // Check automation enabled
+      if (automationEnabledCache[agencyId] === undefined) {
+        automationEnabledCache[agencyId] = await isAutomationEnabled(agencyId);
+      }
+      if (!automationEnabledCache[agencyId]) {
+        continue;
+      }
+
+      // Cap per agency
+      if (perAgencyCapCache[agencyId] === undefined) {
+        perAgencyCapCache[agencyId] = await getScheduledDocsPerRunCap(agencyId);
+      }
+      const cap = perAgencyCapCache[agencyId];
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = perAgencyProcessed[agencyId] || 0;
+        if (perAgencyProcessed[agencyId] >= cap) {
+          continue;
+        }
+      }
       
       // Calculate days overdue
       const daysOverdue = Math.floor(
@@ -169,7 +255,7 @@ export const overdueLoanChecker = functions.pubsub
         
         // Create task for collections team
         await db.collection('tasks').add({
-          agencyId: loan?.agencyId,
+          agencyId,
           type: 'collections',
           priority: 'high',
           title: `Loan Defaulted: ${loan?.loanNumber}`,
@@ -183,7 +269,7 @@ export const overdueLoanChecker = functions.pubsub
       } else if (daysOverdue >= 30) {
         // Create high-priority collection task
         await db.collection('tasks').add({
-          agencyId: loan?.agencyId,
+          agencyId,
           type: 'collections',
           priority: 'high',
           title: `Overdue Payment: ${loan?.loanNumber}`,
@@ -194,6 +280,10 @@ export const overdueLoanChecker = functions.pubsub
           dueDate: now,
           createdAt: now,
         });
+      }
+
+      if (cap > 0) {
+        perAgencyProcessed[agencyId] = (perAgencyProcessed[agencyId] || 0) + 1;
       }
     }
     

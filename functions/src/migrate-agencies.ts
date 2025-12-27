@@ -62,8 +62,8 @@ export const migrateAgenciesToNewPlans = functions.https.onCall(async (data, con
       const updateData: any = {
         plan: newPlan,
         loanTypeLimit: planConfig.limits.loanTypeLimit,
-        maxCustomers: planConfig.limits.maxCustomers,
-        maxActiveLoans: planConfig.limits.maxActiveLoans,
+        maxCustomers: planConfig.quotas.maxCustomers,
+        maxActiveLoans: planConfig.quotas.maxActiveLoans,
         features: planConfig.features,
         // Keep legacy fields for backward compatibility during transition
         // planType: agencyData.planType || 'free', // Keep for compatibility
@@ -143,8 +143,8 @@ export const migrateSingleAgency = functions.https.onCall(async (data, context) 
     await agencyRef.update({
       plan: newPlan,
       loanTypeLimit: planConfig.limits.loanTypeLimit,
-      maxCustomers: planConfig.limits.maxCustomers,
-      maxActiveLoans: planConfig.limits.maxActiveLoans,
+      maxCustomers: planConfig.quotas.maxCustomers,
+      maxActiveLoans: planConfig.quotas.maxActiveLoans,
       features: planConfig.features,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       migratedAt: admin.firestore.FieldValue.serverTimestamp(),

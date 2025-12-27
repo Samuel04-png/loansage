@@ -6,6 +6,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { PLAN_CONFIG, type PlanCode } from './plan-config';
+import { enforceQuota } from './usage-ledger';
 
 /**
  * Middleware to check API access
@@ -71,6 +72,9 @@ export const apiGetLoans = functions.https.onRequest(async (req, res) => {
       ...doc.data(),
     }));
 
+    // Enforce API read quota (count by documents returned to approximate cost)
+    await enforceQuota(agencyId, 'apiReads', Math.max(1, loans.length));
+
     res.json({
       success: true,
       data: loans,
@@ -114,6 +118,9 @@ export const apiGetCustomers = functions.https.onRequest(async (req, res) => {
       ...doc.data(),
     }));
 
+    // Enforce API read quota (count by documents returned to approximate cost)
+    await enforceQuota(agencyId, 'apiReads', Math.max(1, customers.length));
+
     res.json({
       success: true,
       data: customers,
@@ -156,6 +163,9 @@ export const apiGetStats = functions.https.onRequest(async (req, res) => {
     const totalLoans = loans.length;
     const activeLoans = loans.filter((l: any) => l.status === 'active').length;
     const totalLoanAmount = loans.reduce((sum: number, l: any) => sum + (Number(l.amount) || 0), 0);
+
+    // Enforce API reads (by objects read)
+    await enforceQuota(agencyId, 'apiReads', Math.max(1, loansSnapshot.size + customersSnapshot.size));
 
     res.json({
       success: true,

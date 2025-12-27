@@ -4,6 +4,8 @@
  */
 
 import * as functions from 'firebase-functions';
+import { enforceQuota } from './usage-ledger';
+import { isInternalEmail } from './internal-bypass';
 
 // Removed unused db reference
 
@@ -37,9 +39,14 @@ export const estimateCollateralValue = functions.https.onCall(
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { type, brand, model, year, condition, location } = data;
+    const { agencyId, type, brand, model, year, condition, location } = data;
 
     try {
+      // Enforce per-day quota for collateral valuation unless internal
+      if (!isInternalEmail(context)) {
+        await enforceQuota(agencyId, 'collateralValuations', 1);
+      }
+
       // This would integrate with your AI service
       // For now, using a simplified calculation
       let basePrice = 0;

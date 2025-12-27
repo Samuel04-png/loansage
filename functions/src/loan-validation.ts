@@ -5,6 +5,8 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { enforceQuota } from './usage-ledger';
+import { isInternalEmail } from './internal-bypass';
 
 const db = admin.firestore();
 
@@ -38,6 +40,11 @@ export const loanValidation = functions.https.onCall(
     const warnings: string[] = [];
 
     try {
+      // Enforce per-day quota for validations unless internal
+      if (!isInternalEmail(context)) {
+        await enforceQuota(agencyId, 'loanValidations', 1);
+      }
+
       // Get customer data
       const customerRef = db.doc(`agencies/${agencyId}/customers/${customerId}`);
       const customerSnap = await customerRef.get();

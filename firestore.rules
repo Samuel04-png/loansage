@@ -207,6 +207,8 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isLoanOwner(loanId, agencyId) || (resource != null && isCustomerOwner(resource.data.customerId, agencyId)));
         // Note: Active loan limit enforcement (maxActiveLoans) is done in Cloud Functions/Frontend
         // Rules here only enforce permissions, not business logic limits
+        // Firestore rules cannot iterate/count - enforcement happens in Cloud Functions
+        // Loan type enabled/disabled validation happens in Cloud Functions
         allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
         
         // Update rules based on workflow:
@@ -341,10 +343,19 @@ service cloud.firestore {
       // Loan type configuration subcollection
       // Note: Loan type limit enforcement is done in Cloud Functions/Frontend
       // Rules here only enforce permissions, not business logic limits
+      // Firestore rules cannot iterate/count - enforcement happens in Cloud Functions
       match /config/{configId} {
         allow read: if isAuthenticated() && belongsToAgency(agencyId);
         allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
         allow update: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Alerts subcollection
+      match /alerts/{alertId} {
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && belongsToAgency(agencyId);
         allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
       }
       

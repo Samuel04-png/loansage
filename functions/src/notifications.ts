@@ -6,6 +6,8 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
+import { enforceQuota } from './usage-ledger';
+import { isInternalEmail } from './internal-bypass';
 
 const db = admin.firestore();
 
@@ -32,6 +34,7 @@ interface NotificationData {
   loanId: string;
   message: string;
   email?: string;
+  agencyId?: string;
 }
 
 export const sendNotifications = functions.https.onCall(
@@ -43,6 +46,27 @@ export const sendNotifications = functions.https.onCall(
     const { userId, type, loanId, message, email } = data;
 
     try {
+      // Determine agencyId to enforce quota (prefer explicit; fallback to loan lookup)
+      let agencyId: string | undefined = data.agencyId;
+
+      if (!agencyId && loanId) {
+        try {
+          const loanSnap = await db.collection('loans').doc(loanId).get();
+          if (loanSnap.exists) {
+            const loan = loanSnap.data() as any;
+            if (loan?.agencyId) {
+              agencyId = String(loan.agencyId);
+            }
+          }
+        } catch {}
+      }
+
+      if (agencyId && !isInternalEmail(context)) {
+        await enforceQuota(agencyId, 'notificationsSent', 1);
+      } else if (!agencyId) {
+        console.warn('sendNotifications: agencyId not provided and not derivable from loanId; skipping quota enforcement');
+      }
+
       // Create in-app notification
       const notificationRef = db.collection(`users/${userId}/notifications`).doc();
       await notificationRef.set({
@@ -164,6 +188,13 @@ async function sendNotificationForRepayment(
   repayment: any,
   type: string
 ) {
+  // Meter notification per send
+  try {
+    await enforceQuota(agencyId, 'notificationsSent', 1);
+  } catch (e) {
+    console.warn('Notification quota exceeded or unavailable for agency', agencyId, e);
+    return;
+  }
   // Get loan and customer info
   const loanRef = db.doc(`agencies/${agencyId}/loans/${loanId}`);
   const loanSnap = await loanRef.get();

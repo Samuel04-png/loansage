@@ -4,6 +4,8 @@
  */
 
 import * as functions from 'firebase-functions';
+import { enforceQuota } from './usage-ledger';
+import { isInternalEmail } from './internal-bypass';
 
 interface DeepSeekMessage {
   role: 'system' | 'user' | 'assistant';
@@ -15,6 +17,7 @@ interface DeepSeekRequest {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  agencyId: string;
 }
 
 export const deepseekProxy = functions.https.onCall(async (data: DeepSeekRequest, context) => {
@@ -36,7 +39,7 @@ export const deepseekProxy = functions.https.onCall(async (data: DeepSeekRequest
     );
   }
 
-  const { messages, temperature = 0.7, maxTokens = 2000, model = 'deepseek-chat' } = data;
+  const { messages, temperature = 0.7, maxTokens = 2000, model = 'deepseek-chat', agencyId } = data;
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     throw new functions.https.HttpsError(
@@ -44,8 +47,16 @@ export const deepseekProxy = functions.https.onCall(async (data: DeepSeekRequest
       'Messages array is required and must not be empty'
     );
   }
+  if (!agencyId) {
+    throw new functions.https.HttpsError('invalid-argument', 'agencyId is required');
+  }
 
   try {
+    // Enforce AI calls quota unless internal
+    if (!isInternalEmail(context)) {
+      await enforceQuota(agencyId, 'aiCalls', 1);
+    }
+
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {

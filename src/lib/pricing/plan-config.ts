@@ -14,8 +14,8 @@ export interface PlanLimits {
 }
 
 export interface PlanFeatures {
-  aiInsights: boolean;
-  collateralValuation: boolean;
+  aiInsights: boolean; // Starter: rule-based; Pro/Ent: DeepSeek-enabled
+  collateralValuation: boolean; // Starter: basic; Pro/Ent: market-based
   apiAccess: boolean;
   multiBranch: boolean;
   whiteLabel: boolean;
@@ -36,43 +36,43 @@ export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
   starter: {
     name: 'Starter',
     price: 0,
-    description: 'Perfect for testing and small operations',
+    description: 'Core loan CRM with on-demand insights and manual workflows',
     limits: {
-      loanTypeLimit: 1,
-      maxCustomers: 50,
-      maxActiveLoans: 30,
-      maxUsers: 1,
-      storageLimitMB: 100,
+      loanTypeLimit: null,
+      maxCustomers: 200,
+      maxActiveLoans: 100,
+      maxUsers: 3,
+      storageLimitMB: 2048, // 2 GB
     },
     features: {
-      aiInsights: false,
-      collateralValuation: false,
+      aiInsights: true, // rule-based only
+      collateralValuation: true, // basic only
       apiAccess: false,
       multiBranch: false,
       whiteLabel: false,
       scheduledReports: false,
       advancedAnalytics: false,
-      multiUser: false,
+      multiUser: true,
     },
   },
   professional: {
     name: 'Professional',
     price: 35,
-    description: 'For growing agencies',
+    description: 'Automation, PDF export, and AI insights for growing agencies',
     limits: {
-      loanTypeLimit: 3,
-      maxCustomers: null, // Unlimited
-      maxActiveLoans: null, // Unlimited
-      maxUsers: null, // Unlimited
-      storageLimitMB: 500,
+      loanTypeLimit: null,
+      maxCustomers: 2000,
+      maxActiveLoans: 1000,
+      maxUsers: 10,
+      storageLimitMB: 25600, // 25 GB
     },
     features: {
-      aiInsights: true,
-      collateralValuation: true,
-      apiAccess: false,
-      multiBranch: false,
+      aiInsights: true, // DeepSeek-enabled with caps
+      collateralValuation: true, // market-based with caps
+      apiAccess: true, // read-only
+      multiBranch: true, // up to 5 branches
       whiteLabel: false,
-      scheduledReports: false,
+      scheduledReports: true,
       advancedAnalytics: true,
       multiUser: true,
     },
@@ -82,16 +82,16 @@ export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
     price: 120,
     description: 'For large organizations',
     limits: {
-      loanTypeLimit: null, // Unlimited
-      maxCustomers: null, // Unlimited
-      maxActiveLoans: null, // Unlimited
-      maxUsers: null, // Unlimited
-      storageLimitMB: 2048,
+      loanTypeLimit: null,
+      maxCustomers: 20000,
+      maxActiveLoans: 10000,
+      maxUsers: null,
+      storageLimitMB: 204800, // 200 GB
     },
     features: {
       aiInsights: true,
       collateralValuation: true,
-      apiAccess: true,
+      apiAccess: true, // read/write + webhooks
       multiBranch: true,
       whiteLabel: true,
       scheduledReports: true,

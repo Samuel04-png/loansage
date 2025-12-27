@@ -5,37 +5,52 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null;
     }
+
+    // Helper: validate content type (restrict to images and PDFs)
+    function isAllowedContentType() {
+      return request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf';
+    }
+
+    // Helper: max upload size (20MB global guardrail)
+    function isAllowedSize() {
+      return request.resource.size < 20 * 1024 * 1024;
+    }
     
     // Agency logos - authenticated users can access
     match /agencies/{agencyId}/logo/{fileName} {
-      allow read, write, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && isAllowedContentType() && isAllowedSize();
     }
     
     // Agency profile photos - authenticated users can access
     match /agencies/{agencyId}/profile/{fileName} {
-      allow read, write, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && isAllowedContentType() && isAllowedSize();
     }
     
     // Customer documents - authenticated users can access
     // Note: Application-level checks should verify agency membership
     match /agencies/{agencyId}/customers/{customerId}/{allPaths=**} {
-      allow read, write, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && isAllowedContentType() && isAllowedSize();
     }
     
     // Loan documents - authenticated users can access
     match /agencies/{agencyId}/loans/{loanId}/{allPaths=**} {
-      allow read, write, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && isAllowedContentType() && isAllowedSize();
     }
     
     // Collateral files - authenticated users can access
     match /agencies/{agencyId}/collateral/{collateralId}/{allPaths=**} {
-      allow read, write, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write, delete: if isAuthenticated() && isAllowedContentType() && isAllowedSize();
     }
     
     // User profile photos - users can only access their own
     match /users/{userId}/profile/{fileName} {
       allow read: if isAuthenticated();
-      allow write, delete: if isAuthenticated() && request.auth.uid == userId;
+      allow write, delete: if isAuthenticated() && request.auth.uid == userId && isAllowedContentType() && isAllowedSize();
     }
     
     // Deny all other access

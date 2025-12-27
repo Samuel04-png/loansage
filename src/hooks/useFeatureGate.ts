@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { useAgency } from './useAgency';
 import { getAgencyPlanStatus } from '../lib/firebase/subscription-helpers';
 import { normalizePlanCode, PLAN_CONFIG, type PlanCode } from '../lib/pricing/plan-config';
+import { useAuthStore } from '../stores/authStore';
 
 // December special end date - all features free until this date
 const DECEMBER_SPECIAL_END_DATE = new Date('2025-01-15T23:59:59');
@@ -206,9 +207,14 @@ export interface FeatureGateResult {
  */
 export function useFeatureGate(): FeatureGateResult {
   const { agency } = useAgency();
+  const { user } = useAuthStore();
+  const isInternal = !!user?.email?.toLowerCase().endsWith('@byteandberry.com');
   
   // Get plan code from agency (normalizes legacy planType)
-  const plan: PlanCode = useMemo(() => normalizePlanCode(agency), [agency]);
+  const plan: PlanCode = useMemo(() => {
+    if (isInternal) return 'enterprise';
+    return normalizePlanCode(agency);
+  }, [agency, isInternal]);
   
   // Get plan configuration
   const planConfig = useMemo(() => PLAN_CONFIG[plan], [plan]);
@@ -227,6 +233,10 @@ export function useFeatureGate(): FeatureGateResult {
   }, [agency]);
   
   const hasFeature = (feature: FeatureKey): boolean => {
+    // Internal users get full access
+    if (isInternal) {
+      return true;
+    }
     // December special: All features free until January 15, 2025
     if (isDecemberSpecialActive()) {
       return true;

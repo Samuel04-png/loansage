@@ -39,10 +39,12 @@ import { formatCurrency } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { analyzeLoanRisk } from '../../../services/aiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getEnabledLoanTypes } from '../../../lib/firebase/loan-type-config';
+import { getEnabledLoanTypes, getLoanTypeTemplate, getLoanTypeConfig } from '../../../lib/firebase/loan-type-config';
 import { useAgency } from '../../../hooks/useAgency';
 import { getLoanTypeIcon } from '../../../lib/loan-type-icons';
-import type { LoanTypeConfig, LoanTypeId } from '../../../types/loan-config';
+import type { LoanTypeConfig, LoanTypeId, LoanStep } from '../../../types/loan-config';
+import { buildLoanFlow, getNextStepId, getPreviousStepId, getStepIndex } from '../../../lib/loan-flow/flow-engine';
+import { shouldRenderCollateral, shouldRenderEmployment, shouldRenderBusiness, shouldRenderGuarantor } from '../../../lib/loan-type/rules';
 
 // Form schemas
 const borrowerSchema = z.object({
@@ -93,10 +95,19 @@ export function LoanOriginationPage() {
   // Get current loan type configuration
   const currentLoanTypeConfig = enabledLoanTypes.find(lt => lt.id === loanType);
 
-  // Calculate total steps dynamically based on whether collateral is required
-  const needsCollateral = currentLoanTypeConfig?.collateralRequirement === 'required' || 
-                          currentLoanTypeConfig?.collateralRequirement === 'conditional';
-  const totalSteps = needsCollateral ? 8 : 7; // Skip collateral step if not required
+  // Get loan type template and build flow
+  const loanTypeTemplate = loanType ? getLoanTypeTemplate(loanType) : null;
+  const loanFlowSteps = loanTypeTemplate && currentLoanTypeConfig 
+    ? buildLoanFlow(loanTypeTemplate, currentLoanTypeConfig)
+    : [];
+
+  // Get current step ID from flow
+  const currentStepId = loanFlowSteps.length > 0 && step > 0 && step <= loanFlowSteps.length
+    ? loanFlowSteps[step - 1]?.id
+    : null;
+
+  // Calculate total steps from flow
+  const totalSteps = loanFlowSteps.length || 7; // Fallback to 7 if no flow
 
   // Step 1: Customer search
   const { data: customers } = useQuery({
@@ -248,24 +259,30 @@ export function LoanOriginationPage() {
   });
 
   const handleNext = () => {
-    if (step < totalSteps) {
-      let nextStep = step + 1;
-      // Skip collateral step (5) if not needed
-      if (!needsCollateral && nextStep === 5) {
-        nextStep = 6;
+    if (currentStepId && loanFlowSteps.length > 0) {
+      const nextStepId = getNextStepId(loanFlowSteps, currentStepId);
+      if (nextStepId) {
+        const nextIndex = getStepIndex(loanFlowSteps, nextStepId);
+        if (nextIndex !== -1) {
+          setStep(nextIndex + 1);
+        }
       }
-      setStep(nextStep);
+    } else if (step < totalSteps) {
+      setStep(step + 1);
     }
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      let prevStep = step - 1;
-      // Skip collateral step (5) if not needed when going back
-      if (!needsCollateral && prevStep === 5) {
-        prevStep = 4;
+    if (currentStepId && loanFlowSteps.length > 0) {
+      const prevStepId = getPreviousStepId(loanFlowSteps, currentStepId);
+      if (prevStepId) {
+        const prevIndex = getStepIndex(loanFlowSteps, prevStepId);
+        if (prevIndex !== -1) {
+          setStep(prevIndex + 1);
+        }
       }
-      setStep(prevStep);
+    } else if (step > 1) {
+      setStep(step - 1);
     }
   };
 
@@ -450,8 +467,30 @@ export function LoanOriginationPage() {
     }
   };
 
-  // Get step info based on actual step number
+  // Map step IDs to step info
+  const getStepInfoById = (stepId: string) => {
+    const stepInfoMap: Record<string, { icon: JSX.Element; title: string }> = {
+      borrower: { icon: <User className="w-4 h-4" />, title: 'Borrower Information' },
+      terms: { icon: <DollarSign className="w-4 h-4" />, title: 'Loan Terms' },
+      collateral: { icon: <ShieldAlert className="w-4 h-4" />, title: 'Collateral' },
+      collateral_valuation: { icon: <ShieldAlert className="w-4 h-4" />, title: 'Collateral Valuation' },
+      employment: { icon: <Briefcase className="w-4 h-4" />, title: 'Employment Details' },
+      business: { icon: <Building2 className="w-4 h-4" />, title: 'Business Information' },
+      guarantor_optional: { icon: <User className="w-4 h-4" />, title: 'Guarantor (Optional)' },
+      review: { icon: <CheckCircle2 className="w-4 h-4" />, title: 'Review & Submit' },
+    };
+    return stepInfoMap[stepId] || { icon: <FileText className="w-4 h-4" />, title: 'Step' };
+  };
+
+  // Get step info based on flow or fallback to step number
   const getStepInfo = (stepNum: number) => {
+    if (currentStepId && loanFlowSteps.length > 0) {
+      const stepIndex = stepNum - 1;
+      if (stepIndex >= 0 && stepIndex < loanFlowSteps.length) {
+        return getStepInfoById(loanFlowSteps[stepIndex].id);
+      }
+    }
+    // Fallback to old logic
     const allSteps = [
       { icon: <Search className="w-4 h-4" />, title: 'Borrower Lookup' },
       { icon: <User className="w-4 h-4" />, title: 'Borrower KYC' },
@@ -462,21 +501,20 @@ export function LoanOriginationPage() {
       { icon: <ShieldAlert className="w-4 h-4" />, title: 'Risk Assessment' },
       { icon: <CheckCircle2 className="w-4 h-4" />, title: 'Preview & Submit' },
     ];
-
-    // Map step number to actual step index
-    if (!needsCollateral) {
-      // Skip collateral step (index 4)
-      if (stepNum <= 4) {
-        return allSteps[stepNum - 1];
-      } else {
-        // Shift steps after collateral
-        return allSteps[stepNum]; // stepNum 5 -> index 5 (Documents), etc.
-      }
-    }
-    return allSteps[stepNum - 1];
+    return allSteps[stepNum - 1] || allSteps[0];
   };
 
   const currentStepInfo = getStepInfo(step);
+
+  // Get current step ID from flow
+  const getCurrentStepId = (): string | null => {
+    if (loanFlowSteps.length > 0 && step > 0 && step <= loanFlowSteps.length) {
+      return loanFlowSteps[step - 1].id;
+    }
+    return null;
+  };
+
+  const currentFlowStepId = getCurrentStepId();
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 p-4 md:p-6">
@@ -501,33 +539,50 @@ export function LoanOriginationPage() {
         className="bg-card border rounded-lg p-4 mb-6"
       >
         <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div key={i} className="flex items-center flex-1 min-w-0">
-              <motion.div
-                initial={false}
-                animate={{
-                  scale: i + 1 === step ? 1.1 : 1,
-                  backgroundColor: i + 1 <= step ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
-                }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-colors relative z-10 flex-shrink-0"
-              >
-                {i + 1 < step ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : (
-                  <span className="text-xs">{i + 1}</span>
-                )}
-              </motion.div>
-              {i < totalSteps - 1 && (
+          {(loanFlowSteps.length > 0 ? loanFlowSteps : Array.from({ length: totalSteps }).map((_, i) => ({ id: `step${i + 1}` as any }))).map((flowStep: LoanStep | { id: string }, i) => {
+            const stepId = 'id' in flowStep ? flowStep.id : flowStep.id;
+            const stepInfo = getStepInfoById(stepId);
+            const isOptional = 'optional' in flowStep ? flowStep.optional : false;
+            const isSkippable = 'skippable' in flowStep ? flowStep.skippable : false;
+            const stepNum = i + 1;
+            const isActive = stepNum === step;
+            const isCompleted = stepNum < step;
+            
+            return (
+              <div key={i} className="flex items-center flex-1 min-w-0">
                 <motion.div
                   initial={false}
                   animate={{
-                    backgroundColor: i + 1 < step ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                    scale: isActive ? 1.1 : 1,
+                    backgroundColor: isCompleted || isActive ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
                   }}
-                  className="flex-1 h-1 mx-2 rounded-full transition-colors"
-                />
-              )}
-            </div>
-          ))}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-colors relative z-10 flex-shrink-0"
+                  title={stepInfo.title}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                    <span className="text-xs">{stepNum}</span>
+                  )}
+                </motion.div>
+                {(isOptional || isSkippable) && (
+                  <Badge variant="outline" className="ml-1 text-xs">
+                    {isOptional && 'Optional'}
+                    {isSkippable && 'Skip'}
+                  </Badge>
+                )}
+                {i < (loanFlowSteps.length > 0 ? loanFlowSteps.length : totalSteps) - 1 && (
+                  <motion.div
+                    initial={false}
+                    animate={{
+                      backgroundColor: isCompleted ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                    }}
+                    className="flex-1 h-1 mx-2 rounded-full transition-colors"
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
         <div className="mt-3 text-center">
           <p className="text-sm font-medium text-foreground">{currentStepInfo.title}</p>

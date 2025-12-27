@@ -48,10 +48,21 @@ export function CreateOrganizationPage() {
   const [loading, setLoading] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [step, setStep] = useState(1);
-  const [selectedLoanTypes, setSelectedLoanTypes] = useState<LoanTypeId[]>(['collateral_based', 'salary_based', 'personal_unsecured']);
+  // Start with empty selection - defaults will be used if user doesn't select any
+  const [selectedLoanTypes, setSelectedLoanTypes] = useState<LoanTypeId[]>([]);
   const [hasReferralLink, setHasReferralLink] = useState(false);
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const { setProfile } = useAuthStore();
+
+  // If user already has an agency, redirect to dashboard
+  // Organization changes should be done in Settings, not here
+  useEffect(() => {
+    if (profile?.agency_id) {
+      const role = profile.role || 'admin';
+      const dashboardPath = role === 'admin' ? '/admin/dashboard' : role === 'employee' ? '/employee/dashboard' : '/customer/dashboard';
+      navigate(dashboardPath, { replace: true });
+    }
+  }, [profile?.agency_id, profile?.role, navigate]);
 
   const {
     register,
@@ -109,6 +120,30 @@ export function CreateOrganizationPage() {
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-slate-600">Loading...</p>
         </div>
+      </div>
+    );
+  }
+
+  // If user already has an agency, show message and redirect
+  if (profile?.agency_id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Organization Already Exists</h2>
+            <p className="text-muted-foreground mb-4">
+              You already have an organization. To modify your organization settings or loan types, please go to Settings.
+            </p>
+            <Button onClick={() => {
+              const role = profile.role || 'admin';
+              const settingsPath = role === 'admin' ? '/admin/settings' : '/employee/dashboard';
+              navigate(settingsPath);
+            }}>
+              Go to Settings
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -267,8 +302,12 @@ export function CreateOrganizationPage() {
       });
 
       // Initialize loan type configuration
+      // If no loan types selected, use defaults (empty array will trigger defaults in initializeAgencyLoanConfig)
       try {
-        await initializeAgencyLoanConfig(newAgency.id, selectedLoanTypes);
+        await initializeAgencyLoanConfig(
+          newAgency.id, 
+          selectedLoanTypes.length > 0 ? selectedLoanTypes : [] // Empty array triggers defaults
+        );
       } catch (error: any) {
         console.warn('Failed to initialize loan config:', error);
         toast('Loan configuration initialization failed, but agency was created. You can configure it in Settings.', { icon: '⚠️' });
@@ -534,15 +573,16 @@ export function CreateOrganizationPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-2">Select Loan Types</h3>
+                <h3 className="text-lg font-semibold mb-2">Select Loan Types (Optional)</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Choose which loan types your agency will offer. You can modify these later in Settings.
+                  Choose which loan types your agency will offer. If you don't select any, default loan types (Collateral-Based, Salary-Based, Personal Unsecured) will be enabled. You can modify these anytime in Settings.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-2">
                 {Object.values(DEFAULT_LOAN_TYPE_TEMPLATES).map((template) => {
                   const isSelected = selectedLoanTypes.includes(template.id);
+                  const isDefault = ['collateral_based', 'salary_based', 'personal_unsecured'].includes(template.id);
                   return (
                     <button
                       key={template.id}
@@ -556,17 +596,33 @@ export function CreateOrganizationPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <h4 className="font-semibold">{template.name}</h4>
                             {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
+                            {isDefault && !isSelected && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                                Default
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">{template.description}</p>
-                          <div className="flex gap-2 mt-2">
+                          <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="text-xs">
                               {template.category}
                             </Badge>
-                            {template.defaultConfig.collateralRequirement === 'required' && (
-                              <Badge variant="secondary" className="text-xs">Secured</Badge>
+                            {template.rules.requiresCollateral && (
+                              <Badge variant="secondary" className="text-xs">Requires Collateral</Badge>
+                            )}
+                            {template.rules.requiresEmployer && (
+                              <Badge variant="secondary" className="text-xs">Requires Employment</Badge>
+                            )}
+                            {template.rules.requiresBusinessInfo && (
+                              <Badge variant="secondary" className="text-xs">Requires Business Info</Badge>
+                            )}
+                            {template.flow.steps.length > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {template.flow.steps.length} steps
+                              </Badge>
                             )}
                           </div>
                         </div>
@@ -577,7 +633,11 @@ export function CreateOrganizationPage() {
               </div>
 
               {selectedLoanTypes.length === 0 && (
-                <p className="text-sm text-destructive">Please select at least one loan type</p>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>No loan types selected.</strong> Default loan types (Collateral-Based, Salary-Based, Personal Unsecured) will be enabled. You can modify these in Settings after creating your organization.
+                  </p>
+                </div>
               )}
 
               <div className="flex gap-3">
@@ -588,7 +648,7 @@ export function CreateOrganizationPage() {
                 <Button
                   type="button"
                   onClick={handleSubmit(onSubmit)}
-                  disabled={loading || selectedLoanTypes.length === 0}
+                  disabled={loading}
                   className="flex-1"
                 >
                   {loading ? (

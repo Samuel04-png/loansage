@@ -49,7 +49,16 @@ export function LoanTypeSettings() {
     queryKey: ['loanConfig', agency?.id],
     queryFn: async () => {
       if (!agency?.id) return null;
-      return await getAgencyLoanConfig(agency.id);
+      let config = await getAgencyLoanConfig(agency.id);
+      
+      // If no config exists, initialize with defaults
+      if (!config) {
+        const { initializeAgencyLoanConfig } = await import('../../../lib/firebase/loan-type-config');
+        await initializeAgencyLoanConfig(agency.id, []); // Empty array triggers defaults
+        config = await getAgencyLoanConfig(agency.id);
+      }
+      
+      return config;
     },
     enabled: !!agency?.id,
   });

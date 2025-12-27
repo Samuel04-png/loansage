@@ -218,8 +218,8 @@ async function applyPlanToAgency(
   await admin.firestore().doc(`agencies/${agencyId}`).update({
     plan,
     loanTypeLimit: planConfig.limits.loanTypeLimit,
-    maxCustomers: planConfig.limits.maxCustomers,
-    maxActiveLoans: planConfig.limits.maxActiveLoans,
+    maxCustomers: planConfig.quotas.maxCustomers,
+    maxActiveLoans: planConfig.quotas.maxActiveLoans,
     features: planConfig.features,
     ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
     subscriptionStatus: 'active',

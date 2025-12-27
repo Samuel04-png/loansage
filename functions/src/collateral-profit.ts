@@ -5,6 +5,8 @@
 
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { enforceQuota } from './usage-ledger';
+import { isInternalEmail } from './internal-bypass';
 
 const db = admin.firestore();
 
@@ -36,6 +38,11 @@ export const calculateCollateralProfit = functions.https.onCall(
     const { agencyId, loanId, collateralId } = data;
 
     try {
+      // Enforce per-day quota for analysis calculations unless internal
+      if (!isInternalEmail(context)) {
+        await enforceQuota(agencyId, 'analysisCalcs', 1);
+      }
+
       // Get loan data
       const loanRef = db.doc(`agencies/${agencyId}/loans/${loanId}`);
       const loanSnap = await loanRef.get();

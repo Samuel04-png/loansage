@@ -285,13 +285,13 @@ export function AdminDashboard() {
                   Agency Not Assigned
                 </h3>
                 <p className="text-yellow-800 mb-4">
-                  Your account is not assigned to an agency. Please contact your administrator to be assigned to an agency, or create a new agency in Settings.
+                  Your account is not assigned to an agency. Please contact your administrator to be assigned to an agency.
                 </p>
                 <Button
-                  onClick={() => navigate('/auth/create-organization')}
+                  onClick={() => navigate('/admin/settings')}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white"
                 >
-                  Create Agency
+                  Go to Settings
                 </Button>
               </div>
             </div>

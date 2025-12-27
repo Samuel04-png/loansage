@@ -19,7 +19,9 @@ import type {
   AgencyLoanConfig, 
   LoanTypeConfig, 
   LoanTypeId,
-  LoanTypeTemplate 
+  LoanTypeTemplate,
+  LoanStep,
+  LoanTypeRules
 } from '../../types/loan-config';
 
 /**
@@ -32,6 +34,24 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Collateral-Based Loan',
     description: 'Loans secured by collateral assets',
     category: 'secured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'collateral' },
+        { id: 'collateral_valuation', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: true,
+      requiresCollateralValuation: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Collateral-Based Loan',
       description: 'Loans secured by collateral assets',
@@ -79,6 +99,22 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Salary-Based Loan',
     description: 'Loans based on borrower salary/income',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'employment' },
+        { id: 'terms' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      requiresEmployer: true,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Salary-Based Loan',
       description: 'Loans based on borrower salary/income',
@@ -146,6 +182,23 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'SME / Business Loan',
     description: 'Loans for small and medium enterprises',
     category: 'conditional',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      requiresBusinessInfo: true,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'SME / Business Loan',
       description: 'Loans for small and medium enterprises',
@@ -220,6 +273,21 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Personal Loan (Unsecured)',
     description: 'Unsecured personal loans for individual needs',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Personal Loan (Unsecured)',
       description: 'Unsecured personal loans for individual needs',
@@ -270,6 +338,24 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Asset Financing',
     description: 'Financing for business assets and equipment',
     category: 'secured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral' },
+        { id: 'collateral_valuation', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: true,
+      requiresBusinessInfo: true,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Asset Financing',
       description: 'Financing for business assets and equipment',
@@ -330,6 +416,24 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Custom / Mixed Loan',
     description: 'Customizable loan products with flexible terms',
     category: 'hybrid',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'collateral', optional: true },
+        { id: 'employment', optional: true },
+        { id: 'business', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Custom / Mixed Loan',
       description: 'Customizable loan products with flexible terms',
@@ -373,6 +477,21 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Education Loan',
     description: 'For tuition fees and educational expenses',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Education Loan',
       description: 'For tuition fees and educational expenses',
@@ -400,6 +519,21 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Medical Loan',
     description: 'For medical expenses and healthcare',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Medical Loan',
       description: 'For medical expenses and healthcare',
@@ -427,6 +561,20 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Emergency Loan',
     description: 'Quick access funds for urgent needs',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: false,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Emergency Loan',
       description: 'Quick access funds for urgent needs',
@@ -454,6 +602,22 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Microfinance Loan',
     description: 'Small loans for micro-enterprises',
     category: 'unsecured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business', optional: true },
+        { id: 'terms' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Microfinance Loan',
       description: 'Small loans for micro-enterprises',
@@ -481,6 +645,22 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Group Loan',
     description: 'Loans for groups or associations',
     category: 'conditional',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'collateral', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Group Loan',
       description: 'Loans for groups or associations',
@@ -508,6 +688,23 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Equipment Finance',
     description: 'Financing for business equipment',
     category: 'secured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral' },
+        { id: 'collateral_valuation', optional: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: true,
+      requiresBusinessInfo: true,
+      allowsGuarantor: false,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Equipment Finance',
       description: 'Financing for business equipment',
@@ -535,6 +732,23 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Working Capital',
     description: 'Short-term business operational funds',
     category: 'conditional',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      requiresBusinessInfo: true,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Working Capital',
       description: 'Short-term business operational funds',
@@ -562,6 +776,21 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Invoice Financing',
     description: 'Financing against outstanding invoices',
     category: 'conditional',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      requiresBusinessInfo: true,
+      allowsGuarantor: false,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Invoice Financing',
       description: 'Financing against outstanding invoices',
@@ -589,6 +818,23 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Trade Finance',
     description: 'Financing for import/export activities',
     category: 'secured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral' },
+        { id: 'collateral_valuation', optional: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: true,
+      requiresBusinessInfo: true,
+      allowsGuarantor: false,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Trade Finance',
       description: 'Financing for import/export activities',
@@ -616,6 +862,22 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Refinancing',
     description: 'Refinance existing loans at better rates',
     category: 'conditional',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'terms' },
+        { id: 'collateral', optional: true },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: false,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+      requiresBusinessInfo: false,
+    },
     defaultConfig: {
       name: 'Refinancing',
       description: 'Refinance existing loans at better rates',
@@ -643,6 +905,25 @@ export const DEFAULT_LOAN_TYPE_TEMPLATES: Record<LoanTypeId, LoanTypeTemplate> =
     name: 'Construction Loan',
     description: 'Financing for construction projects',
     category: 'secured',
+    flow: {
+      steps: [
+        { id: 'borrower' },
+        { id: 'business' },
+        { id: 'terms' },
+        { id: 'collateral' },
+        { id: 'collateral_valuation' },
+        { id: 'guarantor_optional', optional: true, skippable: true },
+        { id: 'review' },
+      ],
+    },
+    rules: {
+      requiresCollateral: true,
+      requiresCollateralValuation: true,
+      requiresBusinessInfo: true,
+      allowsGuarantor: true,
+      requiresGuarantor: false,
+      requiresEmployer: false,
+    },
     defaultConfig: {
       name: 'Construction Loan',
       description: 'Financing for construction projects',
@@ -678,9 +959,10 @@ export async function initializeAgencyLoanConfig(
   const now = new Date();
 
   // If no types selected, use common defaults
+  // This ensures agencies always have loan types configured, even if they skip selection during onboarding
   const typesToInitialize = selectedLoanTypes.length > 0 
     ? selectedLoanTypes 
-    : ['collateral_based', 'salary_based', 'personal_unsecured'];
+    : ['collateral_based', 'salary_based', 'personal_unsecured']; // Default loan types
 
   for (const typeId of typesToInitialize) {
     const template = DEFAULT_LOAN_TYPE_TEMPLATES[typeId];
@@ -841,5 +1123,12 @@ export async function getLoanTypeConfig(
   }
 
   return config.loanTypes[loanTypeId] || null;
+}
+
+/**
+ * Get loan type template by ID
+ */
+export function getLoanTypeTemplate(loanTypeId: LoanTypeId): LoanTypeTemplate | null {
+  return DEFAULT_LOAN_TYPE_TEMPLATES[loanTypeId] || null;
 }
 
