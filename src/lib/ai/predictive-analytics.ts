@@ -44,14 +44,14 @@ export async function predictPortfolioDefaults(
     orderBy('createdAt', 'desc')
   );
   const loansSnapshot = await getDocs(activeLoansQuery);
-  const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
   let atRiskLoans = 0;
   let totalExposure = 0;
   const riskFactors: string[] = [];
 
   for (const loan of loans) {
-    totalExposure += Number(loan.amount || 0);
+    totalExposure += Number((loan as any).amount || 0);
     
     // Check repayments
     const repaymentsRef = collection(
@@ -301,7 +301,7 @@ export async function predictLoanDefault(
       throw new Error('Loan not found');
     }
     
-    const loan = { id: loanSnap.id, ...loanSnap.data() };
+    const loan = { id: loanSnap.id, ...loanSnap.data() } as any;
     
     // Get repayment history
     const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loanId, 'repayments');
