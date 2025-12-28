@@ -60,9 +60,16 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
         const repaymentsSnapshot = await getDocs(repaymentsRef);
         const allPayments: PaymentHistoryEntry[] = [];
 
+        // Track total from paymentHistory subcollection vs repayment.amountPaid
+        let totalFromHistory = 0;
+
         // Fetch payment history from each repayment
         for (const repaymentDoc of repaymentsSnapshot.docs) {
           const repaymentId = repaymentDoc.id;
+          const repaymentData = repaymentDoc.data();
+          const repaymentAmountPaid = Number(repaymentData.amountPaid || 0);
+          let historyAmountForRepayment = 0;
+          
           const paymentHistoryRef = collection(
             db,
             'agencies',
@@ -78,9 +85,13 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
             const paymentHistorySnapshot = await getDocs(paymentHistoryRef);
             paymentHistorySnapshot.docs.forEach((paymentDoc) => {
               const paymentData = paymentDoc.data();
+              const amount = Number(paymentData.amount || 0);
+              historyAmountForRepayment += amount;
+              totalFromHistory += amount;
+              
               allPayments.push({
                 id: paymentDoc.id,
-                amount: Number(paymentData.amount || 0),
+                amount,
                 paymentMethod: paymentData.paymentMethod || 'cash',
                 recordedBy: paymentData.recordedBy || '',
                 recordedAt: paymentData.recordedAt?.toDate?.() || paymentData.recordedAt,
@@ -92,12 +103,31 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
           } catch (error) {
             console.warn(`Failed to fetch payment history for repayment ${repaymentId}:`, error);
           }
+
+          // CRITICAL FIX: Check for legacy payments that weren't recorded in paymentHistory
+          // If amountPaid on repayment > sum of paymentHistory, create a synthetic entry
+          const missingAmount = repaymentAmountPaid - historyAmountForRepayment;
+          if (missingAmount > 0.01) { // Use small threshold to handle floating point
+            // Create synthetic "legacy payment" entry for payments recorded without history
+            const paidAt = repaymentData.paidAt?.toDate?.() || repaymentData.lastPaymentDate?.toDate?.() || 
+                          repaymentData.updatedAt?.toDate?.() || new Date();
+            allPayments.push({
+              id: `legacy-${repaymentId}`,
+              amount: missingAmount,
+              paymentMethod: repaymentData.paymentMethod || 'bulk_payment',
+              recordedBy: repaymentData.lastUpdatedBy || 'system',
+              recordedAt: paidAt,
+              notes: 'Payment recorded via bulk update or before payment history tracking',
+              transactionId: undefined,
+              repaymentId,
+            });
+          }
         }
 
         // Sort by date (newest first)
         const sorted = allPayments.sort((a, b) => {
-          const dateA = a.recordedAt?.toDate?.() || a.recordedAt || new Date(0);
-          const dateB = b.recordedAt?.toDate?.() || b.recordedAt || new Date(0);
+          const dateA = a.recordedAt instanceof Date ? a.recordedAt : (a.recordedAt?.toDate?.() || new Date(0));
+          const dateB = b.recordedAt instanceof Date ? b.recordedAt : (b.recordedAt?.toDate?.() || new Date(0));
           return dateB.getTime() - dateA.getTime();
         });
 

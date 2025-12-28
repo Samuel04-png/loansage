@@ -43,6 +43,44 @@ export function LoanStatusDialog({ open, onOpenChange, loanId, currentStatus, ag
     }
 
     setLoading(true);
+    
+    // Optimistic update - immediately update the cache
+    const previousLoanData = queryClient.getQueryData(['loan', agencyId, loanId]);
+    const previousLoansData = queryClient.getQueryData(['loans', agencyId]);
+    
+    // Optimistically update the individual loan query
+    queryClient.setQueryData(['loan', agencyId, loanId], (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        status: newStatus,
+        statusNotes: notes || null,
+        statusUpdatedAt: new Date(),
+        statusUpdatedBy: user?.id || null,
+        updatedAt: new Date(),
+      };
+    });
+    
+    // Optimistically update the loans list query
+    queryClient.setQueryData(['loans', agencyId], (old: any[]) => {
+      if (!old) return old;
+      return old.map((loan: any) => 
+        loan.id === loanId 
+          ? { 
+              ...loan, 
+              status: newStatus, 
+              statusNotes: notes || null,
+              statusUpdatedAt: new Date(),
+              updatedAt: new Date(),
+            } 
+          : loan
+      );
+    });
+    
+    // Close dialog immediately for better UX
+    onOpenChange(false);
+    toast.success('Loan status updated successfully');
+    
     try {
       const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
       await updateDoc(loanRef, {
@@ -53,7 +91,7 @@ export function LoanStatusDialog({ open, onOpenChange, loanId, currentStatus, ag
         updatedAt: serverTimestamp(),
       });
 
-      // Create audit log
+      // Create audit log (don't block on this)
       createAuditLog(agencyId, {
         actorId: user?.id || '',
         action: 'update_loan_status',
@@ -68,14 +106,21 @@ export function LoanStatusDialog({ open, onOpenChange, loanId, currentStatus, ag
         // Ignore audit log errors
       });
 
-      toast.success('Loan status updated successfully');
-      queryClient.invalidateQueries({ queryKey: ['loans'] });
-      queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
-      onOpenChange(false);
+      // Refetch to ensure data is in sync with server
+      queryClient.invalidateQueries({ queryKey: ['loans', agencyId] });
+      queryClient.invalidateQueries({ queryKey: ['loan', agencyId, loanId] });
       setNotes('');
     } catch (error: any) {
       console.error('Error updating loan status:', error);
       toast.error(error.message || 'Failed to update loan status');
+      
+      // Rollback optimistic update on error
+      if (previousLoanData) {
+        queryClient.setQueryData(['loan', agencyId, loanId], previousLoanData);
+      }
+      if (previousLoansData) {
+        queryClient.setQueryData(['loans', agencyId], previousLoansData);
+      }
     } finally {
       setLoading(false);
     }

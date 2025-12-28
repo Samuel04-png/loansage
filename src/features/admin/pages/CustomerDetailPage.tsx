@@ -19,7 +19,7 @@ import {
 import { ArrowLeft, Mail, Phone, Calendar, MapPin, FileText, DollarSign, AlertTriangle, CheckCircle2, Clock, TrendingUp, Plus, Edit } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend } from 'recharts';
 import { NewLoanDrawer } from '../components/NewLoanDrawer';
 import { EditCustomerDrawer } from '../components/EditCustomerDrawer';
 import { useState } from 'react';
@@ -198,13 +198,38 @@ export function CustomerDetailPage() {
     };
   })() : null;
 
-  // Loan status distribution
+  // Loan status distribution with brand colors
   const statusData = loans ? [
-    { name: 'Active', value: loans.filter((l: any) => l.status === 'active').length, color: '#10b981' },
-    { name: 'Completed', value: loans.filter((l: any) => l.status === 'completed' || l.status === 'paid').length, color: '#3b82f6' },
-    { name: 'Pending', value: loans.filter((l: any) => l.status === 'pending').length, color: '#f59e0b' },
-    { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#ef4444' },
-  ] : [];
+    { name: 'Active', value: loans.filter((l: any) => l.status === 'active').length, color: '#22C55E' },
+    { name: 'Completed', value: loans.filter((l: any) => l.status === 'completed' || l.status === 'paid').length, color: '#006BFF' },
+    { name: 'Pending', value: loans.filter((l: any) => l.status === 'pending').length, color: '#FACC15' },
+    { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#EF4444' },
+  ].filter(item => item.value > 0) : [];
+
+  // Loan history data for area chart (monthly loan amounts)
+  const loanHistoryData = loans ? (() => {
+    const monthlyData: { [key: string]: { month: string; amount: number; count: number } } = {};
+    
+    loans.forEach((loan: any) => {
+      const date = loan.createdAt?.toDate?.() || loan.createdAt;
+      if (date) {
+        const monthKey = new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { month: monthKey, amount: 0, count: 0 };
+        }
+        monthlyData[monthKey].amount += Number(loan.amount || 0);
+        monthlyData[monthKey].count += 1;
+      }
+    });
+    
+    return Object.values(monthlyData).sort((a, b) => {
+      const dateA = new Date(a.month);
+      const dateB = new Date(b.month);
+      return dateA.getTime() - dateB.getTime();
+    }).slice(-6); // Last 6 months
+  })() : [];
+
+  const totalLoansCount = statusData.reduce((sum, item) => sum + item.value, 0);
 
   const getInitials = (name: string) => {
     return name
@@ -481,47 +506,149 @@ export function CustomerDetailPage() {
         </div>
       )}
 
-      {/* Charts - Reference Style */}
-      {statusData.length > 0 && (
+      {/* Charts - Modern Style with Gradients */}
+      {(statusData.length > 0 || loanHistoryData.length > 0) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
           className="grid gap-6 md:grid-cols-2"
         >
-          <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B]">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold text-neutral-900">Loan Status Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={90}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid #E5E7EB',
-                      boxShadow: '0 8px 30px rgb(0,0,0,0.06)',
-                      backgroundColor: 'white',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {/* Loan Status Distribution - Doughnut Chart */}
+          {statusData.length > 0 && (
+            <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B] hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Loan Status Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <defs>
+                        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                          <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15"/>
+                        </filter>
+                        {statusData.map((entry, index) => (
+                          <linearGradient key={`gradient-${index}`} id={`gradient-${entry.name}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={entry.color} stopOpacity={1}/>
+                            <stop offset="100%" stopColor={entry.color} stopOpacity={0.7}/>
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <Pie
+                        data={statusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={3}
+                        dataKey="value"
+                        strokeWidth={0}
+                        filter="url(#shadow)"
+                      >
+                        {statusData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={`url(#gradient-${entry.name})`}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-xl p-3">
+                                <p className="font-semibold text-neutral-900 dark:text-neutral-100">{data.name}</p>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                  {data.value} loan{data.value !== 1 ? 's' : ''} ({((data.value / totalLoansCount) * 100).toFixed(0)}%)
+                                </p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value, entry: any) => (
+                          <span className="text-sm text-neutral-700 dark:text-neutral-300">{value}</span>
+                        )}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Label */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none" style={{ marginTop: '-18px' }}>
+                    <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">{totalLoansCount}</p>
+                    <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Total Loans</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loan Amount History - Area Chart with Gradient */}
+          {loanHistoryData.length > 0 && (
+            <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] bg-white dark:bg-[#1E293B] hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] transition-all duration-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Loan Amount Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={loanHistoryData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#006BFF" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#006BFF" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                    />
+                    <YAxis 
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      tickFormatter={(value) => `K${(value / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 shadow-xl p-3">
+                              <p className="font-semibold text-neutral-900 dark:text-neutral-100 mb-1">{label}</p>
+                              <p className="text-sm text-[#006BFF]">
+                                Amount: {formatCurrency(payload[0].value as number, 'ZMW')}
+                              </p>
+                              <p className="text-xs text-neutral-500">
+                                {payload[0].payload.count} loan{payload[0].payload.count !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="#006BFF"
+                      strokeWidth={3}
+                      fill="url(#colorAmount)"
+                      dot={{ fill: '#006BFF', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#006BFF', stroke: 'white', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
         </motion.div>
       )}
 

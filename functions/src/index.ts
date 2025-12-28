@@ -19,6 +19,7 @@ export { interestAccrual } from './interest-accrual';
 export { checkOverdueLoans } from './overdue-checker';
 export { updateLoanStatuses } from './status-updater';
 export { estimateCollateralValue } from './collateral-estimation';
+export { analyzeCollateralVision } from './analyze-collateral-vision';
 export { calculateCollateralProfit } from './collateral-profit';
 export { sendNotifications } from './notifications';
 export { generateThumbnail } from './thumbnail-generator';

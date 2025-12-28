@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs } from 'firebase/firestore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, writeBatch, doc as firestoreDoc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { Checkbox } from '../../../components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -15,19 +16,30 @@ import {
   TableHeader,
   TableRow,
 } from '../../../components/ui/table';
-import { Search, Loader2, Download, FileText, Image as ImageIcon, Plus, DollarSign, TrendingUp, Shield, BarChart3, Clock } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import { Search, Loader2, Download, FileText, Image as ImageIcon, Plus, DollarSign, TrendingUp, Shield, BarChart3, Clock, Trash2, CheckCircle2, X } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AddCollateralDrawer } from '../components/AddCollateralDrawer';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../../lib/utils';
-import { doc, getDoc } from 'firebase/firestore';
 
 export function CollateralsPage() {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
   // Fetch all collateral from top-level registry
   const { data: collaterals, isLoading } = useQuery({
@@ -123,6 +135,145 @@ export function CollateralsPage() {
       String(coll.estimatedValue || '').includes(search)
     );
   }) || [];
+
+  // Selection handlers
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredCollaterals.map((c: any) => c.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    const newSet = new Set(selectedIds);
+    if (checked) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const isAllSelected = filteredCollaterals.length > 0 && selectedIds.size === filteredCollaterals.length;
+  const isPartiallySelected = selectedIds.size > 0 && selectedIds.size < filteredCollaterals.length;
+
+  // Bulk verify mutation
+  const bulkVerifyMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!profile?.agency_id) throw new Error('No agency ID');
+      
+      const batch = writeBatch(db);
+      
+      for (const id of ids) {
+        // Try top-level registry first
+        const registryRef = firestoreDoc(db, 'agencies', profile.agency_id, 'collateral', id);
+        batch.update(registryRef, {
+          verificationStatus: 'verified',
+          status: 'VERIFIED',
+          verifiedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      await batch.commit();
+    },
+    onSuccess: () => {
+      toast.success(`${selectedIds.size} collateral(s) verified successfully`);
+      setSelectedIds(new Set());
+      setVerifyDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['collaterals'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to verify collaterals');
+    },
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!profile?.agency_id) throw new Error('No agency ID');
+      
+      const batch = writeBatch(db);
+      
+      for (const id of ids) {
+        const registryRef = firestoreDoc(db, 'agencies', profile.agency_id, 'collateral', id);
+        batch.delete(registryRef);
+      }
+      
+      await batch.commit();
+    },
+    onSuccess: () => {
+      toast.success(`${selectedIds.size} collateral(s) deleted successfully`);
+      setSelectedIds(new Set());
+      setDeleteDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['collaterals'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete collaterals');
+    },
+  });
+
+  // Export selected collaterals
+  const exportSelectedCollaterals = () => {
+    const selectedCollaterals = collaterals?.filter((c: any) => selectedIds.has(c.id)) || [];
+    if (selectedCollaterals.length === 0) {
+      toast.error('No collaterals selected');
+      return;
+    }
+    exportCollateralsToCSV(selectedCollaterals);
+    toast.success(`Exported ${selectedCollaterals.length} collateral(s)`);
+  };
+
+  const exportCollateralsToCSV = (data: any[]) => {
+    const headers = [
+      'Collateral ID',
+      'Loan ID',
+      'Type',
+      'Description',
+      'Estimated Value',
+      'Currency',
+      'Verification Status',
+      'Created Date',
+    ];
+
+    const rows = data.map((coll: any) => ({
+      'Collateral ID': coll.id,
+      'Loan ID': coll.loanId || 'N/A',
+      'Type': coll.type || 'N/A',
+      'Description': coll.description || 'N/A',
+      'Estimated Value': coll.estimatedValue || coll.value || 0,
+      'Currency': coll.currency || 'ZMW',
+      'Verification Status': coll.verificationStatus || coll.status || 'N/A',
+      'Created Date': coll.createdAt?.toDate?.()?.toLocaleDateString() || coll.createdAt || 'N/A',
+    }));
+
+    const csvRows = [];
+    csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+    rows.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header] || '';
+        const stringValue = String(value);
+        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+      });
+      csvRows.push(values.join(','));
+    });
+    
+    const csv = csvRows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `collaterals-export-${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const exportCollaterals = () => {
     if (!collaterals || collaterals.length === 0) {
@@ -310,6 +461,60 @@ export function CollateralsPage() {
         </motion.div>
       )}
 
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50"
+          >
+            <div className="flex items-center gap-3 bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-800 px-4 py-3">
+              <div className="flex items-center gap-2 pr-3 border-r border-neutral-200">
+                <span className="text-sm font-semibold text-[#006BFF]">{selectedIds.size}</span>
+                <span className="text-sm text-neutral-600">selected</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportSelectedCollaterals}
+                className="rounded-lg"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Selected
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVerifyDialogOpen(true)}
+                className="rounded-lg text-[#22C55E] border-[#22C55E]/30 hover:bg-[#22C55E]/10"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Verify Selected
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteDialogOpen(true)}
+                className="rounded-lg text-[#EF4444] border-[#EF4444]/30 hover:bg-[#EF4444]/10"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+                className="rounded-lg"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Card>
         <CardHeader className="p-4 border-b border-slate-100">
           <div className="relative w-full max-w-md">
@@ -332,6 +537,14 @@ export function CollateralsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b border-neutral-200 dark:border-neutral-800">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                        aria-label="Select all"
+                        className={isPartiallySelected ? 'opacity-50' : ''}
+                      />
+                    </TableHead>
                     <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Collateral Details</TableHead>
                     <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Loan Information</TableHead>
                     <TableHead className="font-semibold text-neutral-700 dark:text-neutral-300">Type & Specs</TableHead>
@@ -357,8 +570,18 @@ export function CollateralsPage() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.03 }}
-                        className="border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors"
+                        className={cn(
+                          "border-b border-neutral-100 hover:bg-neutral-50/50 transition-colors",
+                          selectedIds.has(coll.id) && "bg-[#006BFF]/5"
+                        )}
                       >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(coll.id)}
+                            onCheckedChange={(checked) => handleSelectOne(coll.id, !!checked)}
+                            aria-label={`Select ${coll.description || coll.id}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             {coll.photos && coll.photos.length > 0 ? (
@@ -521,10 +744,79 @@ export function CollateralsPage() {
         open={addDrawerOpen}
         onOpenChange={setAddDrawerOpen}
         onSuccess={() => {
-          // Refetch collaterals
-          window.location.reload();
+          queryClient.invalidateQueries({ queryKey: ['collaterals'] });
         }}
       />
+
+      {/* Verify Confirmation Dialog */}
+      <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+        <DialogContent className="rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Verify Selected Collaterals</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to mark {selectedIds.size} collateral(s) as verified?
+              This will update their status to "Verified".
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => bulkVerifyMutation.mutate(Array.from(selectedIds))}
+              disabled={bulkVerifyMutation.isPending}
+              className="bg-[#22C55E] hover:bg-[#16A34A]"
+            >
+              {bulkVerifyMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Verify All
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Delete Selected Collaterals</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.size} collateral(s)?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete All
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

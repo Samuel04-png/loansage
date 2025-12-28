@@ -118,6 +118,7 @@ export function LoansPage() {
   const [bulkStatus, setBulkStatus] = useState<string>('active');
   const [bulkPaymentAmount, setBulkPaymentAmount] = useState<string>('');
   const [bulkPaymentDate, setBulkPaymentDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   // Get user role
   const userRole = (profile?.role === 'admin' ? UserRole.ADMIN :
@@ -428,7 +429,9 @@ export function LoansPage() {
       const amount = parseFloat(bulkPaymentAmount);
       if (isNaN(amount) || amount <= 0) throw new Error('Invalid payment amount');
       
+      const { addDoc } = await import('firebase/firestore');
       const batch = writeBatch(db);
+      const paymentHistoryPromises: Promise<any>[] = [];
       
       for (const loanId of loanIds) {
         const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loanId, 'repayments');
@@ -437,7 +440,7 @@ export function LoansPage() {
         // Find next pending repayment
         const repayments = repaymentsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter((r: any) => r.status === 'pending')
+          .filter((r: any) => r.status === 'pending' || r.status === 'partial')
           .sort((a: any, b: any) => {
             const aDate = a.dueDate?.toDate?.() || new Date(a.dueDate);
             const bDate = b.dueDate?.toDate?.() || new Date(b.dueDate);
@@ -445,22 +448,56 @@ export function LoansPage() {
           });
         
         if (repayments.length > 0) {
-          const repayment = repayments[0];
+          const repayment = repayments[0] as any;
           const repaymentRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId, 'repayments', repayment.id);
           
-          const amountPaid = (repayment.amountPaid || 0) + amount;
-          const isFullyPaid = amountPaid >= repayment.amountDue;
+          const previousAmountPaid = Number(repayment.amountPaid || 0);
+          const amountDue = Number(repayment.amountDue || 0);
+          const newAmountPaid = previousAmountPaid + amount;
+          const isFullyPaid = newAmountPaid >= amountDue;
           
+          // Update the repayment schedule record
           batch.update(repaymentRef, {
-            amountPaid,
+            amountPaid: newAmountPaid,
             status: isFullyPaid ? 'paid' : 'partial',
             paidAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
+          
+          // CRITICAL FIX: Also create a payment history entry in the subcollection
+          // This is what the RepaymentSection component reads to show payment history
+          const paymentHistoryRef = collection(
+            db, 
+            'agencies', 
+            profile.agency_id, 
+            'loans', 
+            loanId, 
+            'repayments', 
+            repayment.id, 
+            'paymentHistory'
+          );
+          
+          // Use addDoc for payment history (can't batch addDoc, so we collect promises)
+          paymentHistoryPromises.push(
+            addDoc(paymentHistoryRef, {
+              amount: amount,
+              paymentMethod: 'bulk_payment',
+              recordedBy: user?.id || 'system',
+              recordedAt: serverTimestamp(),
+              notes: `Bulk payment recorded on ${bulkPaymentDate}`,
+              transactionId: `BULK-${Date.now()}-${loanId.substring(0, 6)}`,
+              repaymentId: repayment.id,
+              createdAt: serverTimestamp(),
+            })
+          );
         }
       }
       
+      // Commit the batch update for repayment records
       await batch.commit();
+      
+      // Wait for all payment history entries to be created
+      await Promise.all(paymentHistoryPromises);
       
       // Create audit logs
       for (const loanId of loanIds) {
@@ -515,6 +552,47 @@ export function LoansPage() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to delete loan');
+    },
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteLoans = useMutation({
+    mutationFn: async (loanIds: string[]) => {
+      if (!profile?.agency_id) throw new Error('Agency not found');
+      
+      const batch = writeBatch(db);
+      
+      for (const loanId of loanIds) {
+        const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+        batch.update(loanRef, {
+          deleted: true,
+          deletedAt: serverTimestamp(),
+          deletedBy: user?.id || profile.id,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      await batch.commit();
+      
+      // Create audit logs for each deleted loan
+      for (const loanId of loanIds) {
+        await createAuditLog(profile.agency_id, {
+          actorId: user?.id || 'system',
+          action: 'bulk_delete_loan',
+          targetCollection: 'loans',
+          targetId: loanId,
+          metadata: { softDelete: true, bulkOperation: true },
+        }).catch(() => {});
+      }
+    },
+    onSuccess: () => {
+      toast.success(`${selectedLoans.size} loan(s) deleted successfully`);
+      setSelectedLoans(new Set());
+      setBulkDeleteDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete loans');
     },
   });
 
@@ -782,6 +860,17 @@ export function LoansPage() {
                 <Download className="mr-2 h-4 w-4" />
                 Export Selected
               </Button>
+              {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkDeleteDialogOpen(true)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -1229,6 +1318,50 @@ export function LoansPage() {
                 <>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Selected Loans</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedLoans.size} selected loan{selectedLoans.size > 1 ? 's' : ''}? 
+              This action will mark the loans as deleted (soft delete) and they will no longer appear in the loans list.
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800 font-medium">
+                  ⚠️ This action affects {selectedLoans.size} loan record{selectedLoans.size > 1 ? 's' : ''}.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              disabled={bulkDeleteLoans.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteLoans.mutate(Array.from(selectedLoans))}
+              disabled={bulkDeleteLoans.isPending}
+            >
+              {bulkDeleteLoans.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete {selectedLoans.size} Loan{selectedLoans.size > 1 ? 's' : ''}
                 </>
               )}
             </Button>

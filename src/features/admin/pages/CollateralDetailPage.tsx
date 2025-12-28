@@ -1,13 +1,25 @@
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, getDocs, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import { ArrowLeft, Image as ImageIcon, FileText, DollarSign, Calendar, CheckCircle2, Clock, XCircle, MapPin, Sparkles, TrendingUp, Shield, BarChart3, Percent, AlertTriangle, Info, Lock } from 'lucide-react';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Textarea } from '../../../components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog';
+import { Select } from '../../../components/ui/select';
+import { ArrowLeft, Image as ImageIcon, FileText, DollarSign, Calendar, CheckCircle2, Clock, XCircle, MapPin, Sparkles, TrendingUp, Shield, BarChart3, Percent, AlertTriangle, Info, Lock, Edit, Save, Scan, ExternalLink, Target } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
@@ -23,14 +35,71 @@ import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
 export function CollateralDetailPage() {
   const { loanId, collateralId } = useParams<{ loanId?: string; collateralId: string }>();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const { features, plan } = useFeatureGate();
   const [aiValuation, setAiValuation] = useState<any>(null);
   const [loadingValuation, setLoadingValuation] = useState(false);
   const [marketValue, setMarketValue] = useState<number | null>(null);
   const [loadingMarketValue, setLoadingMarketValue] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [aiVisionAnalysis, setAiVisionAnalysis] = useState<any>(null);
+  const [loadingVisionAnalysis, setLoadingVisionAnalysis] = useState(false);
+  
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    estimatedValue: '',
+    condition: '',
+    verificationStatus: '',
+    location: '',
+    brand: '',
+    model: '',
+    year: '',
+  });
   
   const hasCollateralValuation = features.collateralValuation;
+
+  // AI Vision Analysis function
+  const analyzeWithAI = async () => {
+    if (!collateral || !profile?.agency_id) return;
+    
+    const photos = collateral.photos || [];
+    if (photos.length === 0) {
+      toast.error('No photos available to analyze. Please upload a photo first.');
+      return;
+    }
+
+    if (!hasCollateralValuation) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+
+    setLoadingVisionAnalysis(true);
+    try {
+      const analyzeCollateralVision = httpsCallable(functions, 'analyzeCollateralVision');
+      const result = await analyzeCollateralVision({
+        agencyId: profile.agency_id,
+        collateralId: collateral.id,
+        imageUrl: photos[0],
+        type: collateral.type,
+        description: collateral.description,
+        location: collateral.location,
+      });
+
+      setAiVisionAnalysis(result.data);
+      toast.success('AI analysis complete!');
+      
+      // Refresh collateral data
+      queryClient.invalidateQueries({ queryKey: ['collateral', profile.agency_id, loanId, collateralId] });
+    } catch (error: any) {
+      console.error('AI Vision analysis error:', error);
+      toast.error(error.message || 'Failed to analyze with AI');
+    } finally {
+      setLoadingVisionAnalysis(false);
+    }
+  };
 
   // Fetch loan details
   const { data: loan } = useQuery({
@@ -118,6 +187,74 @@ export function CollateralDetailPage() {
       }
     },
     enabled: !!profile?.agency_id && !!loanId,
+  });
+
+  // Initialize edit form when collateral loads
+  React.useEffect(() => {
+    if (collateral) {
+      setEditForm({
+        name: collateral.name || '',
+        description: collateral.description || '',
+        estimatedValue: String(collateral.estimatedValue || collateral.value || ''),
+        condition: collateral.condition || '',
+        verificationStatus: collateral.verificationStatus || collateral.status || '',
+        location: collateral.location || '',
+        brand: collateral.brand || '',
+        model: collateral.model || '',
+        year: collateral.year || '',
+      });
+    }
+  }, [collateral]);
+
+  // Update collateral mutation
+  const updateCollateralMutation = useMutation({
+    mutationFn: async (data: typeof editForm) => {
+      if (!profile?.agency_id || !collateralId) throw new Error('Missing required data');
+
+      // Try top-level registry first
+      const registryRef = doc(db, 'agencies', profile.agency_id, 'collateral', collateralId);
+      const registrySnap = await getDoc(registryRef);
+      
+      const updateData = {
+        name: data.name,
+        description: data.description,
+        estimatedValue: parseFloat(data.estimatedValue) || 0,
+        value: parseFloat(data.estimatedValue) || 0,
+        condition: data.condition,
+        verificationStatus: data.verificationStatus,
+        status: data.verificationStatus?.toUpperCase() || 'PENDING',
+        location: data.location,
+        brand: data.brand,
+        model: data.model,
+        year: data.year,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (registrySnap.exists()) {
+        await updateDoc(registryRef, updateData);
+      } else if (loanId) {
+        // Fallback to loan subcollection
+        const loanCollateralRef = doc(
+          db,
+          'agencies',
+          profile.agency_id,
+          'loans',
+          loanId,
+          'collateral',
+          collateralId
+        );
+        await updateDoc(loanCollateralRef, updateData);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Collateral updated successfully');
+      setEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['collateral', profile?.agency_id, loanId, collateralId] });
+      queryClient.invalidateQueries({ queryKey: ['collaterals'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update collateral');
+    },
   });
 
   // Fetch market value when collateral is loaded
@@ -229,7 +366,7 @@ export function CollateralDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to={loanId ? `/admin/loans/${loanId}` : '/admin/loans'}>
+          <Link to={loanId ? `/admin/loans/${loanId}` : '/admin/collateral'}>
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -239,7 +376,17 @@ export function CollateralDetailPage() {
             <p className="text-slate-600">{collateral.type?.replace('_', ' ').toUpperCase() || 'Collateral'}</p>
           </div>
         </div>
-        {getStatusBadge(collateral.verificationStatus || collateral.status)}
+        <div className="flex items-center gap-3">
+          {getStatusBadge(collateral.verificationStatus || collateral.status)}
+          <Button
+            onClick={() => setEditDialogOpen(true)}
+            variant="outline"
+            className="rounded-xl"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Collateral
+          </Button>
+        </div>
       </div>
 
       {/* Financial Summary */}
@@ -748,6 +895,149 @@ export function CollateralDetailPage() {
         currentPlan={plan}
         requiredPlan="professional"
       />
+
+      {/* Edit Collateral Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-[#006BFF]" />
+              Edit Collateral
+            </DialogTitle>
+            <DialogDescription>
+              Update the collateral details below. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Item Name</Label>
+                <Input
+                  id="name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="e.g., Toyota Corolla"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estimatedValue">Estimated Value (ZMW)</Label>
+                <Input
+                  id="estimatedValue"
+                  type="number"
+                  value={editForm.estimatedValue}
+                  onChange={(e) => setEditForm({ ...editForm, estimatedValue: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                placeholder="Describe the collateral item..."
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="condition">Condition</Label>
+                <Select
+                  id="condition"
+                  value={editForm.condition}
+                  onChange={(e) => setEditForm({ ...editForm, condition: e.target.value })}
+                >
+                  <option value="">Select condition</option>
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                  <option value="poor">Poor</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="verificationStatus">Status</Label>
+                <Select
+                  id="verificationStatus"
+                  value={editForm.verificationStatus}
+                  onChange={(e) => setEditForm({ ...editForm, verificationStatus: e.target.value })}
+                >
+                  <option value="">Select status</option>
+                  <option value="pending">Pending</option>
+                  <option value="verified">Verified</option>
+                  <option value="rejected">Rejected</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand">Brand</Label>
+                <Input
+                  id="brand"
+                  value={editForm.brand}
+                  onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                  placeholder="e.g., Toyota"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="model">Model</Label>
+                <Input
+                  id="model"
+                  value={editForm.model}
+                  onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                  placeholder="e.g., Corolla"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="year">Year</Label>
+                <Input
+                  id="year"
+                  value={editForm.year}
+                  onChange={(e) => setEditForm({ ...editForm, year: e.target.value })}
+                  placeholder="e.g., 2020"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={editForm.location}
+                onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                placeholder="e.g., Lusaka, Zambia"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => updateCollateralMutation.mutate(editForm)}
+              disabled={updateCollateralMutation.isPending}
+              className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white"
+            >
+              {updateCollateralMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

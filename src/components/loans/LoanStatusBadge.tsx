@@ -71,14 +71,19 @@ const statusConfig: Record<LoanStatus, { label: string; variant: 'default' | 'se
 };
 
 export function LoanStatusBadge({ status, className }: LoanStatusBadgeProps) {
-  const config = statusConfig[status];
+  // Normalize status - treat undefined, empty, or 'draft' as 'pending'
+  const normalizedStatus = (!status || status === '' || status === 'draft') 
+    ? LoanStatus.PENDING 
+    : status;
   
-  // Handle undefined status or missing config
-  if (!config || !status) {
+  const config = statusConfig[normalizedStatus as LoanStatus];
+  
+  // Handle missing config (unknown status)
+  if (!config) {
     return (
       <Badge variant="outline" className={`flex items-center gap-1 ${className || ''}`}>
         <Clock className="w-3 h-3" />
-        {status || 'Unknown'}
+        {normalizedStatus}
       </Badge>
     );
   }

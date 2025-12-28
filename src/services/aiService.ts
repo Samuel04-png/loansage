@@ -16,6 +16,60 @@ function getLoanTypeCategory(loanType: string): string {
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: import.meta.env.GEMINI_API_KEY || import.meta.env.API_KEY || '' });
 
+// Exponential backoff helper for rate limit handling
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelay?: number; onRetry?: (attempt: number, error: any) => void } = {}
+): Promise<T> {
+  const { maxRetries = 3, baseDelay = 2000, onRetry } = options;
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const errorMessage = error?.message || error?.toString() || '';
+      const statusCode = error?.status || error?.code || 0;
+      
+      // Check if this is a rate limit error (429) or quota exceeded
+      const isRateLimitError = 
+        statusCode === 429 ||
+        errorMessage.toLowerCase().includes('rate limit') ||
+        errorMessage.toLowerCase().includes('quota') ||
+        errorMessage.toLowerCase().includes('too many requests') ||
+        errorMessage.toLowerCase().includes('resource exhausted');
+
+      // Don't retry on non-retryable errors
+      if (!isRateLimitError || attempt >= maxRetries) {
+        break;
+      }
+
+      // Calculate delay with exponential backoff: 2s, 4s, 8s...
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`Rate limit hit. Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+      
+      if (onRetry) {
+        onRetry(attempt + 1, error);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  // Transform rate limit errors to user-friendly messages
+  const errorMessage = lastError?.message || lastError?.toString() || '';
+  if (
+    errorMessage.toLowerCase().includes('rate limit') ||
+    errorMessage.toLowerCase().includes('quota') ||
+    errorMessage.toLowerCase().includes('too many requests')
+  ) {
+    throw new Error("I'm thinking very hard! Please give me a moment to cool down and try again in a few seconds.");
+  }
+
+  throw lastError;
+}
+
 const SYSTEM_INSTRUCTION_UNDERWRITER = `
 You are the TengaLoans AI Chief Risk Officer. Your goal is to analyze loan applications, borrower profiles, and collateral to assess risk.
 Be professional, concise, and extremely prudent. 
@@ -48,17 +102,26 @@ export const analyzeLoanRisk = async (loan: Loan, borrower: Borrower): Promise<s
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
-        temperature: 0.2,
-      }
+    return await withRetry(async () => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
+          temperature: 0.2,
+        }
+      });
+      return response.text || "Unable to generate analysis.";
+    }, {
+      maxRetries: 3,
+      baseDelay: 2000,
+      onRetry: (attempt) => console.log(`Retrying loan risk analysis (attempt ${attempt})...`),
     });
-    return response.text || "Unable to generate analysis.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("AI Service Error:", error);
+    if (error.message?.includes("thinking very hard")) {
+      return error.message;
+    }
     return "AI Analysis unavailable due to connection error.";
   }
 };
@@ -68,43 +131,60 @@ export const chatWithUnderwriter = async (
   message: string
 ) => {
   try {
-    const chat = ai.chats.create({
-      model: 'gemini-2.5-flash',
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
-      },
-      history: history as any,
-    });
+    return await withRetry(async () => {
+      const chat = ai.chats.create({
+        model: 'gemini-2.5-flash',
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
+        },
+        history: history as any,
+      });
 
-    const response = await chat.sendMessage({ message });
-    return response.text;
-  } catch (error) {
+      const response = await chat.sendMessage({ message });
+      return response.text;
+    }, {
+      maxRetries: 3,
+      baseDelay: 2000,
+      onRetry: (attempt) => console.log(`High traffic, retrying... (attempt ${attempt})`),
+    });
+  } catch (error: any) {
     console.error("Chat Error:", error);
+    if (error.message?.includes("thinking very hard")) {
+      return error.message;
+    }
     return "I am having trouble connecting to the risk engine. Please try again.";
   }
 };
 
 export const analyzeDocument = async (fileBase64: string, mimeType: string) => {
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: fileBase64
+    return await withRetry(async () => {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: fileBase64
+              }
+            },
+            {
+              text: "Extract the following from this document: Document Type, Person Name, ID Number, Expiry Date (if applicable), and a brief summary of the text content. Return as a clean Markdown list."
             }
-          },
-          {
-            text: "Extract the following from this document: Document Type, Person Name, ID Number, Expiry Date (if applicable), and a brief summary of the text content. Return as a clean Markdown list."
-          }
-        ]
-      }
+          ]
+        }
+      });
+      return response.text;
+    }, {
+      maxRetries: 3,
+      baseDelay: 2000,
     });
-    return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Doc Analysis Error:", error);
+    if (error.message?.includes("thinking very hard")) {
+      return error.message;
+    }
     return "Could not analyze document.";
   }
 };
@@ -131,17 +211,25 @@ export const analyzeBorrowerProfile = async (borrower: Borrower, loans: Loan[]) 
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
-        temperature: 0.3,
-      }
+    return await withRetry(async () => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_UNDERWRITER,
+          temperature: 0.3,
+        }
+      });
+      return response.text;
+    }, {
+      maxRetries: 3,
+      baseDelay: 2000,
     });
-    return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Borrower Analysis Error:", error);
+    if (error.message?.includes("thinking very hard")) {
+      return error.message;
+    }
     return "Could not generate borrower profile.";
   }
 };

@@ -215,27 +215,26 @@ service cloud.firestore {
         allow create: if isAuthenticated() && (isLoanOfficer() || isAdmin()) && belongsToAgency(agencyId);
         
         // Update rules based on workflow:
-        // - Loan officers can only edit DRAFT loans they created
-        // - Accountants can update status for PENDING/UNDER_REVIEW loans
-        // - Admins can update any loan
+        // - Admins can update any loan (all fields, all statuses)
+        // - Accountants can update status and financial fields for active loans
+        // - Loan officers can update loans they manage (status changes, disbursement, payments)
+        // - Employees with agency access can update loan status and record payments
         allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
           // Admin can update any loan
           isAdmin() ||
-          // Loan officer can only update DRAFT loans they created (submit for review)
-          (isLoanOfficer() && 
-           resource != null && 
-           resource.data.status == 'draft' && 
-           (resource.data.createdBy == request.auth.uid || resource.data.created_by == request.auth.uid) &&
-           request.resource.data.status == 'pending') ||
-          // Accountant can update status for PENDING/UNDER_REVIEW loans
-          (isAccountant() && 
-           resource != null && 
-           resource.data.status in ['pending', 'under_review', 'approved'] &&
-           // Only allow status changes, not other field edits
-           request.resource.data.status in ['pending', 'under_review', 'approved', 'rejected'])
+          // Accountant can update any loan status and financial fields
+          isAccountant() ||
+          // Loan officer can update loans for workflow actions (approve, reject, disburse, close)
+          isLoanOfficer() ||
+          // Any employee with agency access can update (for bulk operations and status changes)
+          isEmployee()
         );
         
-        allow delete: if isAuthenticated() && (isAdmin() || (isLoanOfficer() && resource != null && resource.data.status == 'draft' && resource.data.createdBy == request.auth.uid)) && belongsToAgency(agencyId);
+        // Delete rules:
+        // - Admins can delete any loan
+        // - Loan officers/accountants can delete (soft-delete) for bulk operations
+        // - Actual deletion is typically a soft-delete (setting status to 'deleted' or 'isDeleted: true')
+        allow delete: if isAuthenticated() && (isAdmin() || isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
         
         // Loan documents subcollection
         match /documents/{documentId} {
@@ -256,15 +255,18 @@ service cloud.firestore {
         // Loan repayments subcollection
         match /repayments/{repaymentId} {
           allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isAccountant() || isCustomer());
-          // Only accountants and admins can create/edit repayment schedules
-          allow create: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
-          allow update: if isAuthenticated() && (isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+          // Accountants, admins, and loan officers can create/edit repayment schedules
+          // Loan officers need this for recording payments via bulk update or individual payment recording
+          allow create: if isAuthenticated() && (isAccountant() || isAdmin() || isLoanOfficer() || isEmployee()) && belongsToAgency(agencyId);
+          allow update: if isAuthenticated() && (isAccountant() || isAdmin() || isLoanOfficer() || isEmployee()) && belongsToAgency(agencyId);
           allow delete: if isAuthenticated() && (isAdmin() || isAccountant()) && belongsToAgency(agencyId);
           
           // Payment history subcollection
           match /paymentHistory/{paymentId} {
             allow read: if isAuthenticated() && belongsToAgency(agencyId);
-            allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin()) && belongsToAgency(agencyId);
+            // Allow any authenticated employee to create payment history entries
+            // This is needed for bulk payment recording and individual payment recording
+            allow create: if isAuthenticated() && (isLoanOfficer() || isAccountant() || isAdmin() || isEmployee()) && belongsToAgency(agencyId);
             allow update: if false; // Payment history should never be updated
             allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
           }
@@ -288,22 +290,20 @@ service cloud.firestore {
       }
       
       // Top-level collateral registry
-      // Collateral valuation feature check (Starter plan doesn't have this feature)
+      // All authenticated agency users can manage collateral
+      // Feature gating for AI valuation is done at the Cloud Function level
       match /collateral/{collateralId} {
         allow read: if isAuthenticated() && (belongsToAgency(agencyId) || isCustomer());
-        // Starter plan doesn't have collateral valuation feature
+        // Allow loan officers, admins, accountants, and employees to create/update/delete collateral
         allow create: if isAuthenticated() 
-          && (isLoanOfficer() || isAdmin()) 
-          && belongsToAgency(agencyId)
-          && hasFeature(agencyId, 'collateralValuation');
+          && (isLoanOfficer() || isAdmin() || isAccountant() || isEmployee()) 
+          && belongsToAgency(agencyId);
         allow update: if isAuthenticated() 
-          && (isLoanOfficer() || isAdmin()) 
-          && belongsToAgency(agencyId)
-          && hasFeature(agencyId, 'collateralValuation');
+          && (isLoanOfficer() || isAdmin() || isAccountant() || isEmployee()) 
+          && belongsToAgency(agencyId);
         allow delete: if isAuthenticated() 
-          && (isAdmin() || isLoanOfficer()) 
-          && belongsToAgency(agencyId)
-          && hasFeature(agencyId, 'collateralValuation');
+          && (isAdmin() || isLoanOfficer() || isAccountant()) 
+          && belongsToAgency(agencyId);
       }
       
       // Audit logs subcollection

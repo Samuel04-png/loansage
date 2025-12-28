@@ -365,20 +365,27 @@ export function LoanDetailPage() {
   });
 
   const getStatusBadge = (status?: string) => {
-    if (!status) return <Badge variant="outline">Unknown</Badge>;
+    // Normalize status - default to "pending" if undefined, null, empty, or "draft"
+    const normalizedStatus = (!status || status === '' || status === 'draft') 
+      ? 'pending' 
+      : status.toLowerCase();
     
     const statusConfig: Record<string, { label: string; className: string }> = {
       active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
       pending: { label: 'Pending', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+      under_review: { label: 'Under Review', className: 'bg-blue-50 text-blue-700 border-blue-200' },
       approved: { label: 'Approved', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+      disbursed: { label: 'Disbursed', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
       rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
       settled: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
       paid: { label: 'Settled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+      closed: { label: 'Closed', className: 'bg-neutral-100 text-neutral-700 border-neutral-200' },
       defaulted: { label: 'Defaulted', className: 'bg-red-50 text-red-700 border-red-200' },
+      overdue: { label: 'Overdue', className: 'bg-orange-50 text-orange-700 border-orange-200' },
     };
 
-    const config = statusConfig[status] || { 
-      label: status, 
+    const config = statusConfig[normalizedStatus] || { 
+      label: normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1).replace('_', ' '), 
       className: 'bg-neutral-50 text-neutral-700 border-neutral-200' 
     };
     return <Badge variant="outline" className={cn('border', config.className)}>{config.label}</Badge>;
@@ -503,26 +510,11 @@ export function LoanDetailPage() {
               )}
 
 
-              {/* Manage Repayments - Show for active/approved/disbursed loans */}
-              {permissions.canManageRepayments && (
-              <Button
-                  onClick={() => setActiveTab('repayments')}
-                  variant="outline"
-                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
-              >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Manage Repayments
-            </Button>
-          )}
-
               {/* Add Payment - Quick action for active loans */}
               {(loan.status === 'active' || loan.status === 'approved' || loan.status === 'disbursed') && (
-          <Button
-                  onClick={() => {
-                    setActiveTab('repayments');
-                    setPaymentDialogOpen(true);
-                  }}
-            variant="outline"
+                <Button
+                  onClick={() => setPaymentDialogOpen(true)}
+                  variant="outline"
                   className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
@@ -616,31 +608,15 @@ export function LoanDetailPage() {
                   )
                 )}
 
-                <DropdownMenuItem
-                  onClick={() => setActiveTab('repayments')}
-                  className="cursor-pointer rounded-lg"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Manage Repayments
-                </DropdownMenuItem>
+                {/* Delete Loan - Admin/Manager only */}
                 {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => setStatusDialogOpen(true)}
-                      className="cursor-pointer rounded-lg"
-                    >
-                      <Edit className="mr-2 h-4 w-4" />
-                      Change Status
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-            onClick={() => setDeleteDialogOpen(true)}
-                      className="cursor-pointer text-red-600 focus:text-red-600 rounded-lg"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-                      Delete Loan
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="cursor-pointer text-red-600 focus:text-red-600 rounded-lg"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Loan
+                  </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1097,6 +1073,18 @@ export function LoanDetailPage() {
             currentStatus={loan.status || 'pending'}
             agencyId={profile?.agency_id || ''}
           />
+      )}
+
+      {/* Add Payment Dialog */}
+      {loan.id && profile?.agency_id && (
+        <AddPaymentDialog
+          open={paymentDialogOpen}
+          onOpenChange={setPaymentDialogOpen}
+          loanId={loan.id}
+          agencyId={profile.agency_id}
+          remainingBalance={remainingBalance}
+          totalPayable={financials.totalAmount}
+        />
       )}
 
       {loan && loanId && agency?.id && (
