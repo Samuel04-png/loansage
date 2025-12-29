@@ -388,49 +388,68 @@ export async function createCustomerInvitation(
 export async function getInvitationByToken(token: string) {
   if (isDemoMode) return null;
 
+  if (!token || token.trim() === '') {
+    console.error('getInvitationByToken: No token provided');
+    return null;
+  }
+
+  console.log('Looking up invitation with token:', token.substring(0, 20) + '...');
+
   try {
     // First, try to look up the token in the public token lookup collection
     // This works for unauthenticated users
-    const tokenRef = doc(db, 'invitation_tokens', token);
-    const tokenDoc = await getDoc(tokenRef);
+    try {
+      const tokenRef = doc(db, 'invitation_tokens', token);
+      const tokenDoc = await getDoc(tokenRef);
 
-    if (tokenDoc.exists()) {
-      const tokenData = tokenDoc.data();
-      
-      // Check if expired
-      let expiresAt: Date | null = null;
-      if (tokenData.expiresAt?.toDate) {
-        expiresAt = tokenData.expiresAt.toDate();
-      } else if (tokenData.expiresAt instanceof Date) {
-        expiresAt = tokenData.expiresAt;
-      } else if (tokenData.expiresAt) {
-        expiresAt = new Date(tokenData.expiresAt);
-      }
-      
-      if (expiresAt && expiresAt < new Date()) {
-        return null; // Expired
-      }
-      
-      if (tokenData.status !== 'pending') {
-        return null; // Already accepted or cancelled
-      }
+      if (tokenDoc.exists()) {
+        const tokenData = tokenDoc.data();
+        console.log('Found token in invitation_tokens collection');
+        
+        // Check if expired
+        let expiresAt: Date | null = null;
+        if (tokenData.expiresAt?.toDate) {
+          expiresAt = tokenData.expiresAt.toDate();
+        } else if (tokenData.expiresAt instanceof Date) {
+          expiresAt = tokenData.expiresAt;
+        } else if (tokenData.expiresAt) {
+          expiresAt = new Date(tokenData.expiresAt);
+        }
+        
+        if (expiresAt && expiresAt < new Date()) {
+          console.log('Invitation expired');
+          return null; // Expired
+        }
+        
+        if (tokenData.status !== 'pending') {
+          console.log('Invitation status is not pending:', tokenData.status);
+          return null; // Already accepted or cancelled
+        }
 
-      // Return the token data with agency info - no need to fetch full invitation
-      // The token document contains all the info needed for accepting
-      return {
-        id: tokenData.inviteId,
-        agencyId: tokenData.agencyId,
-        email: tokenData.email,
-        role: tokenData.role,
-        customerId: tokenData.customerId || null,
-        status: tokenData.status,
-        expiresAt: expiresAt,
-        token: tokenData.token,
-      };
+        // Return the token data with agency info - no need to fetch full invitation
+        // The token document contains all the info needed for accepting
+        return {
+          id: tokenData.inviteId,
+          agencyId: tokenData.agencyId,
+          email: tokenData.email,
+          role: tokenData.role,
+          customerId: tokenData.customerId || null,
+          status: tokenData.status,
+          expiresAt: expiresAt,
+          token: tokenData.token,
+        };
+      } else {
+        console.log('Token not found in invitation_tokens collection, trying fallback...');
+      }
+    } catch (tokenError: any) {
+      // Token lookup failed - this is expected for old invitations
+      console.log('Token lookup error (trying fallback):', tokenError.message);
     }
 
     // Fallback: If token not in lookup collection, try the old way
     // (for invitations created before this update)
+    // Note: This requires the user to be authenticated for listing agencies
+    console.log('Trying fallback method: searching all agencies...');
     const agenciesRef = collection(db, 'agencies');
     const agenciesSnapshot = await getDocs(agenciesRef);
 

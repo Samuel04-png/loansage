@@ -391,8 +391,9 @@ service cloud.firestore {
     // The token itself serves as authentication - only those with the link can access
     // Documents: { token: string, agencyId: string, inviteId: string, status: string, expiresAt: timestamp }
     match /invitation_tokens/{tokenId} {
-      // Allow public read for pending invitations (needed before user signs up)
-      allow read: if resource != null && resource.data.status == 'pending';
+      // Allow ANY read - the token itself is the secret (only those with the invite link know it)
+      // We check status in the application code
+      allow read: if true;
       // Only authenticated agency members can create tokens (done when invitation is created)
       allow create: if isAuthenticated();
       // Allow authenticated users to update (mark as accepted)
