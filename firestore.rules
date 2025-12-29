@@ -90,14 +90,20 @@ service cloud.firestore {
       // Allow users to read their own document, or any authenticated user can read (needed for getUserAgencyId helper)
       // This is safe because user documents don't contain sensitive data beyond what's needed for auth
       allow read: if isAuthenticated();
-      // Allow create if user is creating their own document
-      // This is needed for invitation acceptance where user signs up and creates their profile
-      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Allow create if:
+      // 1. User is creating their OWN document (request.auth.uid == userId), OR
+      // 2. Document ID matches the authenticated user's UID
+      // This is critical for invitation acceptance where a NEW user signs up and creates their profile
+      // NOTE: We use request.auth.uid == userId directly without helper functions because
+      // helper functions like getUserRole() try to read the user doc that doesn't exist yet
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
       // Allow update if:
       // 1. User is updating their own document, OR
       // 2. Admin is updating a user in their agency
       // NOTE: For new users accepting invitations, they may update their own doc before belonging to an agency
-      allow update: if isAuthenticated() && (
+      allow update: if request.auth != null && (
         request.auth.uid == userId || 
         (isAdmin() && (resource == null || belongsToAgency(resource.data.agency_id)))
       );

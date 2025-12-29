@@ -1,6 +1,13 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  Firestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED 
+} from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getFunctions, Functions } from 'firebase/functions';
 import { getDatabase, Database } from 'firebase/database';
@@ -123,42 +130,37 @@ export function getRealtimeDatabase(): Database {
   return realtimeDB as Database;
 }
 
-// Initialize Firestore
-// Note: Persistence must be enabled before any Firestore operations
-export const db: Firestore = getFirestore(app);
+// Initialize Firestore with multi-tab persistence support
+// Using the new cache API which supports multiple tabs by default
+let db: Firestore;
 
-// Enable offline persistence for Firestore
-// This must be called before any Firestore operations, but we handle
-// the case where it's already been started (common during HMR)
-if (!isDemoMode && typeof window !== 'undefined') {
-  // Use a persistent flag across HMR reloads to prevent multiple attempts
-  const persistenceKey = '__firestorePersistenceEnabled';
-  const hasAttempted = (window as any)[persistenceKey];
-  
-  if (!hasAttempted) {
-    // Mark as attempted immediately to prevent race conditions
-    (window as any)[persistenceKey] = true;
-    
-    // Enable persistence - errors are expected during HMR and handled silently
-    const persistencePromise = enableIndexedDbPersistence(db, { cacheSizeBytes: CACHE_SIZE_UNLIMITED });
-    
-    // Always attach error handler to prevent unhandled promise rejections
-    persistencePromise.catch((err: any) => {
-      // Silently handle all expected errors (HMR, multiple tabs, browser support, etc.)
-      const errorMessage = String(err?.message || '');
-      const isExpectedError = 
-        err?.code === 'failed-precondition' ||
-        err?.code === 'unimplemented' ||
-        errorMessage.includes('already been started') ||
-        errorMessage.includes('can no longer be enabled');
-      
-      // Only log truly unexpected errors
-      if (!isExpectedError) {
-        console.warn('Could not enable Firestore persistence:', err?.message || err);
-      }
+// Use a window flag to track initialization across HMR reloads
+const firestoreInitKey = '__firestoreInitialized';
+const wasInitialized = typeof window !== 'undefined' && (window as any)[firestoreInitKey];
+
+if (!isDemoMode && typeof window !== 'undefined' && !wasInitialized) {
+  try {
+    // Initialize Firestore with persistent multi-tab cache
+    // This replaces the deprecated enableIndexedDbPersistence and automatically handles multi-tab
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED
+      })
     });
+    (window as any)[firestoreInitKey] = true;
+    console.info('✅ Firestore initialized with multi-tab persistence');
+  } catch (err: any) {
+    // If initialization fails (e.g., already initialized), fall back to getFirestore
+    console.warn('Firestore initialization with cache failed, using default:', err?.message);
+    db = getFirestore(app);
   }
+} else {
+  // Demo mode or already initialized - use standard getFirestore
+  db = getFirestore(app);
 }
+
+export { db };
 
 export default app;
 

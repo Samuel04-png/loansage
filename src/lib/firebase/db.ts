@@ -211,11 +211,16 @@ export class QueryBuilder {
   insert(data: any) {
     // Return a chainable object that supports .select() and .single()
     const insertData = data;
+    // IMPORTANT: If data contains an 'id' field, use it as the Firestore document ID
+    // This is critical for security rules that check request.auth.uid == userId
+    // (e.g., creating user profiles where the document ID must match the auth UID)
+    const docId = insertData.id || undefined;
+    
     return {
       select: (fields: string) => ({
         single: async () => {
           try {
-            const result = await firestore.insert(this.collectionName, insertData);
+            const result = await firestore.insert(this.collectionName, insertData, docId);
             if (result.data && result.data.length > 0) {
               return { data: result.data[0], error: result.error };
             }
@@ -226,7 +231,7 @@ export class QueryBuilder {
         },
         then: async (resolve: any, reject: any) => {
           try {
-            const result = await firestore.insert(this.collectionName, insertData);
+            const result = await firestore.insert(this.collectionName, insertData, docId);
             if (result.error) {
               reject(result.error);
             } else {
@@ -239,7 +244,7 @@ export class QueryBuilder {
       }),
       single: async () => {
         try {
-          const result = await firestore.insert(this.collectionName, insertData);
+          const result = await firestore.insert(this.collectionName, insertData, docId);
           if (result.data && result.data.length > 0) {
             return { data: result.data[0], error: result.error };
           }
@@ -250,7 +255,7 @@ export class QueryBuilder {
       },
       then: async (resolve: any, reject: any) => {
         try {
-          const result = await firestore.insert(this.collectionName, insertData);
+          const result = await firestore.insert(this.collectionName, insertData, docId);
           if (result.error) {
             reject(result.error);
           } else {

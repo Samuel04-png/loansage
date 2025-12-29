@@ -24,7 +24,9 @@ export default defineConfig(({ mode }) => {
         react(),
         VitePWA({
           registerType: 'prompt',
-          includeAssets: ['logo/tengaloanlogo.png', 'favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
+          // Note: Icon files are handled by the manifest.icons config below
+          // Don't include them in includeAssets to avoid cache conflicts
+          includeAssets: ['logo/tengaloanlogo.png', 'favicon.ico', 'favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png'],
           manifest: {
             name: 'TengaLoans - Microfinance Platform',
             short_name: 'TengaLoans',
@@ -63,12 +65,10 @@ export default defineConfig(({ mode }) => {
             ],
           },
           workbox: {
-            globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+            globPatterns: ['**/*.{js,css,html,ico,svg,woff2}'],
             maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
-            additionalManifestEntries: [
-              { url: '/android-chrome-192x192.png', revision: null },
-              { url: '/android-chrome-512x512.png', revision: null },
-            ],
+            // Note: Don't duplicate entries - icons are already in includeAssets above
+            // Using globIgnores to prevent caching conflicts with PWA manifest icons
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/.*\.firebaseapp\.com\/.*/i,
