@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
-import { Chrome, Apple } from 'lucide-react';
+import { Chrome } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService, isMobileDevice } from '../../lib/supabase/auth';
@@ -38,70 +38,70 @@ export function SocialLoginButtons() {
   }, []);
 
   const handleAuthSuccess = async (user: any, session: any, provider: 'google' | 'apple') => {
-    const { isDemoMode } = await import('../../lib/supabase/client');
-    if (isDemoMode) {
+        const { isDemoMode } = await import('../../lib/supabase/client');
+        if (isDemoMode) {
       localStorage.setItem('demo_session', JSON.stringify(session));
-    }
+        }
 
-    // Get or create user profile
-    let profile = null;
-    try {
-      const { supabase } = await import('../../lib/supabase/client');
-      const profilePromise = supabase
-        .from('users')
-        .select('*')
+        // Get or create user profile
+        let profile = null;
+        try {
+          const { supabase } = await import('../../lib/supabase/client');
+          const profilePromise = supabase
+            .from('users')
+            .select('*')
         .eq('id', user.id)
-        .single();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-      );
-      const profileResult = await Promise.race([profilePromise, timeoutPromise]) as any;
-      if (profileResult?.data) {
-        profile = profileResult.data;
-      }
-    } catch (error: any) {
-      console.warn('Profile fetch failed, using defaults:', error);
-    }
-    
-    if (!profile) {
-      profile = {
+            .single();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+          );
+          const profileResult = await Promise.race([profilePromise, timeoutPromise]) as any;
+          if (profileResult?.data) {
+            profile = profileResult.data;
+          }
+        } catch (error: any) {
+          console.warn('Profile fetch failed, using defaults:', error);
+        }
+        
+        if (!profile) {
+          profile = {
         id: user.id,
         email: user.email || '',
         full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-        phone: null,
+            phone: null,
         role: (user.user_metadata?.role as 'admin' | 'employee' | 'customer') || 'admin',
         employee_category: user.user_metadata?.employee_category || null,
-        agency_id: null,
-        is_active: true,
-      };
-    }
+            agency_id: null,
+            is_active: true,
+          };
+        }
 
     setUser(user as any);
     setSession(session as any);
-    setProfile(profile as any);
+        setProfile(profile as any);
 
-    toast.success(`Welcome! Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`);
-    
-    // Check onboarding status before navigation
-    const hasAgency = profile?.agency_id;
+        toast.success(`Welcome! Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`);
+        
+        // Check onboarding status before navigation
+        const hasAgency = profile?.agency_id;
     const onboardingCompleted = profile?.onboardingCompleted !== false;
-    
-    if (!hasAgency || !onboardingCompleted) {
-      navigate('/auth/create-organization', { replace: true });
-      return;
-    }
-    
-    // Navigate based on role
+        
+        if (!hasAgency || !onboardingCompleted) {
+          navigate('/auth/create-organization', { replace: true });
+          return;
+        }
+        
+        // Navigate based on role
     const userRole = profile?.role || user.user_metadata?.role || 'admin';
-    if (userRole === 'admin') {
-      navigate('/admin/dashboard', { replace: true });
-    } else if (userRole === 'employee') {
-      navigate('/employee/dashboard', { replace: true });
-    } else if (userRole === 'customer') {
-      navigate('/customer/dashboard', { replace: true });
-    } else {
-      navigate('/admin/dashboard', { replace: true });
-    }
+        if (userRole === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else if (userRole === 'employee') {
+          navigate('/employee/dashboard', { replace: true });
+        } else if (userRole === 'customer') {
+          navigate('/customer/dashboard', { replace: true });
+        } else {
+          navigate('/admin/dashboard', { replace: true });
+        }
   };
 
   const handleSocialLogin = async (provider: 'google' | 'apple') => {
@@ -156,12 +156,6 @@ export function SocialLoginButtons() {
       icon: Chrome, 
       provider: 'google' as const, 
       color: 'hover:bg-red-50 hover:border-red-200' 
-    },
-    { 
-      name: 'Apple', 
-      icon: Apple, 
-      provider: 'apple' as const, 
-      color: 'hover:bg-slate-50 hover:border-slate-300' 
     },
   ];
 
