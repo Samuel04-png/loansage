@@ -17,6 +17,34 @@ import { isDemoMode } from './config';
 import { initializeFreeTrial } from './subscription-helpers';
 
 /**
+ * Get the base URL for invitation links
+ * Prioritizes environment variable, then window origin, then production fallback
+ */
+function getInviteBaseUrl(): string {
+  // Check for Vite environment variable first (set in deployment)
+  try {
+    const envUrl = import.meta.env?.VITE_APP_URL;
+    if (envUrl && envUrl !== 'undefined' && envUrl.startsWith('http')) {
+      return envUrl;
+    }
+  } catch (e) {
+    // import.meta might not be available in all contexts
+  }
+  
+  // Fallback to window origin (works in browser)
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    // Make sure it's not localhost in production
+    const origin = window.location.origin;
+    if (!origin.includes('localhost') || import.meta.env?.DEV) {
+      return origin;
+    }
+  }
+  
+  // Final fallback for production
+  return 'https://tengaloans.com';
+}
+
+/**
  * Get all agencies that a user has access to
  * Returns agencies where user is a member (via agency_id) or creator
  */
@@ -268,11 +296,10 @@ export async function createEmployeeInvitation(
     setTimeout(() => reject(new Error('Invitation creation timeout')), 10000)
   );
 
-  // Generate invite URL - use environment variable or current origin
-  const baseUrl = typeof window !== 'undefined' 
-    ? window.location.origin
-    : (process.env.VITE_APP_URL || 'https://tengaloans.com');
+  // Generate invite URL using the helper function
+  const baseUrl = getInviteBaseUrl();
   const inviteUrl = `${baseUrl}/auth/accept-invite?token=${token}`;
+  console.log('Generated invite URL:', inviteUrl);
 
   const expiresAtTimestamp = Timestamp.fromDate(expiresAt);
 
@@ -334,11 +361,10 @@ export async function createCustomerInvitation(
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
-  // Generate invite URL - use environment variable or current origin
-  const baseUrl = typeof window !== 'undefined' 
-    ? window.location.origin
-    : (process.env.VITE_APP_URL || 'https://tengaloans.com');
+  // Generate invite URL using the helper function
+  const baseUrl = getInviteBaseUrl();
   const inviteUrl = `${baseUrl}/auth/accept-invite?token=${token}`;
+  console.log('Generated customer invite URL:', inviteUrl);
 
   // Add timeout to prevent hanging
   const timeoutPromise = new Promise((_, reject) => 
