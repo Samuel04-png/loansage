@@ -274,19 +274,39 @@ export async function createEmployeeInvitation(
     : (process.env.VITE_APP_URL || 'https://tengaloans.com');
   const inviteUrl = `${baseUrl}/auth/accept-invite?token=${token}`;
 
+  const expiresAtTimestamp = Timestamp.fromDate(expiresAt);
+
+  // Create both the invitation and a token lookup document
+  // The token lookup enables public access before user is authenticated
+  const tokenRef = doc(db, 'invitation_tokens', token);
+  
   await Promise.race([
-    setDoc(inviteRef, {
-      id: inviteId,
-      email: data.email,
-      role: data.role,
-      note: data.note || null,
-      token,
-      inviteUrl, // Store invite URL for easy retrieval
-      createdBy: data.createdBy,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      expiresAt: Timestamp.fromDate(expiresAt),
-    }),
+    Promise.all([
+      // Create the invitation in the agency's subcollection
+      setDoc(inviteRef, {
+        id: inviteId,
+        email: data.email,
+        role: data.role,
+        note: data.note || null,
+        token,
+        inviteUrl,
+        createdBy: data.createdBy,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAtTimestamp,
+      }),
+      // Create a token lookup document for public access
+      setDoc(tokenRef, {
+        token,
+        agencyId,
+        inviteId,
+        email: data.email,
+        role: data.role,
+        status: 'pending',
+        expiresAt: expiresAtTimestamp,
+        createdAt: serverTimestamp(),
+      }),
+    ]),
     timeoutPromise
   ]);
 
@@ -325,20 +345,40 @@ export async function createCustomerInvitation(
     setTimeout(() => reject(new Error('Invitation creation timeout')), 10000)
   );
 
+  const expiresAtTimestamp = Timestamp.fromDate(expiresAt);
+  
+  // Create a token lookup document for public access
+  const tokenRef = doc(db, 'invitation_tokens', token);
+
   await Promise.race([
-    setDoc(inviteRef, {
-      id: inviteId,
-      email: data.email,
-      role: 'customer',
-      customerId: customerId,
-      note: data.note || null,
-      token,
-      inviteUrl, // Store invite URL for easy retrieval
-      createdBy: data.createdBy,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      expiresAt: Timestamp.fromDate(expiresAt),
-    }),
+    Promise.all([
+      // Create the invitation in the agency's subcollection
+      setDoc(inviteRef, {
+        id: inviteId,
+        email: data.email,
+        role: 'customer',
+        customerId: customerId,
+        note: data.note || null,
+        token,
+        inviteUrl,
+        createdBy: data.createdBy,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAtTimestamp,
+      }),
+      // Create a token lookup document for public access
+      setDoc(tokenRef, {
+        token,
+        agencyId,
+        inviteId,
+        customerId,
+        email: data.email,
+        role: 'customer',
+        status: 'pending',
+        expiresAt: expiresAtTimestamp,
+        createdAt: serverTimestamp(),
+      }),
+    ]),
     timeoutPromise
   ]);
 
@@ -349,8 +389,48 @@ export async function getInvitationByToken(token: string) {
   if (isDemoMode) return null;
 
   try {
-    // Search across all agencies for the token
-    // Note: This requires Firestore rules to allow reading pending invitations
+    // First, try to look up the token in the public token lookup collection
+    // This works for unauthenticated users
+    const tokenRef = doc(db, 'invitation_tokens', token);
+    const tokenDoc = await getDoc(tokenRef);
+
+    if (tokenDoc.exists()) {
+      const tokenData = tokenDoc.data();
+      
+      // Check if expired
+      let expiresAt: Date | null = null;
+      if (tokenData.expiresAt?.toDate) {
+        expiresAt = tokenData.expiresAt.toDate();
+      } else if (tokenData.expiresAt instanceof Date) {
+        expiresAt = tokenData.expiresAt;
+      } else if (tokenData.expiresAt) {
+        expiresAt = new Date(tokenData.expiresAt);
+      }
+      
+      if (expiresAt && expiresAt < new Date()) {
+        return null; // Expired
+      }
+      
+      if (tokenData.status !== 'pending') {
+        return null; // Already accepted or cancelled
+      }
+
+      // Return the token data with agency info - no need to fetch full invitation
+      // The token document contains all the info needed for accepting
+      return {
+        id: tokenData.inviteId,
+        agencyId: tokenData.agencyId,
+        email: tokenData.email,
+        role: tokenData.role,
+        customerId: tokenData.customerId || null,
+        status: tokenData.status,
+        expiresAt: expiresAt,
+        token: tokenData.token,
+      };
+    }
+
+    // Fallback: If token not in lookup collection, try the old way
+    // (for invitations created before this update)
     const agenciesRef = collection(db, 'agencies');
     const agenciesSnapshot = await getDocs(agenciesRef);
 
@@ -402,16 +482,33 @@ export async function getInvitationByToken(token: string) {
   }
 }
 
-export async function acceptInvitation(agencyId: string, inviteId: string, userId: string) {
+export async function acceptInvitation(agencyId: string, inviteId: string, userId: string, token?: string) {
   if (isDemoMode) return;
 
   try {
     const inviteRef = doc(db, 'agencies', agencyId, 'invitations', inviteId);
+    
+    // Update the invitation document
     await updateDoc(inviteRef, {
       status: 'accepted',
       acceptedBy: userId,
       acceptedAt: serverTimestamp(),
     });
+    
+    // Also update the token lookup document if token is provided
+    if (token) {
+      try {
+        const tokenRef = doc(db, 'invitation_tokens', token);
+        await updateDoc(tokenRef, {
+          status: 'accepted',
+          acceptedBy: userId,
+          acceptedAt: serverTimestamp(),
+        });
+      } catch (tokenError) {
+        // Token lookup update is not critical - log and continue
+        console.warn('Failed to update token lookup document:', tokenError);
+      }
+    }
   } catch (error: any) {
     console.error('Error accepting invitation:', error);
     throw new Error(`Failed to accept invitation: ${error.message}`);

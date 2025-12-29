@@ -197,14 +197,14 @@ export function AcceptInvitePage() {
       try {
         // Wait a moment to ensure user is fully authenticated
         await new Promise(resolve => setTimeout(resolve, 500));
-        await acceptInvitation(invitation.agencyId, invitation.id, user.id);
+        await acceptInvitation(invitation.agencyId, invitation.id, user.id, token || undefined);
       } catch (acceptError: any) {
         console.error('Error accepting invitation:', acceptError);
         // If permission error, try again after a short delay (user might not be fully synced)
         if (acceptError.message?.includes('permission') || acceptError.code === 'permission-denied') {
           await new Promise(resolve => setTimeout(resolve, 1000));
           try {
-            await acceptInvitation(invitation.agencyId, invitation.id, user.id);
+            await acceptInvitation(invitation.agencyId, invitation.id, user.id, token || undefined);
           } catch (retryError: any) {
             console.error('Error accepting invitation on retry:', retryError);
             toast.error(`Account created but failed to mark invitation as accepted. Please contact support.`);

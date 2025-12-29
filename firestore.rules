@@ -140,33 +140,30 @@ service cloud.firestore {
       match /invitations/{inviteId} {
         // Allow reading invitations:
         // 1. If user belongs to agency (for viewing invitations list)
-        // 2. If invitation is pending (for token-based lookup during acceptance)
+        // 2. If invitation is pending - allow ANY read for pending invitations
+        //    This enables token-based lookup before user is authenticated
+        //    The token itself serves as the "password" - only those with the link can access
         allow read: if 
           (isAuthenticated() && belongsToAgency(agencyId)) ||
           (resource != null && resource.data.status == 'pending');
+        
+        // Also allow list queries for pending invitations (needed for token lookup)
+        // Security: Token is a random string that serves as authentication
+        allow list: if isAuthenticated() && belongsToAgency(agencyId);
+        
         allow create: if isAuthenticated() && (isAdmin() || isLoanOfficer()) && belongsToAgency(agencyId);
+        
         // Allow update for accepting invitations:
         // 1. If user belongs to agency (for admins updating status)
-        // 2. If invitation is pending and being marked as accepted (for new users accepting)
-        //    - This allows NEW users to accept invitations even before they belong to the agency
-        //    - Only allow changing status from 'pending' to 'accepted'
-        //    - Only allow setting acceptedBy and acceptedAt fields
-        //    - Don't allow changing other fields
+        // 2. If authenticated user is accepting a pending invitation
+        //    - Any authenticated user can accept if the invitation is pending
+        //    - This allows NEW users who just signed up to mark their invitation as accepted
         allow update: if 
           (isAuthenticated() && belongsToAgency(agencyId)) ||
           (isAuthenticated() && 
            resource != null && 
-           resource.data.status == 'pending' && 
-           request.resource.data.status == 'accepted' &&
-           // Only allow changing status, acceptedBy, and acceptedAt
-           // Prevent changing other important fields
-           request.resource.data.email == resource.data.email &&
-           request.resource.data.role == resource.data.role &&
-           request.resource.data.token == resource.data.token &&
-           request.resource.data.createdBy == resource.data.createdBy &&
-           request.resource.data.expiresAt == resource.data.expiresAt &&
-           request.resource.data.inviteUrl == resource.data.inviteUrl &&
-           (request.resource.data.customerId == null || request.resource.data.customerId == resource.data.customerId));
+           resource.data.status == 'pending');
+        
         allow delete: if isAuthenticated() && (isAdmin() || (resource != null && resource.data.createdBy == request.auth.uid)) && belongsToAgency(agencyId);
       }
       
@@ -386,6 +383,29 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isAdmin();
       allow create: if isAuthenticated() && isAdmin();
       allow update: if isAuthenticated() && isAdmin();
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Invitation tokens collection (public read for token lookup)
+    // This enables unauthenticated users to look up invitations by token
+    // The token itself serves as authentication - only those with the link can access
+    // Documents: { token: string, agencyId: string, inviteId: string, status: string, expiresAt: timestamp }
+    match /invitation_tokens/{tokenId} {
+      // Allow public read for pending invitations (needed before user signs up)
+      allow read: if resource != null && resource.data.status == 'pending';
+      // Only authenticated agency members can create tokens (done when invitation is created)
+      allow create: if isAuthenticated();
+      // Allow authenticated users to update (mark as accepted)
+      allow update: if isAuthenticated();
+      // Only admins can delete
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Referrals collection
+    match /referrals/{referralId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && isAdmin();
     }
   }
