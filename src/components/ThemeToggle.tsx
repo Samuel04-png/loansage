@@ -10,7 +10,13 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) {
+  // useTheme now returns defaults if not in provider, so this is safe
   const { resolvedTheme, toggleTheme } = useTheme();
+  
+  // Extra safety check
+  if (!toggleTheme || typeof toggleTheme !== 'function') {
+    return null;
+  }
 
   return (
     <Button

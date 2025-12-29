@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { useAgency } from '../../hooks/useAgency';
 import { applyWhitelabelStyles } from '../../lib/whitelabel';
+import { useAgencyStore } from '../../stores/agencyStore';
 
 type Theme = 'light' | 'dark' | 'auto';
 
@@ -18,9 +18,9 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  // Get agency - this will be null if auth/agency isn't ready yet, which is fine
-  // Call useAgency unconditionally (React hook rules)
-  const { agency } = useAgency();
+  // Use agency store directly instead of useAgency hook to avoid dependency chain
+  // This makes ThemeProvider more resilient to auth errors
+  const agency = useAgencyStore((state) => state.agency);
   
   // Initialize theme from localStorage or agency settings
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -30,7 +30,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         return stored;
       }
     }
-    return (agency?.theme_mode as Theme) || 'light';
+    return 'light'; // Default to light, agency settings will apply later
   });
   
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
@@ -117,10 +117,23 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   );
 }
 
+// Default theme values for fallback
+const defaultThemeContext: ThemeContextType = {
+  theme: 'light',
+  setTheme: () => {},
+  resolvedTheme: 'light',
+  toggleTheme: () => {},
+};
+
 export function useTheme() {
   const context = useContext(ThemeContext);
+  
+  // Return default values instead of throwing if context is not available
+  // This prevents crashes during error recovery or when rendered outside provider
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    console.warn('useTheme called outside ThemeProvider, using defaults');
+    return defaultThemeContext;
   }
+  
   return context;
 }
