@@ -116,15 +116,81 @@ export const useAuthStore = create<AuthState>()(
                   );
                   
                   const result = await Promise.race([profilePromise, timeoutPromise]);
+                  
+                  // CRITICAL: Distinguish between "user doesn't exist" vs "database error"
+                  // - { data: null, error: null } → User doesn't exist (safe to use defaults)
+                  // - { data: null, error: {...} } → Database error (DO NOT use defaults, throw error)
+                  if (result.error) {
+                    // Database/persistence error - DO NOT use defaults, preserve error state
+                    const errorCode = result.error?.code || '';
+                    const errorMessage = result.error?.message || '';
+                    
+                    // Check if this is a real database error (not "document not found")
+                    const isDatabaseError = 
+                      errorCode !== '' ||
+                      errorMessage.includes('permission') ||
+                      errorMessage.includes('network') ||
+                      errorMessage.includes('unavailable') ||
+                      errorMessage.includes('timeout') ||
+                      errorMessage.includes('Internal error') ||
+                      errorMessage.includes('backing store') ||
+                      errorMessage.includes('IndexedDB');
+                    
+                    if (isDatabaseError) {
+                      // This is a real database error - throw to prevent "Create Agency" redirect
+                      console.error('❌ Database error fetching user profile:', result.error);
+                      throw new Error(`Database error: ${errorMessage || 'Unable to connect to database'}`);
+                    }
+                  }
+                  
+                  // User document doesn't exist (data: null, error: null) - safe to use defaults
                   profile = result.data as UserProfile | null;
-                } catch (error) {
-                  // If query fails or times out, profile will be null and fallback will be used
-                  console.warn('Profile fetch failed during initialization:', error);
+                } catch (error: any) {
+                  // Check if this is a database/persistence error vs timeout
+                  const errorMessage = error?.message || String(error || '');
+                  const isDatabaseError = 
+                    errorMessage.includes('Database error') ||
+                    errorMessage.includes('permission') ||
+                    errorMessage.includes('network') ||
+                    errorMessage.includes('unavailable') ||
+                    errorMessage.includes('backing store') ||
+                    errorMessage.includes('IndexedDB') ||
+                    errorMessage.includes('Internal error');
+                  
+                  if (isDatabaseError && !errorMessage.includes('timeout')) {
+                    // Database error - DO NOT create default profile, throw to prevent onboarding redirect
+                    console.error('❌ Database error during profile fetch:', error);
+                    throw error; // Re-throw to prevent default profile creation
+                  }
+                  
+                  // Timeout or other non-critical errors - use defaults (user might be new)
+                  console.warn('⚠️ Profile fetch failed (timeout or non-critical), using defaults:', errorMessage);
                   profile = null;
                 }
               }
-            } catch (error) {
-              // If profile fetch fails, create a basic profile from user metadata
+            } catch (error: any) {
+              // Only create default profile if it's NOT a database error
+              const errorMessage = error?.message || String(error || '');
+              const isDatabaseError = 
+                errorMessage.includes('Database error') ||
+                errorMessage.includes('permission') ||
+                errorMessage.includes('network') ||
+                errorMessage.includes('unavailable') ||
+                errorMessage.includes('backing store') ||
+                errorMessage.includes('IndexedDB') ||
+                errorMessage.includes('Internal error');
+              
+              if (isDatabaseError) {
+                // Database error - DO NOT create default profile, preserve error state
+                console.error('❌ Critical database error, cannot load user profile:', errorMessage);
+                // Set profile to null and let the UI handle the error (show error screen, not onboarding)
+                profile = null;
+                // Store error state for UI to display
+                set({ user, session, profile: null, loading: false, initialized: true });
+                return; // Exit early, don't set default profile
+              }
+              
+              // User doesn't exist or other non-critical error - create basic profile from metadata
               profile = {
                 id: user.id,
                 email: user.email || '',

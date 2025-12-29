@@ -87,15 +87,66 @@ export function useAuth() {
                   
                   const result = await Promise.race([profilePromise, timeoutPromise]);
                   
+                  // CRITICAL: Distinguish between "user doesn't exist" vs "database error"
+                  if (result.error) {
+                    const errorCode = result.error?.code || '';
+                    const errorMessage = result.error?.message || '';
+                    
+                    // Check if this is a real database error (not "document not found")
+                    const isDatabaseError = 
+                      errorCode !== '' ||
+                      errorMessage.includes('permission') ||
+                      errorMessage.includes('network') ||
+                      errorMessage.includes('unavailable') ||
+                      errorMessage.includes('timeout') ||
+                      errorMessage.includes('Internal error') ||
+                      errorMessage.includes('backing store') ||
+                      errorMessage.includes('IndexedDB');
+                    
+                    if (isDatabaseError && !errorMessage.includes('timeout')) {
+                      // Database error - DO NOT create default profile
+                      console.error('❌ Database error fetching user profile:', result.error);
+                      // Don't set profile - let the UI handle the error state
+                      return; // Exit early, don't set default profile
+                    }
+                  }
+                  
                   if (result.data) {
                     setProfile(result.data as any);
                   } else {
-                    // If no data, create default profile
-                    throw new Error('No profile data');
+                    // User doesn't exist (data: null, error: null) - safe to use defaults
+                    setProfile({
+                      id: session.user.id,
+                      email: session.user.email || '',
+                      full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                      phone: null,
+                      role: (session.user.user_metadata?.role as 'admin' | 'employee' | 'customer') || 'admin',
+                      employee_category: session.user.user_metadata?.employee_category || null,
+                      agency_id: null,
+                      is_active: true,
+                    });
                   }
-                } catch (error) {
-                  // If profile fetch fails, create a basic profile
-                  console.warn('Profile fetch failed, using defaults:', error);
+                } catch (error: any) {
+                  // Check if this is a database/persistence error vs timeout
+                  const errorMessage = error?.message || String(error || '');
+                  const isDatabaseError = 
+                    errorMessage.includes('Database error') ||
+                    errorMessage.includes('permission') ||
+                    errorMessage.includes('network') ||
+                    errorMessage.includes('unavailable') ||
+                    errorMessage.includes('backing store') ||
+                    errorMessage.includes('IndexedDB') ||
+                    errorMessage.includes('Internal error');
+                  
+                  if (isDatabaseError && !errorMessage.includes('timeout')) {
+                    // Database error - DO NOT create default profile
+                    console.error('❌ Database error during profile fetch:', error);
+                    // Don't set profile - let the UI handle the error state
+                    return; // Exit early, don't set default profile
+                  }
+                  
+                  // Timeout or user doesn't exist - safe to use defaults
+                  console.warn('⚠️ Profile fetch failed (timeout or non-critical), using defaults:', errorMessage);
                   setProfile({
                     id: session.user.id,
                     email: session.user.email || '',

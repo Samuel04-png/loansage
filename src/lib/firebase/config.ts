@@ -6,6 +6,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  memoryLocalCache,
   CACHE_SIZE_UNLIMITED 
 } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
@@ -130,8 +131,8 @@ export function getRealtimeDatabase(): Database {
   return realtimeDB as Database;
 }
 
-// Initialize Firestore with multi-tab persistence support
-// Using the new cache API which supports multiple tabs by default
+// Initialize Firestore with fail-safe persistence
+// Attempt persistent cache first, fallback to memory cache if IndexedDB is corrupted
 let db: Firestore;
 
 // Use a window flag to track initialization across HMR reloads
@@ -140,8 +141,7 @@ const wasInitialized = typeof window !== 'undefined' && (window as any)[firestor
 
 if (!isDemoMode && typeof window !== 'undefined' && !wasInitialized) {
   try {
-    // Initialize Firestore with persistent multi-tab cache
-    // This replaces the deprecated enableIndexedDbPersistence and automatically handles multi-tab
+    // Attempt 1: Try to initialize with persistent multi-tab cache (offline support)
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager(),
@@ -151,9 +151,37 @@ if (!isDemoMode && typeof window !== 'undefined' && !wasInitialized) {
     (window as any)[firestoreInitKey] = true;
     console.info('✅ Firestore initialized with multi-tab persistence');
   } catch (err: any) {
-    // If initialization fails (e.g., already initialized), fall back to getFirestore
-    console.warn('Firestore initialization with cache failed, using default:', err?.message);
-    db = getFirestore(app);
+    // Catch any error (IndexedDB corruption, failed-precondition, etc.)
+    const errorCode = err?.code || '';
+    const errorMessage = err?.message || '';
+    const isPersistenceError = 
+      errorCode === 'failed-precondition' ||
+      errorCode === 'internal' ||
+      errorCode === 'unimplemented' ||
+      errorMessage.includes('backing store') ||
+      errorMessage.includes('IndexedDB') ||
+      errorMessage.includes('corrupted') ||
+      errorMessage.includes('Internal error');
+    
+    if (isPersistenceError) {
+      // Attempt 2: Fallback to memory cache (no offline support, but app will work)
+      console.warn('⚠️ Firestore persistence failed (IndexedDB may be corrupted), falling back to memory cache:', errorMessage);
+      try {
+        db = initializeFirestore(app, {
+          localCache: memoryLocalCache()
+        });
+        (window as any)[firestoreInitKey] = true;
+        console.warn('✅ Firestore initialized with memory cache (no offline support)');
+      } catch (fallbackErr: any) {
+        // If even memory cache fails, use standard getFirestore (last resort)
+        console.error('❌ Firestore memory cache initialization also failed, using default:', fallbackErr?.message);
+        db = getFirestore(app);
+      }
+    } else {
+      // Other errors (e.g., already initialized) - use standard getFirestore
+      console.warn('Firestore initialization with cache failed, using default:', errorMessage);
+      db = getFirestore(app);
+    }
   }
 } else {
   // Demo mode or already initialized - use standard getFirestore

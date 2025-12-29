@@ -65,13 +65,55 @@ export function LoginPage() {
             setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
           );
           const result = await Promise.race([profilePromise, timeoutPromise]) as any;
+          
+          // CRITICAL: Distinguish between "user doesn't exist" vs "database error"
+          if (result?.error) {
+            const errorCode = result.error?.code || '';
+            const errorMessage = result.error?.message || '';
+            
+            const isDatabaseError = 
+              errorCode !== '' ||
+              errorMessage.includes('permission') ||
+              errorMessage.includes('network') ||
+              errorMessage.includes('unavailable') ||
+              errorMessage.includes('timeout') ||
+              errorMessage.includes('Internal error') ||
+              errorMessage.includes('backing store') ||
+              errorMessage.includes('IndexedDB');
+            
+            if (isDatabaseError && !errorMessage.includes('timeout')) {
+              // Database error - DO NOT create default profile, show error instead
+              console.error('❌ Database error fetching user profile:', result.error);
+              toast.error('Database connection error. Please refresh the page or contact support.');
+              return; // Exit early, don't proceed with login
+            }
+          }
+          
           if (result?.data) {
             profile = result.data;
           }
         } catch (error: any) {
-          console.warn('Profile fetch failed, using defaults:', error);
+          const errorMessage = error?.message || String(error || '');
+          const isDatabaseError = 
+            errorMessage.includes('Database error') ||
+            errorMessage.includes('permission') ||
+            errorMessage.includes('network') ||
+            errorMessage.includes('unavailable') ||
+            errorMessage.includes('backing store') ||
+            errorMessage.includes('IndexedDB') ||
+            errorMessage.includes('Internal error');
+          
+          if (isDatabaseError && !errorMessage.includes('timeout')) {
+            // Database error - DO NOT create default profile, show error instead
+            console.error('❌ Database error during profile fetch:', error);
+            toast.error('Database connection error. Please refresh the page or contact support.');
+            return; // Exit early, don't proceed with login
+          }
+          
+          console.warn('⚠️ Profile fetch failed (timeout or non-critical), using defaults:', errorMessage);
         }
         
+        // Only create default profile if user doesn't exist (not a database error)
         if (!profile) {
           profile = {
             id: user.id,
