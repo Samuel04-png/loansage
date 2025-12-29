@@ -90,8 +90,17 @@ service cloud.firestore {
       // Allow users to read their own document, or any authenticated user can read (needed for getUserAgencyId helper)
       // This is safe because user documents don't contain sensitive data beyond what's needed for auth
       allow read: if isAuthenticated();
+      // Allow create if user is creating their own document
+      // This is needed for invitation acceptance where user signs up and creates their profile
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && (request.auth.uid == userId || (isAdmin() && (resource == null || belongsToAgency(resource.data.agency_id))));
+      // Allow update if:
+      // 1. User is updating their own document, OR
+      // 2. Admin is updating a user in their agency
+      // NOTE: For new users accepting invitations, they may update their own doc before belonging to an agency
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        (isAdmin() && (resource == null || belongsToAgency(resource.data.agency_id)))
+      );
       allow delete: if isAuthenticated() && isAdmin();
       
       // User notifications
@@ -182,9 +191,13 @@ service cloud.firestore {
         // Allow update if:
         // 1. User belongs to agency, OR
         // 2. User is linking themselves to the customer record (for invitation acceptance)
+        //    - Allow if userId is being set to the authenticated user
+        //    - And the current userId is null, undefined, or empty
         allow update: if isAuthenticated() && (
           belongsToAgency(agencyId) ||
-          (resource != null && request.resource.data.userId == request.auth.uid && resource.data.userId == null)
+          (resource != null && 
+           request.resource.data.userId == request.auth.uid && 
+           (resource.data.userId == null || !('userId' in resource.data) || resource.data.userId == ''))
         );
         allow delete: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid));
         
