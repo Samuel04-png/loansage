@@ -136,7 +136,13 @@ export function AcceptInvitePage() {
 
       if (!user || !session) throw new Error('Failed to create user');
 
+      console.log('Step 1: User created successfully:', user.id);
+      
+      // Wait for auth to fully propagate
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Create or update user record in Firestore (via users collection)
+      console.log('Step 2: Creating user record in Firestore...');
       const { supabase } = await import('../../../lib/supabase/client');
       
       // Try to insert first, if it fails due to existing record, update instead
@@ -170,9 +176,12 @@ export function AcceptInvitePage() {
           throw new Error(`Failed to update user record: ${updateError.message}`);
         }
       }
+      
+      console.log('Step 2: User record created/updated successfully');
 
       // Handle employee invitations
       if (isEmployee && invitation.agencyId) {
+        console.log('Step 3: Creating employee record...');
         try {
           await createEmployee(invitation.agencyId, {
             userId: user.id,
@@ -180,6 +189,7 @@ export function AcceptInvitePage() {
             name: data.fullName,
             role: invitation.role as any, // This is the employee category (loan_officer, manager, etc.)
           });
+          console.log('Step 3: Employee record created successfully');
         } catch (employeeError: any) {
           console.error('Error creating employee record:', employeeError);
           // Don't fail the whole process if employee creation fails
@@ -190,7 +200,15 @@ export function AcceptInvitePage() {
 
       // Handle customer invitations - link customer record to user
       if (isCustomer && invitation.customerId && invitation.agencyId) {
-        await linkCustomerToUser(invitation.agencyId, invitation.customerId, user.id);
+        console.log('Step 3: Linking customer record to user...');
+        try {
+          await linkCustomerToUser(invitation.agencyId, invitation.customerId, user.id);
+          console.log('Step 3: Customer linked successfully');
+        } catch (linkError: any) {
+          console.error('Error linking customer:', linkError);
+          // Continue anyway - the user account is created
+          toast.error(`Account created but failed to link customer: ${linkError.message}`);
+        }
       }
 
       // Mark invitation as accepted - must be done while authenticated

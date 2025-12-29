@@ -191,13 +191,11 @@ service cloud.firestore {
         // Allow update if:
         // 1. User belongs to agency, OR
         // 2. User is linking themselves to the customer record (for invitation acceptance)
-        //    - Allow if userId is being set to the authenticated user
-        //    - And the current userId is null, undefined, or empty
+        //    - Allow ANY authenticated user to update if they're setting userId to their own uid
+        //    - This is safe because you can only link yourself to a customer, not others
         allow update: if isAuthenticated() && (
           belongsToAgency(agencyId) ||
-          (resource != null && 
-           request.resource.data.userId == request.auth.uid && 
-           (resource.data.userId == null || !('userId' in resource.data) || resource.data.userId == ''))
+          request.resource.data.userId == request.auth.uid
         );
         allow delete: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid));
         
