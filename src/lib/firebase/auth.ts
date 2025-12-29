@@ -10,12 +10,45 @@ import {
   sendEmailVerification,
   updateProfile,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   OAuthProvider,
+  browserPopupRedirectResolver,
 } from 'firebase/auth';
 import { auth, isDemoMode } from './config';
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './config';
+
+// Mobile detection helper - checks for mobile browsers where popups don't work well
+export const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+  
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera || '';
+  
+  // Check for mobile user agents
+  const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
+  const isMobileUA = mobileRegex.test(userAgent.toLowerCase());
+  
+  // Check for touch device with small screen (likely mobile)
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isSmallScreen = window.innerWidth <= 768;
+  
+  // Also check for standalone mode (PWA)
+  const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+    (window.navigator as any).standalone === true;
+  
+  return isMobileUA || (isTouchDevice && isSmallScreen) || isStandalone;
+};
+
+// Check if we're in an in-app browser (WebView) where popups definitely won't work
+const isInAppBrowser = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|Instagram|Twitter|Line|WhatsApp|Snapchat|WeChat|MicroMessenger/i.test(ua);
+};
 
 // Types compatible with Supabase auth interface
 export interface User {
@@ -482,53 +515,58 @@ export const authService = {
       // Request additional scopes if needed
       provider.addScope('profile');
       provider.addScope('email');
+      // Set custom parameters for better mobile experience
+      provider.setCustomParameters({
+        prompt: 'select_account',
+      });
       
-      const userCredential: UserCredential = await signInWithPopup(auth, provider);
+      // Use redirect on mobile devices for better UX (popups often fail on mobile)
+      const useMobile = isMobileDevice() || isInAppBrowser();
       
-      // Create or update user document in Firestore
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDocData = {
-        id: userCredential.user.uid,
-        email: userCredential.user.email,
-        full_name: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
-        role: 'admin', // Default role, can be updated later
-        is_active: true,
-        last_login: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        provider: 'google',
-      };
-
-      // Check if user document exists
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        // Update existing user
-        await updateDoc(userDocRef, {
-          last_login: userDocData.last_login,
-          updated_at: userDocData.updated_at,
-          email: userCredential.user.email,
-          full_name: userCredential.user.displayName || userDoc.data()?.full_name,
-        });
-      } else {
-        // Create new user document
-        await setDoc(userDocRef, {
-          ...userDocData,
-          created_at: new Date().toISOString(),
-        });
+      if (useMobile) {
+        // Store that we're doing a redirect login
+        sessionStorage.setItem('oauth_pending_provider', 'google');
+        await signInWithRedirect(auth, provider);
+        // This function won't return - user will be redirected
+        // The result will be handled by handleRedirectResult when the page reloads
+        return { user: null, session: null };
       }
-
-      const user = await convertFirebaseUser(userCredential.user);
-      const session = await createSession(user);
-
-      return {
-        user,
-        session,
-      };
+      
+      // Use popup on desktop
+      const userCredential: UserCredential = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      
+      // Process the user credential
+      return await this.processOAuthCredential(userCredential, 'google');
     } catch (error: any) {
+      // On popup failure, fallback to redirect
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+        try {
+          const provider = new GoogleAuthProvider();
+          provider.addScope('profile');
+          provider.addScope('email');
+          provider.setCustomParameters({ prompt: 'select_account' });
+          sessionStorage.setItem('oauth_pending_provider', 'google');
+          await signInWithRedirect(auth, provider);
+          return { user: null, session: null };
+        } catch (redirectError) {
+          console.error('Redirect fallback failed:', redirectError);
+        }
+      }
+      
       if (error.code === 'auth/popup-closed-by-user') {
         throw new Error('Sign-in was cancelled. Please try again.');
       }
       if (error.code === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked by your browser. Please allow popups and try again.');
+        throw new Error('Popup was blocked. Redirecting to Google sign-in...');
+      }
+      if (error.code === 'auth/cancelled-popup-request') {
+        throw new Error('Another sign-in is in progress. Please wait.');
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Google sign-in is not enabled. Please contact support.');
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        throw new Error('This domain is not authorized for Google sign-in. Please contact support.');
       }
       if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
         throw new Error('Unable to connect to authentication server. Please check your internet connection.');
@@ -554,30 +592,90 @@ export const authService = {
       provider.addScope('email');
       provider.addScope('name');
       
-      const userCredential: UserCredential = await signInWithPopup(auth, provider);
+      // Use redirect on mobile devices for better UX
+      const useMobile = isMobileDevice() || isInAppBrowser();
       
-      // Extract name from additionalUserInfo if available
-      let displayName = userCredential.user.displayName;
-      if (!displayName && (userCredential as any).additionalUserInfo?.profile) {
-        const profile = (userCredential as any).additionalUserInfo.profile;
-        if (profile.name) {
-          displayName = `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim();
+      if (useMobile) {
+        // Store that we're doing a redirect login
+        sessionStorage.setItem('oauth_pending_provider', 'apple');
+        await signInWithRedirect(auth, provider);
+        // This function won't return - user will be redirected
+        return { user: null, session: null };
+      }
+      
+      // Use popup on desktop
+      const userCredential: UserCredential = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      
+      // Process the user credential
+      return await this.processOAuthCredential(userCredential, 'apple');
+    } catch (error: any) {
+      // On popup failure, fallback to redirect
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+        try {
+          const provider = new OAuthProvider('apple.com');
+          provider.addScope('email');
+          provider.addScope('name');
+          sessionStorage.setItem('oauth_pending_provider', 'apple');
+          await signInWithRedirect(auth, provider);
+          return { user: null, session: null };
+        } catch (redirectError) {
+          console.error('Redirect fallback failed:', redirectError);
         }
       }
       
-      // Create or update user document in Firestore
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDocData = {
-        id: userCredential.user.uid,
-        email: userCredential.user.email,
-        full_name: displayName || userCredential.user.email?.split('@')[0] || 'User',
-        role: 'admin', // Default role, can be updated later
-        is_active: true,
-        last_login: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        provider: 'apple',
-      };
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      }
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked. Redirecting to Apple sign-in...');
+      }
+      if (error.code === 'auth/cancelled-popup-request') {
+        throw new Error('Another sign-in is in progress. Please wait.');
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Apple sign-in is not enabled. Please contact support.');
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        throw new Error('This domain is not authorized for Apple sign-in. Please contact support.');
+      }
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        throw new Error('Unable to connect to authentication server. Please check your internet connection.');
+      }
+      throw error;
+    }
+  },
 
+  // Helper method to process OAuth credentials (shared between popup and redirect flows)
+  async processOAuthCredential(userCredential: UserCredential, provider: 'google' | 'apple'): Promise<{ user: User; session: Session }> {
+    // Extract name from additionalUserInfo if available (for Apple)
+    let displayName = userCredential.user.displayName;
+    if (!displayName && (userCredential as any)._tokenResponse?.fullName) {
+      const fullName = (userCredential as any)._tokenResponse.fullName;
+      displayName = `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim();
+    }
+    if (!displayName && (userCredential as any).additionalUserInfo?.profile) {
+      const profile = (userCredential as any).additionalUserInfo.profile;
+      if (profile.name) {
+        displayName = typeof profile.name === 'string' 
+          ? profile.name 
+          : `${profile.name.givenName || ''} ${profile.name.familyName || ''}`.trim();
+      }
+    }
+    
+    // Create or update user document in Firestore
+    const userDocRef = doc(db, 'users', userCredential.user.uid);
+    const userDocData = {
+      id: userCredential.user.uid,
+      email: userCredential.user.email,
+      full_name: displayName || userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
+      role: 'admin', // Default role, can be updated later
+      is_active: true,
+      last_login: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      provider,
+    };
+
+    try {
       // Check if user document exists
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
@@ -595,29 +693,55 @@ export const authService = {
           created_at: new Date().toISOString(),
         });
       }
+    } catch (firestoreError) {
+      // Don't fail auth if Firestore update fails
+      console.warn('Failed to update user document in Firestore:', firestoreError);
+    }
 
-      const user = await convertFirebaseUser(userCredential.user);
-      const session = await createSession(user);
+    const user = await convertFirebaseUser(userCredential.user);
+    const session = await createSession(user);
 
-      return {
-        user,
-        session,
-      };
+    return { user, session };
+  },
+
+  // Handle redirect result after OAuth redirect (call this on app load)
+  async handleRedirectResult(): Promise<{ user: User; session: Session; provider: string } | null> {
+    if (isDemoMode) {
+      return null;
+    }
+
+    try {
+      const result = await getRedirectResult(auth);
+      
+      if (result && result.user) {
+        // Get the provider from session storage
+        const provider = sessionStorage.getItem('oauth_pending_provider') as 'google' | 'apple' || 'google';
+        sessionStorage.removeItem('oauth_pending_provider');
+        
+        const authResult = await this.processOAuthCredential(result, provider);
+        return { ...authResult, provider };
+      }
+      
+      // Clear any pending provider if no result
+      sessionStorage.removeItem('oauth_pending_provider');
+      return null;
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in was cancelled. Please try again.');
+      // Clear pending provider on error
+      sessionStorage.removeItem('oauth_pending_provider');
+      
+      console.error('Error handling redirect result:', error);
+      
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        return null; // User cancelled, not an error
       }
-      if (error.code === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked by your browser. Please allow popups and try again.');
-      }
-      if (error.code === 'auth/unauthorized-domain') {
-        throw new Error('Apple sign-in is not configured for this domain. Please contact support.');
-      }
-      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-        throw new Error('Unable to connect to authentication server. Please check your internet connection.');
-      }
+      
       throw error;
     }
+  },
+
+  // Check if there's a pending OAuth redirect
+  hasPendingRedirect(): boolean {
+    return sessionStorage.getItem('oauth_pending_provider') !== null;
   },
 
   onAuthStateChange(callback: (event: string, session: Session | null) => void) {
