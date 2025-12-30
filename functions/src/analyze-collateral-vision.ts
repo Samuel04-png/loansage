@@ -263,7 +263,7 @@ export const analyzeCollateralVision = functions.https.onCall(
     try {
       // Enforce quota unless internal user
       if (!isInternalEmail(context)) {
-        await enforceQuota(agencyId, 'aiAnalysis', 1);
+        await enforceQuota(agencyId, 'aiCalls', 1);
       }
 
       // Step 1: Analyze image with Gemini Vision

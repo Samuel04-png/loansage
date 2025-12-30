@@ -243,19 +243,21 @@ export function PlansPage() {
             <div>
               <p className="font-semibold text-neutral-900 dark:text-neutral-100">
                 {currentPlanConfig.name} Plan
-                {currentPlanCode === 'starter' && ' (Free Trial)'}
+                {currentPlanCode === 'starter' && ' (14-Day Free Trial)'}
               </p>
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
                 {currentPlanCode === 'starter'
                   ? daysRemaining !== undefined 
-                    ? `${daysRemaining} days remaining in your free trial`
-                    : 'Free tier with limits'
+                    ? `${daysRemaining} days remaining in your free trial, then $${currentPlanConfig.price}/month`
+                    : `14-day free trial, then $${currentPlanConfig.price}/month`
+                  : currentPlanCode === 'enterprise'
+                  ? `$${currentPlanConfig.price}/month - Contact Sales`
                   : `$${currentPlanConfig.price}/month - Billed monthly`
                 }
               </p>
-              {currentPlanCode === 'starter' && daysRemaining !== undefined && daysRemaining <= 7 && (
+              {currentPlanCode === 'starter' && daysRemaining !== undefined && daysRemaining <= 3 && (
                 <p className="text-sm text-amber-600 dark:text-amber-500 mt-1">
-                  Your trial expires soon. Upgrade to continue using all features.
+                  Your trial expires in {daysRemaining} day{daysRemaining !== 1 ? 's' : ''}. Add payment method to continue.
                 </p>
               )}
             </div>

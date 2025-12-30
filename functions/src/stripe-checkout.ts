@@ -73,10 +73,6 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
   const resolvedPriceId = priceId || (plan ? getPriceIdForPlan(plan) : null);
   
   if (!resolvedPriceId) {
-    // If plan is starter, it's free so no checkout needed
-    if (plan === 'starter') {
-      throw new functions.https.HttpsError('failed-precondition', 'Starter plan is free and does not require checkout');
-    }
     throw new functions.https.HttpsError('failed-precondition', 'Price ID not configured for plan. Please contact support.');
   }
 
@@ -113,9 +109,12 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
       });
     }
 
+    // Check if this is a starter plan (14-day trial without payment)
+    const isStarterPlan = resolvedPlan === 'starter';
+    
     // Create checkout session
     const stripe = getStripe();
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [
@@ -132,7 +131,23 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
         plan: resolvedPlan,
         userId: context.auth.uid,
       },
-    });
+    };
+
+    // For starter plan, add 14-day trial without requiring payment method upfront
+    if (isStarterPlan) {
+      sessionParams.subscription_data = {
+        trial_period_days: 14,
+        trial_settings: {
+          end_behavior: {
+            missing_payment_method: 'cancel', // Cancel subscription if no payment method added by trial end
+          },
+        },
+      };
+      // Allow trial without payment method
+      sessionParams.payment_method_collection = 'if_required';
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     // Return the checkout URL instead of sessionId (new Stripe.js API)
     return { checkoutUrl: session.url };
@@ -196,6 +211,11 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
         await handleSubscriptionDeleted(subscription);
         break;
       }
+      case 'customer.subscription.trial_will_end': {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleTrialWillEnd(subscription);
+        break;
+      }
     }
 
     res.json({ received: true });
@@ -237,10 +257,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   let plan: PlanCode = (session.metadata?.plan as PlanCode) || 'professional';
   
   // If no plan in metadata, try to get from subscription
+  let subscription: Stripe.Subscription | null = null;
   if (session.subscription && typeof session.subscription === 'string') {
     try {
       const stripe = getStripe();
-      const subscription = await stripe.subscriptions.retrieve(session.subscription);
+      subscription = await stripe.subscriptions.retrieve(session.subscription);
       const priceId = subscription.items.data[0]?.price?.id;
       if (priceId) {
         plan = getPlanFromPriceId(priceId);
@@ -250,24 +271,53 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     }
   }
 
-  // Save payment record
-  const paymentData = {
-    id: session.id,
-    amount: session.amount_total || 0,
-    currency: session.currency || 'usd',
-    status: session.payment_status === 'paid' ? 'succeeded' : 'pending',
-    description: 'Subscription payment',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    stripeSessionId: session.id,
-    stripeCustomerId: session.customer as string,
-  };
+  // For starter plan with trial, set trial dates
+  if (plan === 'starter' && subscription) {
+    const trialStart = subscription.trial_start 
+      ? new Date(subscription.trial_start * 1000)
+      : admin.firestore.Timestamp.now().toDate();
+    const trialEnd = subscription.trial_end 
+      ? new Date(subscription.trial_end * 1000)
+      : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days from now
 
-  await admin.firestore()
-    .collection('agencies')
-    .doc(agencyId)
-    .collection('payments')
-    .doc(session.id)
-    .set(paymentData);
+    await admin.firestore().doc(`agencies/${agencyId}`).update({
+      plan: 'starter',
+      planType: 'free',
+      subscriptionStatus: subscription.status === 'trialing' ? 'trialing' : 'active',
+      stripeSubscriptionId: subscription.id,
+      trialStartDate: admin.firestore.Timestamp.fromDate(trialStart),
+      trialEndDate: admin.firestore.Timestamp.fromDate(trialEnd),
+      subscriptionStartDate: subscription.current_period_start 
+        ? admin.firestore.Timestamp.fromDate(new Date(subscription.current_period_start * 1000))
+        : admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Apply starter plan configuration
+    await applyPlanToAgency(agencyId, 'starter', subscription.id);
+    return;
+  }
+
+  // Save payment record (for paid plans)
+  if (session.amount_total && session.amount_total > 0) {
+    const paymentData = {
+      id: session.id,
+      amount: session.amount_total || 0,
+      currency: session.currency || 'usd',
+      status: session.payment_status === 'paid' ? 'succeeded' : 'pending',
+      description: 'Subscription payment',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      stripeSessionId: session.id,
+      stripeCustomerId: session.customer as string,
+    };
+
+    await admin.firestore()
+      .collection('agencies')
+      .doc(agencyId)
+      .collection('payments')
+      .doc(session.id)
+      .set(paymentData);
+  }
 
   // Apply plan configuration to agency
   await applyPlanToAgency(agencyId, plan, session.subscription as string);
@@ -293,13 +343,38 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   
   const plan = getPlanFromPriceId(priceId);
   
-  // Only update if subscription is active or trialing
+  // Handle different subscription statuses
   if (subscription.status === 'active' || subscription.status === 'trialing') {
+    // For starter plan, update trial dates
+    if (plan === 'starter') {
+      const trialStart = subscription.trial_start 
+        ? admin.firestore.Timestamp.fromDate(new Date(subscription.trial_start * 1000))
+        : admin.firestore.FieldValue.serverTimestamp();
+      const trialEnd = subscription.trial_end 
+        ? admin.firestore.Timestamp.fromDate(new Date(subscription.trial_end * 1000))
+        : admin.firestore.FieldValue.serverTimestamp();
+
+      await admin.firestore().doc(`agencies/${agencyId}`).update({
+        plan: 'starter',
+        planType: subscription.status === 'trialing' ? 'free' : 'paid',
+        subscriptionStatus: subscription.status === 'trialing' ? 'trialing' : 'active',
+        stripeSubscriptionId: subscription.id,
+        trialStartDate: trialStart,
+        trialEndDate: trialEnd,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
     await applyPlanToAgency(agencyId, plan, subscription.id);
   } else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
     // Keep plan but update status
     await admin.firestore().doc(`agencies/${agencyId}`).update({
       subscriptionStatus: 'past_due',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else if (subscription.status === 'canceled' || subscription.status === 'incomplete_expired') {
+    // Trial expired or subscription canceled - restrict access
+    await admin.firestore().doc(`agencies/${agencyId}`).update({
+      subscriptionStatus: 'expired',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
@@ -421,5 +496,32 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     subscriptionStatus: 'cancelled',
     stripeSubscriptionId: null,
   });
+}
+
+async function handleTrialWillEnd(subscription: Stripe.Subscription) {
+  const customerId = subscription.customer as string;
+  
+  const agenciesSnapshot = await admin.firestore()
+    .collection('agencies')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get();
+
+  if (agenciesSnapshot.empty) return;
+
+  const agencyId = agenciesSnapshot.docs[0].id;
+
+  // Update trial end date and notify that payment will be required
+  const trialEnd = subscription.trial_end 
+    ? admin.firestore.Timestamp.fromDate(new Date(subscription.trial_end * 1000))
+    : admin.firestore.FieldValue.serverTimestamp();
+
+  await admin.firestore().doc(`agencies/${agencyId}`).update({
+    trialEndDate: trialEnd,
+    subscriptionStatus: 'trialing',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // TODO: Send notification email to user about trial ending
 }
 

@@ -46,11 +46,8 @@ export function CheckoutButton({
       return;
     }
 
-    // Don't allow checkout for starter plan (it's free)
-    if (plan === 'starter') {
-      toast.error('Starter plan is free and does not require payment');
-      return;
-    }
+    // Starter plan now requires checkout for 14-day trial (no payment upfront)
+    // Allow checkout for starter plan
 
     setLoading(true);
     try {

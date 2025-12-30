@@ -151,13 +151,15 @@ export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
  * Stripe Product and Price IDs
  */
 const STRIPE_PRICE_IDS = {
+  starter: 'price_1Sjo4GELOV3w2OwuKyZUZNXh', // $15/month with 14-day trial
   professional: 'price_1SbPCBELOV3w2OwuwlZDaIwz', // $35/month
-  enterprise: 'price_1ShY04ELOV3w2OwuftyGsVwD', // $120/month
+  enterprise: 'price_1SjoB7ELOV3w2OwuNNfd1EVh', // $499.99/month
 } as const;
 
 const STRIPE_PRODUCT_IDS = {
+  starter: 'prod_ThCTnpdWau2YYr', // $15/month product with trial
   professional: 'prod_TYWEIL2gnwQmvD', // $35/month product
-  enterprise: 'prod_TerjZdXL909Mxh', // $125/month product
+  enterprise: 'prod_ThCapj7gZp8XWq', // $499.99/month product
 } as const;
 
 /**
@@ -166,7 +168,7 @@ const STRIPE_PRODUCT_IDS = {
 export function getPriceIdForPlan(plan: PlanCode): string | null {
   switch (plan) {
     case 'starter':
-      return null; // Starter is free, no Stripe price
+      return STRIPE_PRICE_IDS.starter; // $15/month with 14-day trial
     case 'professional':
       return STRIPE_PRICE_IDS.professional;
     case 'enterprise':
@@ -182,7 +184,7 @@ export function getPriceIdForPlan(plan: PlanCode): string | null {
 export function getProductIdForPlan(plan: PlanCode): string | null {
   switch (plan) {
     case 'starter':
-      return null; // Starter is free, no Stripe product
+      return STRIPE_PRODUCT_IDS.starter; // $15/month with 14-day trial
     case 'professional':
       return STRIPE_PRODUCT_IDS.professional;
     case 'enterprise':
@@ -198,6 +200,7 @@ export function getProductIdForPlan(plan: PlanCode): string | null {
 export function getPlanFromPriceId(priceId: string): PlanCode {
   if (!priceId) return 'starter';
   
+  if (priceId === STRIPE_PRICE_IDS.starter) return 'starter';
   if (priceId === STRIPE_PRICE_IDS.professional) return 'professional';
   if (priceId === STRIPE_PRICE_IDS.enterprise) return 'enterprise';
   

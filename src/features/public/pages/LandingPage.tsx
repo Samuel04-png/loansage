@@ -560,9 +560,12 @@ export function LandingPage() {
                       <span className="text-xl text-slate-600">/month</span>
                     </div>
                     {planCode === 'starter' && (
-                      <p className="text-sm text-slate-500">Free trial • Upgrade anytime</p>
+                      <p className="text-sm text-slate-500">14-day free trial • Then ${planConfig.price}/month</p>
                     )}
-                    {planCode !== 'starter' && (
+                    {planCode === 'enterprise' && (
+                      <p className="text-sm text-slate-500">Starting at ${planConfig.price}/month • Contact Sales</p>
+                    )}
+                    {planCode !== 'starter' && planCode !== 'enterprise' && (
                       <p className="text-sm text-slate-500">Billed monthly • Cancel anytime</p>
                     )}
                   </div>
@@ -588,7 +591,7 @@ export function LandingPage() {
                             : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
                         } transition-all`}
                       >
-                        {planCode === 'starter' ? 'Start Free Trial' : 'Subscribe Now'}
+                        {planCode === 'starter' ? 'Start 14-Day Free Trial' : planCode === 'enterprise' ? 'Contact Sales' : 'Subscribe Now'}
                         <ArrowRight className="ml-2 w-4 h-4" />
                       </Button>
                     </Link>

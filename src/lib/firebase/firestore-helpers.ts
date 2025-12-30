@@ -226,7 +226,7 @@ export async function createAgency(data: {
   
   const now = new Date();
   const trialEnd = new Date(now);
-  trialEnd.setDate(trialEnd.getDate() + 30); // 30 days free trial
+  trialEnd.setDate(trialEnd.getDate() + 14); // 14 days free trial
 
   await setDoc(agencyRef, {
     ...data,
@@ -234,6 +234,7 @@ export async function createAgency(data: {
     name: data.name, // Ensure name is explicitly set
     logoURL: data.logoURL || null,
     logo_url: data.logoURL || null, // Also set logo_url for compatibility
+    plan: 'starter', // Set plan to starter
     planType: 'free',
     subscriptionStatus: 'trialing',
     trialStartDate: serverTimestamp(),

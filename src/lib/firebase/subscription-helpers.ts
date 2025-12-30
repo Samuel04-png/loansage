@@ -1,6 +1,6 @@
 /**
  * Subscription and Plan Management Helpers
- * Handles free trial (30 days) and paid plan logic
+ * Handles free trial (14 days) and paid plan logic
  */
 
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -33,7 +33,7 @@ export function isFreePlan(subscription: AgencySubscription | null): boolean {
     return false;
   }
   
-  // If on free plan, check if trial is still valid (30 days)
+  // If on free plan, check if trial is still valid (14 days)
   if (subscription.planType === 'free' || !subscription.planType) {
     if (subscription.trialEndDate) {
       const trialEnd = subscription.trialEndDate instanceof Date 
@@ -41,13 +41,13 @@ export function isFreePlan(subscription: AgencySubscription | null): boolean {
         : new Date(subscription.trialEndDate);
       return new Date() < trialEnd;
     }
-    // If no trial end date, check if created within last 30 days
+    // If no trial end date, check if created within last 14 days
     if (subscription.trialStartDate) {
       const trialStart = subscription.trialStartDate instanceof Date 
         ? subscription.trialStartDate 
         : new Date(subscription.trialStartDate);
       const daysSinceStart = (Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24);
-      return daysSinceStart < 30;
+      return daysSinceStart < 14;
     }
     // Default: assume free trial if no dates set
     return true;
@@ -201,15 +201,32 @@ export function getAgencyPlanStatus(agency: any): {
   let isTrialing = false;
   let isExpired = false;
 
-  if (planType === 'free' && agency.trialEndDate) {
+  // Check if on starter plan with trial
+  const isStarterPlan = agency.plan === 'starter' || planType === 'free';
+  
+  if (isStarterPlan && agency.trialEndDate) {
     const now = new Date();
     const trialEnd = agency.trialEndDate?.toDate?.() || agency.trialEndDate;
     const trialEndDate = trialEnd instanceof Date ? trialEnd : new Date(trialEnd);
     const diffTime = trialEndDate.getTime() - now.getTime();
     daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    isTrialing = daysRemaining > 0;
-    isExpired = daysRemaining <= 0;
+    isTrialing = daysRemaining > 0 && subscriptionStatus === 'trialing';
+    isExpired = daysRemaining <= 0 || (subscriptionStatus === 'expired' || subscriptionStatus === 'cancelled');
+    
+    // If trial expired and no active subscription, mark as expired
+    if (daysRemaining <= 0 && subscriptionStatus !== 'active') {
+      isExpired = true;
+    }
+  } else if (isStarterPlan && !agency.trialEndDate) {
+    // Legacy user without trial end date - check if they have an active subscription
+    if (subscriptionStatus === 'active' && agency.stripeSubscriptionId) {
+      isTrialing = false;
+      isExpired = false;
+    } else {
+      // No trial date and no active subscription - expired
+      isExpired = true;
+    }
   }
 
   return {
@@ -222,17 +239,43 @@ export function getAgencyPlanStatus(agency: any): {
 }
 
 /**
- * Initialize free trial for a new agency
+ * Check if agency has access (trial not expired or has active subscription)
+ */
+export function hasAccess(agency: any): boolean {
+  if (!agency) return false;
+  
+  const status = getAgencyPlanStatus(agency);
+  
+  // Has access if:
+  // 1. On paid plan with active subscription
+  // 2. On starter plan with active trial (days remaining > 0)
+  // 3. On starter plan with active subscription (trial ended but payment added)
+  
+  if (status.planType === 'paid' && status.subscriptionStatus === 'active') {
+    return true;
+  }
+  
+  if (status.planType === 'free' || agency.plan === 'starter') {
+    // Starter plan: access if trialing OR has active subscription
+    return status.isTrialing || status.subscriptionStatus === 'active';
+  }
+  
+  return false;
+}
+
+/**
+ * Initialize free trial for a new agency (14 days)
  */
 export async function initializeFreeTrial(agencyId: string): Promise<void> {
   try {
     const agencyRef = doc(db, 'agencies', agencyId);
     const now = new Date();
     const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + 30); // 30 days from now
+    trialEnd.setDate(trialEnd.getDate() + 14); // 14 days from now
     
     await updateDoc(agencyRef, {
       planType: 'free',
+      plan: 'starter', // Set plan to starter
       subscriptionStatus: 'trialing',
       trialStartDate: serverTimestamp(),
       trialEndDate: serverTimestamp(),

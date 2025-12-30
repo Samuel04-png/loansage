@@ -35,7 +35,7 @@ export interface PlanConfig {
 export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
   starter: {
     name: 'Starter',
-    price: 0,
+    price: 15,
     description: 'Core loan CRM with on-demand insights and manual workflows',
     limits: {
       loanTypeLimit: null,
@@ -79,7 +79,7 @@ export const PLAN_CONFIG: Record<PlanCode, PlanConfig> = {
   },
   enterprise: {
     name: 'Enterprise',
-    price: 120,
+    price: 499.99,
     description: 'For large organizations',
     limits: {
       loanTypeLimit: null,

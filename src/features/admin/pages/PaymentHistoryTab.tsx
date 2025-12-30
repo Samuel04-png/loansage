@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
+import { useAgency } from '../../../hooks/useAgency';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { History, CreditCard, CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
@@ -11,6 +12,7 @@ import { CheckoutButton } from '../../../components/stripe/CheckoutButton';
 
 export function PaymentHistoryTab() {
   const { profile } = useAuth();
+  const { agency } = useAgency();
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ['payment-history', profile?.agency_id],
@@ -60,8 +62,16 @@ export function PaymentHistoryTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-500 mb-1">Current Plan</p>
-              <p className="text-2xl font-bold text-neutral-900">Professional</p>
-              <p className="text-sm text-neutral-500 mt-1">$35/month</p>
+              <p className="text-2xl font-bold text-neutral-900">
+                {agency?.plan ? agency.plan.charAt(0).toUpperCase() + agency.plan.slice(1) : 'Starter'}
+              </p>
+              <p className="text-sm text-neutral-500 mt-1">
+                {agency?.plan === 'starter' 
+                  ? '$15/month' 
+                  : agency?.plan === 'enterprise'
+                  ? '$499.99/month'
+                  : '$35/month'}
+              </p>
             </div>
             <div className="p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-500 mb-1">Total Paid</p>
