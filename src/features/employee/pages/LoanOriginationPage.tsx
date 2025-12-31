@@ -101,6 +101,12 @@ export function LoanOriginationPage() {
     ? buildLoanFlow(loanTypeTemplate, currentLoanTypeConfig)
     : [];
 
+  // Determine if collateral is needed based on loan type config
+  const needsCollateral = currentLoanTypeConfig 
+    ? currentLoanTypeConfig.collateralRequirement === 'required' || 
+      (loanTypeTemplate?.rules?.requiresCollateral === true)
+    : false;
+
   // Get current step ID from flow
   const currentStepId = loanFlowSteps.length > 0 && step > 0 && step <= loanFlowSteps.length
     ? loanFlowSteps[step - 1]?.id

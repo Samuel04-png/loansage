@@ -118,7 +118,21 @@ export function EmployeeLayout() {
   };
 
   const navItems = getNavItems();
-  const activePath = location.pathname.split('/')[2] || 'dashboard';
+  
+  // Better active path detection - match by actual path
+  const getActivePath = () => {
+    const path = location.pathname;
+    // Find the nav item that matches the current path
+    const activeItem = navItems.find(item => {
+      if (item.path === path) return true;
+      // For nested paths, check if current path starts with item path
+      if (path.startsWith(item.path) && item.path !== '/employee/dashboard') return true;
+      return false;
+    });
+    return activeItem?.id || 'dashboard';
+  };
+  
+  const activePath = getActivePath();
 
   const handleSignOut = async () => {
     try {

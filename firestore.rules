@@ -39,6 +39,11 @@ service cloud.firestore {
       return isAdmin() || isEmployee() || userRole == 'loan_officer' || employeeCategory == 'loan_officer';
     }
     
+    function getUserEmployeeCategory() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && userDoc.data != null ? userDoc.data.employee_category : null;
+    }
+    
     function belongsToAgency(agencyId) {
       let userAgencyId = getUserAgencyId();
       return userAgencyId == agencyId;
@@ -382,6 +387,41 @@ service cloud.firestore {
         allow create: if isAuthenticated() && belongsToAgency(agencyId);
         allow update: if false; // Import logs are immutable
         allow delete: if false; // Import logs cannot be deleted
+      }
+      
+      // Tasks subcollection
+      match /tasks/{taskId} {
+        // Allow read if:
+        // 1. User belongs to agency and is assigned to the task, OR
+        // 2. User is admin/manager (can see all tasks), OR
+        // 3. User assigned the task
+        allow read: if isAuthenticated() && belongsToAgency(agencyId) && (
+          (resource != null && resource.data.assignedToUserId == request.auth.uid) ||
+          (resource != null && resource.data.assignedByUserId == request.auth.uid) ||
+          isAdmin() ||
+          (getUserRole() == 'employee' && getUserEmployeeCategory() == 'manager')
+        );
+        
+        // Allow create if user belongs to agency and is admin/manager
+        allow create: if isAuthenticated() && belongsToAgency(agencyId) && (
+          isAdmin() ||
+          (getUserRole() == 'employee' && getUserEmployeeCategory() == 'manager')
+        );
+        
+        // Allow update if:
+        // 1. User is assigned to the task (can update status), OR
+        // 2. User is admin/manager (can update any task)
+        allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
+          (resource != null && resource.data.assignedToUserId == request.auth.uid) ||
+          isAdmin() ||
+          (getUserRole() == 'employee' && getUserEmployeeCategory() == 'manager')
+        );
+        
+        // Allow delete if user is admin/manager
+        allow delete: if isAuthenticated() && belongsToAgency(agencyId) && (
+          isAdmin() ||
+          (getUserRole() == 'employee' && getUserEmployeeCategory() == 'manager')
+        );
       }
     }
     

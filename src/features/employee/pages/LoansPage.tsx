@@ -21,11 +21,15 @@ export function EmployeeLoansPage() {
   const { agency } = useAgency();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [viewAllLoans, setViewAllLoans] = useState(false); // Toggle for viewing all loans
 
   // Get user role
   const userRole = (profile?.employee_category === 'loan_officer' ? UserRole.LOAN_OFFICER :
                    profile?.role === 'admin' ? UserRole.ADMIN :
                    UserRole.LOAN_OFFICER) as UserRole;
+  
+  // Check if user is Loan Officer
+  const isLoanOfficer = profile?.employee_category === 'loan_officer';
 
   // Find employee by user ID
   const { data: employee } = useQuery({
@@ -44,32 +48,53 @@ export function EmployeeLoansPage() {
   });
 
   const { data: loans, isLoading } = useQuery({
-    queryKey: ['employee-loans', employee?.id, profile?.agency_id, statusFilter],
+    queryKey: ['employee-loans', employee?.id, profile?.agency_id, statusFilter, viewAllLoans],
     queryFn: async () => {
       if (!employee?.id || !profile?.agency_id) return [];
 
       const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-      let q = firestoreQuery(
-        loansRef,
-        where('officerId', '==', user?.id),
-        orderBy('createdAt', 'desc')
-      );
-
-      if (statusFilter !== 'all') {
-        q = firestoreQuery(
-          loansRef,
-          where('officerId', '==', user?.id),
-          where('status', '==', statusFilter),
-          orderBy('createdAt', 'desc')
-        );
+      
+      // Build query based on viewAllLoans toggle
+      let q;
+      if (viewAllLoans && isLoanOfficer) {
+        // View all loans in the agency (for Loan Officers)
+        if (statusFilter !== 'all') {
+          q = firestoreQuery(
+            loansRef,
+            where('status', '==', statusFilter),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          q = firestoreQuery(loansRef, orderBy('createdAt', 'desc'));
+        }
+      } else {
+        // Default: only show loans assigned to this officer
+        if (statusFilter !== 'all') {
+          q = firestoreQuery(
+            loansRef,
+            where('officerId', '==', user?.id),
+            where('status', '==', statusFilter),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          q = firestoreQuery(
+            loansRef,
+            where('officerId', '==', user?.id),
+            orderBy('createdAt', 'desc')
+          );
+        }
       }
 
       const snapshot = await getDocs(q);
-      const loansData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-      }));
+      const loansData = snapshot.docs.map(doc => {
+        const loanData = doc.data();
+        return {
+          id: doc.id,
+          ...loanData,
+          createdAt: loanData.createdAt?.toDate?.() || loanData.createdAt,
+          isOwnLoan: loanData.officerId === user?.id, // Track if this is the officer's own loan
+        };
+      });
 
       // Fetch customer details for each loan
       const loansWithCustomers = await Promise.all(
@@ -126,7 +151,7 @@ export function EmployeeLoansPage() {
 
       <Card>
         <CardHeader className="p-4 border-b border-slate-100 dark:border-neutral-700">
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <div className="relative flex-1 max-w-md">
               <Input
                 placeholder="Search by loan number or customer..."
@@ -149,6 +174,15 @@ export function EmployeeLoansPage() {
               <option value="paid">Paid</option>
               <option value="defaulted">Defaulted</option>
             </select>
+            {isLoanOfficer && (
+              <Button
+                variant={viewAllLoans ? "default" : "outline"}
+                onClick={() => setViewAllLoans(!viewAllLoans)}
+                className="whitespace-nowrap"
+              >
+                {viewAllLoans ? "View My Loans" : "View All Loans"}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -168,7 +202,12 @@ export function EmployeeLoansPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold text-slate-900 dark:text-neutral-100">{loan.loanNumber || loan.id}</h3>
-                        {getStatusBadge(loan.status)}
+                        <LoanStatusBadge status={loan.status as LoanStatus} />
+                        {isLoanOfficer && !loan.isOwnLoan && (
+                          <Badge variant="outline" className="text-xs">
+                            Read-Only
+                          </Badge>
+                        )}
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
