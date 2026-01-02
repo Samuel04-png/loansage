@@ -9,7 +9,8 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { createCustomer, generateCustomerId } from '../../../lib/firebase/firestore-helpers';
+import { createCustomer } from '../../../lib/firebase/firestore-helpers';
+import { generateCustomerId } from '../../../lib/firebase/helpers';
 import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import toast from 'react-hot-toast';
 
