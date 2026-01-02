@@ -81,6 +81,12 @@ export function LoanOriginationPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [uploadingDocs, setUploadingDocs] = useState(false);
+  
+  // Safe defaults for all form states to prevent undefined crashes
+  const safeLoanType = loanType || '';
+  const safeCollateral = collateral || [];
+  const safeDocuments = documents || [];
+  const safeDocumentUrls = documentUrls || [];
 
   // Fetch enabled loan types for this agency
   const { data: enabledLoanTypes = [], isLoading: loadingLoanTypes } = useQuery({
@@ -102,9 +108,10 @@ export function LoanOriginationPage() {
     : [];
 
   // Determine if collateral is needed based on loan type config
+  // Safe defaults to prevent undefined crashes
   const needsCollateral = currentLoanTypeConfig 
-    ? currentLoanTypeConfig.collateralRequirement === 'required' || 
-      (loanTypeTemplate?.rules?.requiresCollateral === true)
+    ? (currentLoanTypeConfig.collateralRequirement === 'required' || 
+       (loanTypeTemplate?.rules?.requiresCollateral === true))
     : false;
 
   // Get current step ID from flow
@@ -169,11 +176,20 @@ export function LoanOriginationPage() {
 
   const borrowerForm = useForm<BorrowerFormData>({
     resolver: zodResolver(borrowerSchema),
+    defaultValues: {
+      fullName: '',
+      email: '',
+      phone: '',
+      nrcNumber: '',
+      dateOfBirth: '',
+      address: '',
+    },
   });
 
   const loanTermsForm = useForm<LoanTermsFormData>({
     resolver: zodResolver(loanTermsSchema),
     defaultValues: {
+      amount: 0,
       currency: 'ZMW',
       interestRate: 15,
       durationMonths: 12,
@@ -312,10 +328,10 @@ export function LoanOriginationPage() {
 
     // Upload documents if any
     let uploadedDocUrls: string[] = [];
-    if (documents.length > 0) {
+    if (safeDocuments.length > 0) {
       setUploadingDocs(true);
       try {
-        const uploadPromises = documents.map(async (file) => {
+        const uploadPromises = safeDocuments.map(async (file) => {
           const fileExt = file.name.split('.').pop();
           const fileName = `${profile?.id}/${Date.now()}-${file.name}`;
           const uploadResult = await storageService.upload('documents', fileName, file);
@@ -397,7 +413,7 @@ export function LoanOriginationPage() {
 
     // Create collateral records
     let collateralIds: string[] = [];
-    if (collateral.length > 0) {
+    if (safeCollateral.length > 0) {
       try {
         const collateralPromises = collateral.map(async (item) => {
           const result = await new Promise<any>((resolve, reject) => {
@@ -431,16 +447,16 @@ export function LoanOriginationPage() {
     }
 
     const loanData = {
-      customer_id: customerId,
-      loan_type: loanType,
-      amount: loanTermsForm.getValues('amount'),
-      currency: loanTermsForm.getValues('currency'),
-      interest_rate: loanTermsForm.getValues('interestRate'),
-      duration_months: loanTermsForm.getValues('durationMonths'),
-      repayment_frequency: loanTermsForm.getValues('repaymentFrequency'),
-      collateral_ids: collateralIds,
-      document_urls: uploadedDocUrls,
-      ai_analysis: aiAnalysis,
+      customer_id: customerId || '',
+      loan_type: safeLoanType || '',
+      amount: loanTermsForm.getValues('amount') || 0,
+      currency: loanTermsForm.getValues('currency') || 'ZMW',
+      interest_rate: loanTermsForm.getValues('interestRate') || 15,
+      duration_months: loanTermsForm.getValues('durationMonths') || 12,
+      repayment_frequency: loanTermsForm.getValues('repaymentFrequency') || 'monthly',
+      collateral_ids: collateralIds || [],
+      document_urls: uploadedDocUrls || [],
+      ai_analysis: aiAnalysis || null,
     };
 
     createLoan.mutate(loanData);
@@ -451,18 +467,18 @@ export function LoanOriginationPage() {
     try {
       const analysis = await analyzeLoanRisk(
         {
-          amount: loanTermsForm.getValues('amount'),
-          currency: loanTermsForm.getValues('currency'),
-          interestRate: loanTermsForm.getValues('interestRate'),
-          durationMonths: loanTermsForm.getValues('durationMonths'),
-          collateral: collateral,
-          loanType: loanType,
-          loan_type: loanType, // For compatibility
+          amount: loanTermsForm.getValues('amount') || 0,
+          currency: loanTermsForm.getValues('currency') || 'ZMW',
+          interestRate: loanTermsForm.getValues('interestRate') || 15,
+          durationMonths: loanTermsForm.getValues('durationMonths') || 12,
+          collateral: safeCollateral,
+          loanType: safeLoanType,
+          loan_type: safeLoanType, // For compatibility
         } as any,
         {
-          name: selectedCustomer?.users?.full_name || borrowerForm.getValues('fullName'),
+          name: selectedCustomer?.users?.full_name || borrowerForm.getValues('fullName') || '',
           riskScore: selectedCustomer?.risk_score || 70,
-          nrcNumber: selectedCustomer?.nrc_number || borrowerForm.getValues('nrcNumber'),
+          nrcNumber: selectedCustomer?.nrc_number || borrowerForm.getValues('nrcNumber') || '',
         } as any
       );
       setAiAnalysis(analysis);
@@ -1056,7 +1072,7 @@ export function LoanOriginationPage() {
           )}
 
           {/* Step 5: Collateral (only shown if required) */}
-          {step === 5 && needsCollateral && (
+              {step === 5 && needsCollateral && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1081,7 +1097,7 @@ export function LoanOriginationPage() {
                       estimated_value: 0,
                       currency: 'ZMW',
                     };
-                    setCollateral([...collateral, newCollateral]);
+                    setCollateral([...safeCollateral, newCollateral]);
                   }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -1089,7 +1105,7 @@ export function LoanOriginationPage() {
                 </Button>
               </div>
               <AnimatePresence>
-                {collateral.map((item, index) => (
+                {safeCollateral.map((item, index) => (
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1103,7 +1119,7 @@ export function LoanOriginationPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setCollateral(collateral.filter((_, i) => i !== index))}
+                        onClick={() => setCollateral(safeCollateral.filter((_, i) => i !== index))}
                         className="text-destructive hover:text-destructive"
                       >
                         <X className="w-4 h-4" />
@@ -1115,11 +1131,11 @@ export function LoanOriginationPage() {
                         <select
                           className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           value={item.type}
-                          onChange={(e) => {
-                            const updated = [...collateral];
-                            updated[index].type = e.target.value;
-                            setCollateral(updated);
-                          }}
+                            onChange={(e) => {
+                              const updated = [...safeCollateral];
+                              updated[index].type = e.target.value;
+                              setCollateral(updated);
+                            }}
                         >
                           <option value="vehicle">Vehicle</option>
                           <option value="property">Property</option>
@@ -1137,8 +1153,8 @@ export function LoanOriginationPage() {
                             className="pl-10 h-11"
                             value={item.estimated_value}
                             onChange={(e) => {
-                              const updated = [...collateral];
-                              updated[index].estimated_value = Number(e.target.value);
+                              const updated = [...safeCollateral];
+                              updated[index].estimated_value = Number(e.target.value) || 0;
                               setCollateral(updated);
                             }}
                             placeholder="0"
@@ -1151,8 +1167,8 @@ export function LoanOriginationPage() {
                       <Input
                         value={item.description}
                         onChange={(e) => {
-                          const updated = [...collateral];
-                          updated[index].description = e.target.value;
+                          const updated = [...safeCollateral];
+                          updated[index].description = e.target.value || '';
                           setCollateral(updated);
                         }}
                         placeholder="Describe the collateral (e.g., Make, Model, Condition)..."
@@ -1162,7 +1178,7 @@ export function LoanOriginationPage() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {collateral.length === 0 && (
+              {safeCollateral.length === 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -1206,7 +1222,7 @@ export function LoanOriginationPage() {
                   onChange={(e) => {
                     if (e.target.files) {
                       const newFiles = Array.from(e.target.files);
-                      setDocuments([...documents, ...newFiles]);
+                      setDocuments([...safeDocuments, ...newFiles]);
                     }
                   }}
                   className="hidden"
@@ -1218,13 +1234,13 @@ export function LoanOriginationPage() {
                   </Button>
                 </Label>
               </motion.div>
-              {documents.length > 0 && (
+              {safeDocuments.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="space-y-2"
                 >
-                  {documents.map((doc, index) => (
+                  {safeDocuments.map((doc, index) => (
                     <motion.div
                       key={index}
                       initial={{ opacity: 0, x: -20 }}
@@ -1246,7 +1262,7 @@ export function LoanOriginationPage() {
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setDocuments(documents.filter((_, i) => i !== index))}
+                        onClick={() => setDocuments(safeDocuments.filter((_, i) => i !== index))}
                         className="text-destructive hover:text-destructive"
                       >
                         <X className="w-4 h-4" />
@@ -1406,7 +1422,7 @@ export function LoanOriginationPage() {
                       <div className="space-y-3 text-sm">
                         <div className="flex justify-between">
                           <span className="font-medium text-muted-foreground">Type:</span>
-                          <Badge className="capitalize">{loanType}</Badge>
+                          <Badge className="capitalize">{safeLoanType || 'N/A'}</Badge>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium text-muted-foreground">Amount:</span>
@@ -1417,19 +1433,19 @@ export function LoanOriginationPage() {
                         <div className="flex justify-between">
                           <span className="font-medium text-muted-foreground">Interest Rate:</span>
                           <span className="font-semibold text-foreground">
-                            {loanTermsForm.getValues('interestRate')}%
+                            {loanTermsForm.getValues('interestRate') || 0}%
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium text-muted-foreground">Duration:</span>
                           <span className="font-semibold text-foreground">
-                            {loanTermsForm.getValues('durationMonths')} months
+                            {loanTermsForm.getValues('durationMonths') || 0} months
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium text-muted-foreground">Frequency:</span>
                           <span className="font-semibold text-foreground capitalize">
-                            {loanTermsForm.getValues('repaymentFrequency')}
+                            {loanTermsForm.getValues('repaymentFrequency') || 'monthly'}
                           </span>
                         </div>
                       </div>
@@ -1438,7 +1454,7 @@ export function LoanOriginationPage() {
                 </motion.div>
               </div>
 
-              {collateral.length > 0 && (
+              {safeCollateral.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1448,12 +1464,12 @@ export function LoanOriginationPage() {
                     <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
                       <CardTitle className="text-lg flex items-center gap-2">
                         <ShieldAlert className="w-5 h-5" />
-                        Collateral ({collateral.length} {collateral.length === 1 ? 'item' : 'items'})
+                        Collateral ({safeCollateral.length} {safeCollateral.length === 1 ? 'item' : 'items'})
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
                       <div className="space-y-3">
-                        {collateral.map((item, index) => (
+                        {safeCollateral.map((item, index) => (
                           <div
                             key={index}
                             className="flex justify-between items-center p-3 bg-muted rounded-lg border"
@@ -1465,7 +1481,7 @@ export function LoanOriginationPage() {
                               )}
                             </div>
                             <span className="font-bold text-lg text-foreground">
-                              {formatCurrency(item.estimated_value)}
+                              {formatCurrency(item?.estimated_value || 0)}
                             </span>
                           </div>
                         ))}
@@ -1474,7 +1490,7 @@ export function LoanOriginationPage() {
                             <span>Total Collateral Value:</span>
                             <span className="text-lg">
                               {formatCurrency(
-                                collateral.reduce((sum, item) => sum + (item.estimated_value || 0), 0)
+                                safeCollateral.reduce((sum, item) => sum + (item?.estimated_value || 0), 0)
                               )}
                             </span>
                           </div>
@@ -1485,7 +1501,7 @@ export function LoanOriginationPage() {
                 </motion.div>
               )}
 
-              {documents.length > 0 && (
+              {safeDocuments.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1495,19 +1511,19 @@ export function LoanOriginationPage() {
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <FileText className="w-5 h-5" />
-                        Documents ({documents.length})
+                        Documents ({safeDocuments.length})
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
-                        {documents.map((doc, index) => (
+                        {safeDocuments.map((doc, index) => (
                           <div
                             key={index}
                             className="flex items-center justify-between p-2 bg-muted rounded border"
                           >
-                            <span className="text-sm text-foreground truncate flex-1">{doc.name}</span>
+                            <span className="text-sm text-foreground truncate flex-1">{doc?.name || 'Unknown'}</span>
                             <Badge variant="outline" className="ml-2">
-                              {(doc.size / 1024).toFixed(1)} KB
+                              {((doc?.size || 0) / 1024).toFixed(1)} KB
                             </Badge>
                           </div>
                         ))}

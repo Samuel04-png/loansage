@@ -200,15 +200,22 @@ service cloud.firestore {
           request.resource.data.createdBy == request.auth.uid
         );
         // Allow update if:
-        // 1. User belongs to agency, OR
+        // 1. User belongs to agency (loan officers, admins, employees can update), OR
         // 2. User is linking themselves to the customer record (for invitation acceptance)
         //    - Allow ANY authenticated user to update if they're setting userId to their own uid
         //    - This is safe because you can only link yourself to a customer, not others
         allow update: if isAuthenticated() && (
-          belongsToAgency(agencyId) ||
+          (belongsToAgency(agencyId) && (isLoanOfficer() || isAdmin() || isEmployee())) ||
           request.resource.data.userId == request.auth.uid
         );
-        allow delete: if isAuthenticated() && (belongsToAgency(agencyId) || (resource != null && resource.data.userId == request.auth.uid));
+        // Allow delete if:
+        // 1. User belongs to agency AND is loan officer/admin/employee, OR
+        // 2. User is deleting their own customer record
+        // Note: Active loan check is done in Cloud Functions - rules only check permissions
+        allow delete: if isAuthenticated() && (
+          (belongsToAgency(agencyId) && (isLoanOfficer() || isAdmin() || isEmployee())) ||
+          (resource != null && resource.data.userId == request.auth.uid)
+        );
         
         // Customer documents subcollection
         match /documents/{documentId} {
@@ -238,22 +245,39 @@ service cloud.firestore {
         // - Accountants can update status and financial fields for active loans
         // - Loan officers can update loans they manage (status changes, disbursement, payments)
         // - Employees with agency access can update loan status and record payments
+        // - For DRAFT loans: loan officers can edit all fields
+        // - For other statuses: only status changes and workflow actions allowed
         allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
           // Admin can update any loan
           isAdmin() ||
           // Accountant can update any loan status and financial fields
           isAccountant() ||
           // Loan officer can update loans for workflow actions (approve, reject, disburse, close)
-          isLoanOfficer() ||
+          // OR if loan is in DRAFT status (can edit all fields)
+          (isLoanOfficer() && (
+            resource.data.status == 'draft' ||
+            resource.data.status == null ||
+            resource.data.status == ''
+          )) ||
           // Any employee with agency access can update (for bulk operations and status changes)
           isEmployee()
         );
         
         // Delete rules:
+        // - Only DRAFT or REJECTED loans can be deleted
         // - Admins can delete any loan
-        // - Loan officers/accountants can delete (soft-delete) for bulk operations
-        // - Actual deletion is typically a soft-delete (setting status to 'deleted' or 'isDeleted: true')
-        allow delete: if isAuthenticated() && (isAdmin() || isLoanOfficer() || isAccountant()) && belongsToAgency(agencyId);
+        // - Loan officers can delete DRAFT/REJECTED loans
+        // - Accountants can delete DRAFT/REJECTED loans
+        // Note: Repayment check is done in Cloud Functions - rules only check status and permissions
+        allow delete: if isAuthenticated() && belongsToAgency(agencyId) && (
+          // Admin can delete any loan
+          isAdmin() ||
+          // Loan officers/accountants can only delete DRAFT or REJECTED loans
+          ((isLoanOfficer() || isAccountant()) && 
+           resource != null && 
+           resource.data != null && 
+           (resource.data.status == 'draft' || resource.data.status == 'rejected'))
+        );
         
         // Loan documents subcollection
         match /documents/{documentId} {

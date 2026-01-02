@@ -46,3 +46,6 @@ export {
   resolveAlert 
 } from './ai-alerts';
 export { onAgencyCreate } from './agency-triggers';
+export { validateCustomerDelete } from './validate-customer-delete';
+export { validateLoanDelete } from './validate-loan-delete';
+export { validateLoanUpdate } from './validate-loan-update';

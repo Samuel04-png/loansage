@@ -60,7 +60,7 @@ import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { LoanStatusDialog } from '../components/LoanStatusDialog';
 import { RepaymentSection } from '../../../components/repayment/RepaymentSection';
 import { AddPaymentDialog } from '../../../components/payment/AddPaymentDialog';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { calculateLoanFinancials } from '../../../lib/firebase/loan-calculations';
 import { motion } from 'framer-motion';
@@ -74,6 +74,7 @@ import { LoanApprovalDialog } from '../components/LoanApprovalDialog';
 import { LoanStatus, UserRole, getLoanPermissions } from '../../../types/loan-workflow';
 import { submitLoanForReview, disburseLoan } from '../../../lib/loans/workflow';
 import { useAgency } from '../../../hooks/useAgency';
+import { EditLoanDrawer } from '../../employee/components/EditLoanDrawer';
 
 export function LoanDetailPage() {
   const { loanId } = useParams<{ loanId: string }>();
@@ -88,6 +89,7 @@ export function LoanDetailPage() {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<'approve' | 'reject' | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [editLoanDrawerOpen, setEditLoanDrawerOpen] = useState(false);
 
   // Get user role
   const userRole = (profile?.role === 'admin' ? UserRole.ADMIN : 
@@ -331,32 +333,18 @@ export function LoanDetailPage() {
     enabled: !!profile?.agency_id && !!loanId,
   });
 
-  // Delete loan mutation
+  // Delete loan mutation - using helper function
   const deleteLoan = useMutation({
     mutationFn: async () => {
-      if (!profile?.agency_id || !loanId) throw new Error('Missing agency ID or loan ID');
+      if (!profile?.agency_id || !loanId || !user?.id) throw new Error('Missing agency ID, loan ID, or user ID');
       
-      // Soft delete - mark as deleted instead of actually deleting
-      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
-      await updateDoc(loanRef, {
-        deleted: true,
-        deletedAt: serverTimestamp(),
-        deletedBy: user?.id || profile.id,
-        updatedAt: serverTimestamp(),
-      });
-
-      // Create audit log
-      await createAuditLog(profile.agency_id, {
-        actorId: user?.id || profile.id,
-        action: 'delete_loan',
-        targetCollection: 'loans',
-        targetId: loanId,
-        metadata: { softDelete: true },
-      });
+      const { deleteLoan: deleteLoanHelper } = await import('../../../lib/firebase/loan-helpers');
+      await deleteLoanHelper(profile.agency_id, loanId, user.id);
     },
     onSuccess: () => {
       toast.success('Loan deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['loans'] });
+      queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
       navigate('/admin/loans');
     },
     onError: (error: any) => {
@@ -534,6 +522,18 @@ export function LoanDetailPage() {
           </Button>
               )}
 
+              {/* Edit Loan - Show for DRAFT loans or authorized roles */}
+              {permissions.canEdit && (
+                <Button
+                  onClick={() => setEditLoanDrawerOpen(true)}
+                  variant="outline"
+                  className="rounded-xl border-neutral-200 hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Loan
+                </Button>
+              )}
+
               {/* Change Status - Show for non-terminal statuses */}
               {loan.status !== 'closed' && loan.status !== 'rejected' && (
                 <Button
@@ -608,8 +608,23 @@ export function LoanDetailPage() {
                   )
                 )}
 
-                {/* Delete Loan - Admin/Manager only */}
-                {(userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && (
+                {/* Edit Loan - Show for DRAFT loans or authorized roles */}
+                {permissions.canEdit && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setEditLoanDrawerOpen(true);
+                    }}
+                    className="cursor-pointer rounded-lg"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Loan
+                  </DropdownMenuItem>
+                )}
+
+                {/* Delete Loan - Allowed for DRAFT/REJECTED loans or Admin/Manager */}
+                {((loan.status === 'draft' || loan.status === 'rejected') || 
+                  (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER)) && (
                   <DropdownMenuItem
                     onClick={() => setDeleteDialogOpen(true)}
                     className="cursor-pointer text-red-600 focus:text-red-600 rounded-lg"
@@ -1108,13 +1123,26 @@ export function LoanDetailPage() {
           />
       )}
 
+      {/* Edit Loan Drawer */}
+      {loanId && (
+        <EditLoanDrawer
+          open={editLoanDrawerOpen}
+          onOpenChange={setEditLoanDrawerOpen}
+          loanId={loanId}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+            queryClient.invalidateQueries({ queryKey: ['loans'] });
+          }}
+        />
+      )}
+
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="rounded-lg">
           <DialogHeader>
             <DialogTitle>Delete Loan</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this loan? This action will mark the loan as deleted.
-              You can restore it later if needed.
+              Are you sure you want to delete this loan? This action cannot be undone.
+              Only DRAFT or REJECTED loans can be deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1143,8 +1171,8 @@ export function LoanDetailPage() {
                 <>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
-        </>
-      )}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

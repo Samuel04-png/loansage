@@ -2,7 +2,9 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAgency } from '../../../hooks/useAgency';
 import { useWhitelabel } from '../../../lib/whitelabel';
+import { useOfflineStatus } from '../../../hooks/useOfflineStatus';
 import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import {
   DropdownMenu,
@@ -37,12 +39,16 @@ import {
   Folder,
   MessageSquare,
   Settings,
+  Wifi,
+  WifiOff,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
+import { ErrorBoundary } from '../../../components/ErrorBoundary';
 
 export function EmployeeLayout() {
   const location = useLocation();
@@ -50,6 +56,7 @@ export function EmployeeLayout() {
   const { profile, signOut } = useAuth();
   const { agency } = useAgency();
   const { logoUrl, agencyName } = useWhitelabel();
+  const { isOnline, isSyncing, pendingWrites } = useOfflineStatus();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -280,6 +287,26 @@ export function EmployeeLayout() {
 
       {/* Main Content */}
       <main className="flex-1 md:ml-64 flex flex-col min-h-0 overflow-hidden">
+        {/* Offline Banner */}
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-amber-500 dark:bg-amber-600 text-white px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 z-30"
+            >
+              <WifiOff className="w-4 h-4" />
+              <span>Offline Mode - Changes will sync when connection returns</span>
+              {pendingWrites > 0 && (
+                <Badge variant="outline" className="ml-2 bg-amber-600 text-white border-amber-400">
+                  {pendingWrites} pending
+                </Badge>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Header - Reference Style */}
         <header className={cn(
           "h-16 bg-white dark:bg-[#1E293B] border-b border-neutral-200/50 dark:border-neutral-800/50 flex items-center justify-between px-4 sm:px-8 z-20 sticky top-0 transition-all duration-300",
@@ -303,6 +330,27 @@ export function EmployeeLayout() {
           </div>
 
           <div className="flex items-center gap-3 sm:gap-6">
+            {/* Connectivity Indicator */}
+            <div className="flex items-center gap-2">
+              {isOnline ? (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hidden sm:inline">Online</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                  {isSyncing ? (
+                    <Loader2 className="w-3 h-3 text-amber-600 dark:text-amber-400 animate-spin" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  )}
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-300 hidden sm:inline">
+                    {isSyncing ? 'Syncing...' : 'Offline'}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Search - Reference Style */}
             <div className="relative hidden sm:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
@@ -360,7 +408,9 @@ export function EmployeeLayout() {
         {/* Scrollable Area - Reference Style */}
         <div className="flex-1 overflow-y-auto bg-[#F8FAFC] dark:bg-[#0F172A]">
           <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </div>
       </main>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs, query as firestoreQuery, where, orderBy } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
@@ -8,20 +8,47 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Plus, Search, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
+import toast from 'react-hot-toast';
 import { LoanStatusBadge } from '../../../components/loans/LoanStatusBadge';
 import { LoanActionButtons } from '../../../components/loans/LoanActionButtons';
 import { SubmitLoanButton } from '../../../components/loans/SubmitLoanButton';
-import { LoanStatus, UserRole } from '../../../types/loan-workflow';
+import { LoanStatus, UserRole, getLoanPermissions } from '../../../types/loan-workflow';
 import { useAgency } from '../../../hooks/useAgency';
+import { EditLoanDrawer } from '../components/EditLoanDrawer';
+import { deleteLoan } from '../../../lib/firebase/loan-helpers';
+import { useMutation } from '@tanstack/react-query';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
+import { MoreVertical, Edit, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
 
 export function EmployeeLoansPage() {
   const { profile, user } = useAuth();
   const { agency } = useAgency();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [viewAllLoans, setViewAllLoans] = useState(false); // Toggle for viewing all loans
+  const [editLoanDrawerOpen, setEditLoanDrawerOpen] = useState(false);
+  const [deleteLoanId, setDeleteLoanId] = useState<string | null>(null);
+  const [selectedLoanId, setSelectedLoanId] = useState<string>('');
 
   // Get user role
   const userRole = (profile?.employee_category === 'loan_officer' ? UserRole.LOAN_OFFICER :
@@ -121,6 +148,23 @@ export function EmployeeLoansPage() {
   });
 
 
+  const deleteLoanMutation = useMutation({
+    mutationFn: async (loanId: string) => {
+      if (!profile?.agency_id || !user?.id) {
+        throw new Error('Not authenticated');
+      }
+      await deleteLoan(profile.agency_id, loanId, user.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employee-loans'] });
+      toast.success('Loan deleted successfully');
+      setDeleteLoanId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to delete loan');
+    },
+  });
+
   const filteredLoans = loans?.filter((loan: any) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -187,66 +231,166 @@ export function EmployeeLoansPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            <div className="space-y-4 p-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <div className="grid grid-cols-3 gap-4">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-5" />
+                </div>
+              ))}
             </div>
           ) : filteredLoans.length > 0 ? (
             <div className="divide-y">
-              {filteredLoans.map((loan: any) => (
-                <Link
-                  key={loan.id}
-                  to={`/employee/loans/${loan.id}`}
-                  className="block p-6 hover:bg-slate-50 dark:hover:bg-neutral-800/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-slate-900 dark:text-neutral-100">{loan.loanNumber || loan.id}</h3>
-                        <LoanStatusBadge status={loan.status as LoanStatus} />
-                        {isLoanOfficer && !loan.isOwnLoan && (
-                          <Badge variant="outline" className="text-xs">
-                            Read-Only
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-slate-500 dark:text-neutral-400">Customer</p>
-                          <p className="font-medium text-slate-900 dark:text-neutral-100">
-                            {loan.customer?.fullName || loan.customer?.name || 'N/A'}
-                          </p>
+              {filteredLoans.map((loan: any) => {
+                const loanPermissions = getLoanPermissions(
+                  userRole,
+                  loan.status as LoanStatus,
+                  loan.isOwnLoan || loan.officerId === user?.id
+                );
+                
+                return (
+                  <div
+                    key={loan.id}
+                    className="p-6 hover:bg-slate-50 dark:hover:bg-neutral-800/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Link to={`/employee/loans/${loan.id}`} className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold text-slate-900 dark:text-neutral-100">{loan.loanNumber || loan.id}</h3>
+                          <LoanStatusBadge status={loan.status as LoanStatus} />
+                          {isLoanOfficer && !loan.isOwnLoan && (
+                            <Badge variant="outline" className="text-xs">
+                              Read-Only
+                            </Badge>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-slate-500 dark:text-neutral-400">Amount</p>
-                          <p className="font-semibold text-slate-900 dark:text-neutral-100">
-                            {formatCurrency(Number(loan.amount || 0), loan.currency || 'ZMW')}
-                          </p>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-slate-500 dark:text-neutral-400">Customer</p>
+                            <p className="font-medium text-slate-900 dark:text-neutral-100">
+                              {loan.customer?.fullName || loan.customer?.name || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-neutral-400">Amount</p>
+                            <p className="font-semibold text-slate-900 dark:text-neutral-100">
+                              {formatCurrency(Number(loan?.amount || 0), loan?.currency || 'ZMW')}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-neutral-400">Created</p>
+                            <p className="text-slate-600 dark:text-neutral-400">{formatDateSafe(loan?.createdAt)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-slate-500 dark:text-neutral-400">Created</p>
-                          <p className="text-slate-600 dark:text-neutral-400">{formatDateSafe(loan.createdAt)}</p>
-                        </div>
+                      </Link>
+                      <div className="flex items-center gap-2 ml-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {loanPermissions.canEdit && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedLoanId(loan.id);
+                                  setEditLoanDrawerOpen(true);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {(loan.status === 'draft' || loan.status === 'rejected' || 
+                              profile?.role === 'admin' || profile?.employee_category === 'manager') && (
+                              <DropdownMenuItem
+                                onClick={() => setDeleteLoanId(loan.id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Link to={`/employee/loans/${loan.id}`}>
+                          <ChevronRight className="w-5 h-5 text-slate-300 dark:text-neutral-600" />
+                        </Link>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-300 dark:text-neutral-600" />
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500 dark:text-neutral-400">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-neutral-600" />
-              <p>No loans found</p>
-              <Link to="/employee/loans/create">
-                <Button variant="outline" className="mt-4">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Your First Loan
-                </Button>
-              </Link>
-            </div>
+            <EmptyState
+              icon={<FileText className="w-12 h-12 mx-auto text-muted-foreground" />}
+              title="No loans found"
+              description={searchTerm 
+                ? "No loans match your search criteria. Try adjusting your filters."
+                : "You haven't created any loans yet. Get started by creating your first loan application."
+              }
+              action={searchTerm ? undefined : {
+                label: "Create Your First Loan",
+                onClick: () => window.location.href = '/employee/loans/create'
+              }}
+            />
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Loan Drawer */}
+      <EditLoanDrawer
+        open={editLoanDrawerOpen}
+        onOpenChange={setEditLoanDrawerOpen}
+        loanId={selectedLoanId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['employee-loans'] });
+          queryClient.invalidateQueries({ queryKey: ['loan', selectedLoanId] });
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteLoanId} onOpenChange={(open) => !open && setDeleteLoanId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Loan</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this loan? This action cannot be undone.
+              Only DRAFT or REJECTED loans can be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteLoanId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteLoanId) {
+                  deleteLoanMutation.mutate(deleteLoanId);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteLoanMutation.isPending}
+            >
+              {deleteLoanMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
