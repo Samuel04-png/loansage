@@ -111,9 +111,15 @@ const convertFirebaseUser = async (firebaseUser: FirebaseUser): Promise<User> =>
   try {
     if (!isDemoMode) {
       const userDocRef = doc(db, 'users', firebaseUser.uid);
-      const userDoc = await getDoc(userDocRef);
+      // Use getDoc with error handling for IndexedDB issues
+      const userDoc = await Promise.race([
+        getDoc(userDocRef),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getDoc timeout')), 5000)
+        )
+      ]) as any;
       
-      if (userDoc.exists()) {
+      if (userDoc?.exists()) {
         userData = userDoc.data();
       }
     }

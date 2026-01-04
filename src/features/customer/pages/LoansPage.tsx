@@ -8,8 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Input } from '../../../components/ui/input';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Search, FileText, ChevronRight, Loader2, DollarSign, Calendar } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
+import { motion } from 'framer-motion';
 
 export function CustomerLoansPage() {
   const { profile } = useAuth();
@@ -36,15 +39,44 @@ export function CustomerLoansPage() {
     queryFn: async () => {
       if (!customer?.id || !profile?.agency_id) return [];
 
-      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-      const q = firestoreQuery(loansRef, where('customerId', '==', customer.id), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-      }));
+      try {
+        const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+        const q = firestoreQuery(loansRef, where('customerId', '==', customer.id), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        }));
+      } catch (error: any) {
+        console.error('Error fetching customer loans:', error);
+        // If query fails due to missing index, try fallback query
+        if (error?.code === 'failed-precondition' || error?.message?.includes('index')) {
+          console.warn('Index missing, using fallback query');
+          try {
+            const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+            const snapshot = await getDocs(loansRef);
+            const allLoans = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+            }));
+            // Filter in memory
+            return allLoans
+              .filter((loan: any) => loan.customerId === customer.id)
+              .sort((a: any, b: any) => {
+                const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt || 0);
+                const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt || 0);
+                return bDate.getTime() - aDate.getTime();
+              });
+          } catch (fallbackError) {
+            console.error('Fallback query also failed:', fallbackError);
+            return [];
+          }
+        }
+        return [];
+      }
     },
     enabled: !!customer?.id && !!profile?.agency_id,
   });
@@ -55,31 +87,40 @@ export function CustomerLoansPage() {
     queryFn: async () => {
       if (!loans || loans.length === 0 || !profile?.agency_id) return [];
 
-      const allRepayments: any[] = [];
+      try {
+        const allRepayments: any[] = [];
 
-      for (const loan of loans) {
-        const repaymentsRef = collection(
-          db,
-          'agencies',
-          profile.agency_id,
-          'loans',
-          loan.id,
-          'repayments'
-        );
-        const q = firestoreQuery(repaymentsRef, orderBy('dueDate', 'asc'));
-        const snapshot = await getDocs(q);
-        
-        const loanRepayments = snapshot.docs.map(doc => ({
-          id: doc.id,
-          loanId: loan.id,
-          ...doc.data(),
-          dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
-        }));
+        for (const loan of loans) {
+          try {
+            const repaymentsRef = collection(
+              db,
+              'agencies',
+              profile.agency_id,
+              'loans',
+              loan.id,
+              'repayments'
+            );
+            const q = firestoreQuery(repaymentsRef, orderBy('dueDate', 'asc'));
+            const snapshot = await getDocs(q);
+            
+            const loanRepayments = snapshot.docs.map(doc => ({
+              id: doc.id,
+              loanId: loan.id,
+              ...doc.data(),
+              dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
+            }));
 
-        allRepayments.push(...loanRepayments);
+            allRepayments.push(...loanRepayments);
+          } catch (error) {
+            console.warn(`Failed to fetch repayments for loan ${loan.id}:`, error);
+          }
+        }
+
+        return allRepayments;
+      } catch (error: any) {
+        console.error('Error fetching repayments:', error);
+        return [];
       }
-
-      return allRepayments;
     },
     enabled: !!loans && loans.length > 0 && !!profile?.agency_id,
   });
@@ -130,10 +171,14 @@ export function CustomerLoansPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">My Loans</h2>
-        <p className="text-slate-600 dark:text-neutral-400">View and manage your loan applications</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">My Loans</h1>
+        <p className="helper-text">View and manage your loan applications</p>
+      </motion.div>
 
       <Card>
         <CardHeader className="p-4 border-b border-slate-100 dark:border-neutral-700">
@@ -149,8 +194,14 @@ export function CustomerLoansPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            <div className="space-y-4 p-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ))}
             </div>
           ) : filteredLoans.length > 0 ? (
             <div className="divide-y">
@@ -213,10 +264,11 @@ export function CustomerLoansPage() {
               })}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500 dark:text-neutral-400">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300 dark:text-neutral-600" />
-              <p>No loans found</p>
-            </div>
+            <EmptyState
+              icon={<FileText className="w-12 h-12" />}
+              title="No loans found"
+              description="You don't have any loan applications yet. Contact your loan officer to get started."
+            />
           )}
         </CardContent>
       </Card>

@@ -11,6 +11,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Loader2, Mail, Lock, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 const acceptInviteSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -232,7 +233,13 @@ export function AcceptInvitePage() {
         }
       }
 
-      toast.success('Account created successfully! Please verify your email.');
+      toast.success(
+        'Account created successfully! Please check your email to verify your account, then sign in.',
+        { duration: 6000 }
+      );
+      
+      // Small delay to show success message
+      await new Promise(resolve => setTimeout(resolve, 1500));
       navigate('/auth/login');
     } catch (error: any) {
       console.error('Error accepting invitation:', error);
@@ -244,45 +251,84 @@ export function AcceptInvitePage() {
 
   if (loadingInvite) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-[#006BFF] mb-4" />
+            <p className="text-sm text-neutral-600">Loading invitation...</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!invitation) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader className="space-y-1 text-center">
+            <div className="mx-auto w-12 h-12 bg-red-500 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Invitation Not Found</CardTitle>
+            <CardDescription>
+              This invitation link is invalid or has expired
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/auth/login">
+              <Button className="w-full">Go to Login</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#0F172A] dark:to-[#1E293B] p-4">
+      <Card className="w-full max-w-md shadow-xl border border-neutral-200/50 dark:border-neutral-800/50">
         <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center mb-4">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="mx-auto w-12 h-12 bg-gradient-to-br from-[#006BFF] to-[#4F46E5] rounded-full flex items-center justify-center mb-4 shadow-lg"
+          >
             <CheckCircle2 className="w-6 h-6 text-white" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Accept Invitation</CardTitle>
-          <CardDescription>
+          </motion.div>
+          <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Accept Invitation</CardTitle>
+          <CardDescription className="text-neutral-600 dark:text-neutral-400">
             You've been invited to join this agency as {invitation.role === 'customer' ? 'a Customer' : invitation.role?.replace('_', ' ')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-primary-900">
-                <strong>Role:</strong> {invitation.role === 'customer' ? 'Customer' : invitation.role?.replace('_', ' ') || 'Employee'}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-[#006BFF]/10 dark:bg-blue-900/20 border border-[#006BFF]/20 dark:border-blue-500/30 rounded-xl p-4 mb-4"
+            >
+              <p className="text-sm font-semibold text-[#006BFF] dark:text-blue-400 mb-1">
+                Role: {invitation.role === 'customer' ? 'Customer' : invitation.role?.replace('_', ' ') || 'Employee'}
               </p>
               {invitation.note && (
-                <p className="text-sm text-primary-700 mt-1">
-                  <strong>Note:</strong> {invitation.note}
+                <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-2">
+                  {invitation.note}
                 </p>
               )}
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="space-y-2"
+            >
+              <Label htmlFor="email">Email Address</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Mail className="absolute left-3 top-3.5 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                 <Input
                   id="email"
                   type="email"
@@ -291,12 +337,18 @@ export function AcceptInvitePage() {
                   disabled
                 />
               </div>
-            </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">This email will be used for your account</p>
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="space-y-2"
+            >
+              <Label htmlFor="fullName">Full Name *</Label>
               <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <User className="absolute left-3 top-3.5 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                 <Input
                   id="fullName"
                   placeholder="John Doe"
@@ -305,17 +357,22 @@ export function AcceptInvitePage() {
                 />
               </div>
               {errors.fullName && (
-                <p className="text-sm text-destructive flex items-center gap-1">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {errors.fullName.message}
                 </p>
               )}
-            </div>
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="space-y-2"
+            >
+              <Label htmlFor="password">Password *</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Lock className="absolute left-3 top-3.5 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                 <Input
                   id="password"
                   type="password"
@@ -325,17 +382,23 @@ export function AcceptInvitePage() {
                 />
               </div>
               {errors.password && (
-                <p className="text-sm text-destructive flex items-center gap-1">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {errors.password.message}
                 </p>
               )}
-            </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">Must be at least 6 characters</p>
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="space-y-2"
+            >
+              <Label htmlFor="confirmPassword">Confirm Password *</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Lock className="absolute left-3 top-3.5 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -345,23 +408,32 @@ export function AcceptInvitePage() {
                 />
               </div>
               {errors.confirmPassword && (
-                <p className="text-sm text-destructive flex items-center gap-1">
+                <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {errors.confirmPassword.message}
                 </p>
               )}
-            </div>
+            </motion.div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                'Accept Invitation & Create Account'
-              )}
-            </Button>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              <Button type="submit" className="w-full" disabled={loading} size="lg">
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Accept Invitation & Create Account
+                  </>
+                )}
+              </Button>
+            </motion.div>
 
             <Link to="/auth/login">
               <Button variant="ghost" className="w-full">

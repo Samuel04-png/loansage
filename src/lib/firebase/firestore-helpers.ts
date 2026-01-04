@@ -647,8 +647,53 @@ export async function createCustomer(
   // Explicitly use 'customers' subcollection to avoid any confusion
   const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
   
+  // Generate searchKeywords for efficient Firestore searching
+  // This array allows array-contains queries on partial name/email/phone matches
+  const generateSearchKeywords = (fullName: string, email?: string, phone?: string, nrc?: string): string[] => {
+    const keywords: string[] = [];
+    
+    // Full name keywords (split by space, lowercase)
+    if (fullName) {
+      const nameParts = fullName.toLowerCase().trim().split(/\s+/);
+      nameParts.forEach(part => {
+        if (part.length > 0) keywords.push(part);
+      });
+      // Also add the full name as one keyword
+      keywords.push(fullName.toLowerCase().trim());
+    }
+    
+    // Email keyword (lowercase, trim)
+    if (email) {
+      keywords.push(email.toLowerCase().trim());
+      // Add the part before @ too
+      const emailPart = email.split('@')[0]?.toLowerCase();
+      if (emailPart) keywords.push(emailPart);
+    }
+    
+    // Phone keyword (digits only, no spaces)
+    if (phone) {
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length > 0) keywords.push(cleanPhone);
+      // Also store original format
+      keywords.push(phone.toLowerCase().trim());
+    }
+    
+    // NRC keyword
+    if (nrc) {
+      keywords.push(nrc.toLowerCase().trim());
+      // Also store without slashes
+      keywords.push(nrc.replace(/\//g, '').toLowerCase());
+    }
+    
+    // Return unique keywords
+    return [...new Set(keywords)];
+  };
+
+  const searchKeywords = generateSearchKeywords(data.fullName, data.email, data.phone, data.nrc);
+
   await setDoc(customerRef, {
     id: customerId,
+    customerId: customerId, // Human-readable ID alias
     fullName: data.fullName,
     phone: data.phone,
     email: data.email || null,
@@ -666,8 +711,14 @@ export async function createCustomer(
     guarantorNRC: data.guarantorNRC || null,
     guarantorRelationship: data.guarantorRelationship || null,
     createdBy: data.createdBy,
+    agencyId: agencyId, // CRITICAL: Required for unified agency queries
+    searchKeywords: searchKeywords, // CRITICAL: Enables efficient array-contains search
     status: 'active',
+    kycStatus: 'pending', // Default KYC status
+    kycVerified: false,
+    riskScore: null, // Will be calculated later
     profilePhotoURL: null,
+    userId: null, // Will be set when customer accepts invitation
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

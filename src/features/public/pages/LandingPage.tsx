@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { 
   ShieldAlert, 
@@ -31,8 +32,11 @@ import {
   Crown
 } from 'lucide-react';
 import { PLAN_CONFIG, type PlanCode } from '../../../lib/pricing/plan-config';
+import { EnterpriseContactModal } from '../../../components/pricing/EnterpriseContactModal';
 
 export function LandingPage() {
+  const [enterpriseModalOpen, setEnterpriseModalOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       {/* Navigation */}
@@ -549,24 +553,30 @@ export function LandingPage() {
                     </div>
                     <h3 className="text-2xl font-bold text-slate-900 mb-2">{planConfig.name}</h3>
                     <p className="text-slate-600 text-sm mb-6">{planConfig.description}</p>
-                    <div className="flex items-baseline justify-center gap-2 mb-2">
-                      <span className={`text-5xl font-extrabold ${
-                        isPopular 
-                          ? 'bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent'
-                          : 'text-slate-900'
-                      }`}>
-                        ${planConfig.price}
-                      </span>
-                      <span className="text-xl text-slate-600">/month</span>
-                    </div>
-                    {planCode === 'starter' && (
-                      <p className="text-sm text-slate-500">14-day free trial • Then ${planConfig.price}/month</p>
-                    )}
-                    {planCode === 'enterprise' && (
-                      <p className="text-sm text-slate-500">Starting at ${planConfig.price}/month • Contact Sales</p>
-                    )}
-                    {planCode !== 'starter' && planCode !== 'enterprise' && (
-                      <p className="text-sm text-slate-500">Billed monthly • Cancel anytime</p>
+                    {planCode === 'enterprise' ? (
+                      <div className="mb-2">
+                        <div className="text-4xl font-extrabold text-slate-900 mb-2">Contact Us</div>
+                        <p className="text-sm text-slate-500">Custom pricing for your needs</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline justify-center gap-2 mb-2">
+                          <span className={`text-5xl font-extrabold ${
+                            isPopular 
+                              ? 'bg-gradient-to-r from-primary-600 to-primary-700 bg-clip-text text-transparent'
+                              : 'text-slate-900'
+                          }`}>
+                            ${planConfig.price}
+                          </span>
+                          <span className="text-xl text-slate-600">/month</span>
+                        </div>
+                        {planCode === 'starter' && (
+                          <p className="text-sm text-slate-500">14-day free trial • Then ${planConfig.price}/month</p>
+                        )}
+                        {planCode !== 'starter' && planCode !== 'enterprise' && (
+                          <p className="text-sm text-slate-500">Billed monthly • Cancel anytime</p>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -582,19 +592,30 @@ export function LandingPage() {
                   </div>
 
                   <div className="text-center">
-                    <Link to="/auth/signup" className="block">
+                    {planCode === 'enterprise' ? (
                       <Button
                         size="lg"
-                        className={`w-full h-12 rounded-xl font-semibold ${
-                          isPopular
-                            ? 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
-                        } transition-all`}
+                        onClick={() => setEnterpriseModalOpen(true)}
+                        className="w-full h-12 rounded-xl font-semibold bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl transition-all"
                       >
-                        {planCode === 'starter' ? 'Start 14-Day Free Trial' : planCode === 'enterprise' ? 'Contact Sales' : 'Subscribe Now'}
+                        Contact Us
                         <ArrowRight className="ml-2 w-4 h-4" />
                       </Button>
-                    </Link>
+                    ) : (
+                      <Link to="/auth/signup" className="block">
+                        <Button
+                          size="lg"
+                          className={`w-full h-12 rounded-xl font-semibold ${
+                            isPopular
+                              ? 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white shadow-lg hover:shadow-xl'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+                          } transition-all`}
+                        >
+                          {planCode === 'starter' ? 'Start 14-Day Free Trial' : 'Subscribe Now'}
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </Button>
+                      </Link>
+                    )}
                     {planCode === 'starter' && (
                       <p className="text-xs text-slate-500 mt-3">
                         No credit card required
@@ -623,6 +644,12 @@ export function LandingPage() {
             </motion.div>
         </div>
       </section>
+
+      {/* Enterprise Contact Modal */}
+      <EnterpriseContactModal
+        open={enterpriseModalOpen}
+        onOpenChange={setEnterpriseModalOpen}
+      />
 
       {/* Use Cases Section */}
       <section className="py-32 bg-white">

@@ -19,10 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../../components/ui/alert-dialog';
-import { Search, Users, Loader2, UserPlus, Edit, Trash2, MoreVertical } from 'lucide-react';
-import { formatDateSafe } from '../../../lib/utils';
+import { Search, Users, Loader2, UserPlus, Edit, Trash2, MoreVertical, Eye, CreditCard, Calendar, TrendingUp } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { formatDateSafe, formatCurrency } from '../../../lib/utils';
+import { StatusBadge } from '../../../components/ui/status-badge';
+import { FilterChips } from '../../../components/ui/filter-chips';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
 import { EditCustomerDrawer } from '../components/EditCustomerDrawer';
+import { CustomerDetailsDrawer } from '../components/CustomerDetailsDrawer';
 import { deleteCustomer } from '../../../lib/firebase/customer-helpers';
 import toast from 'react-hot-toast';
 import {
@@ -32,12 +36,30 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 
+// Avatar color generator based on name
+const getAvatarColor = (name: string): string => {
+  const colors = [
+    'from-violet-500 to-purple-600',
+    'from-blue-500 to-cyan-500',
+    'from-emerald-500 to-teal-500',
+    'from-orange-500 to-amber-500',
+    'from-pink-500 to-rose-500',
+    'from-indigo-500 to-blue-500',
+    'from-cyan-500 to-blue-500',
+    'from-fuchsia-500 to-pink-500',
+  ];
+  const index = name?.charCodeAt(0) % colors.length || 0;
+  return colors[index];
+};
+
 export function EmployeeCustomersPage() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [editCustomerOpen, setEditCustomerOpen] = useState(false);
+  const [viewCustomerOpen, setViewCustomerOpen] = useState(false);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
@@ -57,26 +79,54 @@ export function EmployeeCustomersPage() {
     enabled: !!user?.id && !!profile?.agency_id,
   });
 
+  // UNIFIED DATA ACCESS: Show ALL agency customers (not just createdBy current user)
+  // This ensures Admin-added customers are visible to Loan Officers and vice versa
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['employee-customers', employee?.id, profile?.agency_id],
+    queryKey: ['employee-customers', profile?.agency_id],
     queryFn: async () => {
-      if (!employee?.id || !profile?.agency_id) return [];
+      if (!profile?.agency_id) return [];
 
-      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
-      const q = firestoreQuery(
-        customersRef,
-        where('officerId', '==', user?.id),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-      }));
+      try {
+        const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+        // Query ALL customers in the agency - unified data access
+        const q = firestoreQuery(
+          customersRef,
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+          // Add flag to indicate if current user created this customer
+          isOwnCustomer: doc.data().createdBy === user?.id,
+        }));
+      } catch (error: any) {
+        console.error('Error fetching agency customers:', error);
+        // Fallback: get all customers without ordering
+        try {
+          const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+          const snapshot = await getDocs(customersRef);
+          return snapshot.docs
+            .map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+              isOwnCustomer: doc.data().createdBy === user?.id,
+            }))
+            .sort((a: any, b: any) => {
+              const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt || 0);
+              const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt || 0);
+              return bDate.getTime() - aDate.getTime();
+            });
+        } catch (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          return [];
+        }
+      }
     },
-    enabled: !!employee?.id && !!profile?.agency_id,
+    enabled: !!profile?.agency_id,
   });
 
   const deleteCustomerMutation = useMutation({
@@ -96,7 +146,21 @@ export function EmployeeCustomersPage() {
     },
   });
 
+  // Calculate status counts for filter chips
+  const statusCounts = {
+    all: customers?.length || 0,
+    active: customers?.filter((c: any) => c.status === 'active').length || 0,
+    inactive: customers?.filter((c: any) => c.status !== 'active').length || 0,
+  };
+
   const filteredCustomers = customers?.filter((cust: any) => {
+    // Status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'active' && cust.status !== 'active') return false;
+      if (statusFilter === 'inactive' && cust.status === 'active') return false;
+    }
+    
+    // Search filter
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -111,147 +175,247 @@ export function EmployeeCustomersPage() {
     );
   }) || [];
 
+  const filterOptions = [
+    { id: 'all', label: 'All', count: statusCounts.all },
+    { id: 'active', label: 'Active', count: statusCounts.active },
+    { id: 'inactive', label: 'Inactive', count: statusCounts.inactive },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">My Customers</h2>
-          <p className="text-slate-600">Manage your assigned customers</p>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">Customers</h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">View and manage all agency customers</p>
         </div>
-        <Button onClick={() => setAddCustomerOpen(true)}>
+        <Button 
+          onClick={() => setAddCustomerOpen(true)}
+          className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+        >
           <UserPlus className="mr-2 h-4 w-4" />
           Add Customer
         </Button>
-      </div>
+      </motion.div>
 
-      <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
-          <div className="relative w-full max-w-md">
-            <Input
-              placeholder="Search customers..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="space-y-4 p-6">
-              <div className="space-y-2">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
+      {/* Premium Control Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <Card className="rounded-2xl border border-neutral-200/50 dark:border-neutral-800/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] overflow-hidden">
+          {/* Control Bar Header */}
+          <div className="px-6 py-4 bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-neutral-100 dark:border-neutral-800">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              {/* Search Input */}
+              <div className="relative flex-1 w-full sm:max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                <Input
+                  placeholder="Search customers..."
+                  className="pl-12 h-11 rounded-xl border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 focus:ring-2 focus:ring-[#006BFF]/20 focus:border-[#006BFF] text-base"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
+              
+              {/* Filter Chips */}
+              <FilterChips 
+                options={filterOptions} 
+                selected={statusFilter} 
+                onChange={setStatusFilter}
+              />
+            </div>
+          </div>
+          {/* Table Content */}
+          <div className="p-0">
+          {isLoading ? (
+            /* Premium Loading Skeleton */
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="px-6 py-5 flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                  <div className="hidden md:flex gap-8">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
             </div>
           ) : filteredCustomers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-700 dark:text-neutral-300 uppercase bg-slate-50 dark:bg-neutral-800/50 border-b border-slate-100 dark:border-neutral-800">
-                  <tr>
-                    <th className="px-6 py-3">Customer</th>
-                    <th className="px-6 py-3">ID</th>
-                    <th className="px-6 py-3">NRC</th>
-                    <th className="px-6 py-3">Risk Score</th>
-                    <th className="px-6 py-3">KYC Status</th>
-                    <th className="px-6 py-3">Assigned</th>
-                    <th className="px-6 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCustomers.map((cust: any) => (
-                    <tr
-                      key={cust.id}
-                      className="bg-white border-b border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center mr-3">
-                            <span className="text-xs font-bold text-slate-600">
-                              {cust?.fullName?.charAt(0) || cust?.name?.charAt(0) || 'C'}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-900">
-                              {cust?.fullName || cust?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-slate-500">{cust?.email || '-'}</div>
-                          </div>
+            /* Premium Two-Line Table Layout */
+            <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {filteredCustomers.map((cust: any, index: number) => {
+                const customerName = cust?.fullName || cust?.name || 'Unknown';
+                const initials = customerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                const avatarColor = getAvatarColor(customerName);
+                
+                return (
+                  <motion.div
+                    key={cust.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.02, duration: 0.15 }}
+                    className="group px-6 py-5 hover:bg-slate-50/80 dark:hover:bg-neutral-800/40 transition-colors duration-200 cursor-pointer"
+                    onClick={() => {
+                      setSelectedCustomerId(cust.id);
+                      setViewCustomerOpen(true);
+                    }}
+                  >
+                    <div className="flex items-center gap-4">
+                      {/* Column 1: Identity (Two-Line) */}
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        {/* Colored Initials Avatar */}
+                        <div className={`h-12 w-12 rounded-full bg-gradient-to-br ${avatarColor} flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-white dark:ring-neutral-800`}>
+                          <span className="text-sm font-bold text-white tracking-tight">
+                            {initials}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 font-medium">{cust?.customerId || cust?.id || '-'}</td>
-                      <td className="px-6 py-4">{cust?.nrcNumber || cust?.nrc || '-'}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div
-                            className={`w-2 h-2 rounded-full mr-2 ${
-                              (cust?.riskScore || 50) >= 80
-                                ? 'bg-emerald-500'
-                                : (cust?.riskScore || 50) >= 60
-                                ? 'bg-amber-500'
-                                : 'bg-red-500'
-                            }`}
-                          ></div>
-                          <span className="font-medium">{cust?.riskScore || 50}/100</span>
+                        
+                        {/* Name + Email (Two-Line) */}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-slate-900 dark:text-neutral-100 font-semibold truncate text-[15px]">
+                            {customerName}
+                          </h3>
+                          <p className="text-slate-500 dark:text-neutral-400 text-xs truncate mt-0.5">
+                            {cust?.email || cust?.phone || 'No contact info'}
+                          </p>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {cust?.kycStatus === 'verified' || cust?.kycVerified ? (
-                          <Badge variant="success">Verified</Badge>
-                        ) : cust?.kycStatus === 'pending' ? (
-                          <Badge variant="warning">Pending</Badge>
-                        ) : (
-                          <Badge variant="destructive">Rejected</Badge>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-slate-500">
-                        {formatDateSafe(cust?.createdAt)}
-                      </td>
-                      <td className="px-6 py-4">
+                      </div>
+                      
+                      {/* Column 2: Financial Summary (Two-Line) - Hidden on mobile */}
+                      <div className="hidden md:block w-28">
+                        <p className="text-slate-900 dark:text-neutral-100 font-semibold text-sm">
+                          {cust?.monthlyIncome ? formatCurrency(cust.monthlyIncome, 'ZMW') : '-'}
+                        </p>
+                        <p className="text-slate-500 dark:text-neutral-400 text-xs mt-0.5">
+                          Monthly Income
+                        </p>
+                      </div>
+                      
+                      {/* Column 3: ID & NRC (Two-Line) - Hidden on mobile */}
+                      <div className="hidden lg:block w-32">
+                        <p className="text-slate-700 dark:text-neutral-300 font-mono text-sm truncate">
+                          {cust?.nrc || cust?.nrcNumber || '-'}
+                        </p>
+                        <p className="text-slate-500 dark:text-neutral-400 text-xs mt-0.5">
+                          NRC Number
+                        </p>
+                      </div>
+                      
+                      {/* Column 4: Risk Score (Two-Line) - Hidden on tablet */}
+                      <div className="hidden xl:flex flex-col items-center w-20">
+                        <div className="flex items-center gap-1.5">
+                          <TrendingUp className={`w-4 h-4 ${
+                            cust?.riskScore >= 80 ? 'text-emerald-500' : 
+                            cust?.riskScore >= 60 ? 'text-amber-500' : 
+                            cust?.riskScore != null ? 'text-rose-500' : 'text-slate-300'
+                          }`} />
+                          <span className="text-slate-900 dark:text-neutral-100 font-semibold text-sm">
+                            {cust?.riskScore ?? '-'}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 dark:text-neutral-400 text-xs mt-0.5">
+                          Risk Score
+                        </p>
+                      </div>
+                      
+                      {/* Column 5: Status Badge (Soft Pill) */}
+                      <div className="w-24 flex justify-center">
+                        <StatusBadge status={cust?.status || 'inactive'} />
+                      </div>
+                      
+                      {/* Column 6: Actions Menu */}
+                      <div 
+                        className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-9 w-9 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            >
+                              <MoreVertical className="h-4 w-4 text-slate-400" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent 
+                            align="end" 
+                            className="w-52 rounded-xl shadow-lg ring-1 ring-black/5"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedCustomerId(cust.id);
+                                setViewCustomerOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedCustomerId(cust.id);
                                 setEditCustomerOpen(true);
                               }}
                             >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
+                              <Edit className="h-4 w-4" />
+                              Edit Customer
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              destructive
                               onClick={() => setDeleteCustomerId(cust.id)}
-                              className="text-red-600"
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           ) : (
-            <EmptyState
-              icon={<Users className="w-12 h-12 mx-auto text-muted-foreground" />}
-              title="No customers found"
-              description={searchTerm 
-                ? "No customers match your search criteria. Try adjusting your search."
-                : "You don't have any customers assigned to you yet. Customers will appear here once they're assigned."
-              }
-            />
+            /* Premium Empty State */
+            <div className="py-16 px-6 text-center">
+              <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-slate-100 to-neutral-100 dark:from-neutral-800 dark:to-slate-800 flex items-center justify-center mb-6">
+                <Users className="w-10 h-10 text-slate-400 dark:text-neutral-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-neutral-100 mb-2">
+                {searchTerm || statusFilter !== 'all' ? 'No customers found' : 'No customers yet'}
+              </h3>
+              <p className="text-slate-500 dark:text-neutral-400 text-sm max-w-md mx-auto mb-6">
+                {searchTerm 
+                  ? "No customers match your search criteria. Try adjusting your search or filters."
+                  : "Start building your customer base by adding your first customer."
+                }
+              </p>
+              {!searchTerm && statusFilter === 'all' && (
+                <Button 
+                  onClick={() => setAddCustomerOpen(true)}
+                  className="bg-[#006BFF] hover:bg-[#0052CC] text-white rounded-xl"
+                >
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add First Customer
+                </Button>
+              )}
+            </div>
           )}
-        </CardContent>
-      </Card>
+          </div>
+        </Card>
+      </motion.div>
 
       {/* Add Customer Drawer */}
       <AddCustomerDrawer
@@ -270,6 +434,13 @@ export function EmployeeCustomersPage() {
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['employee-customers'] });
         }}
+      />
+
+      {/* View Customer Details Drawer */}
+      <CustomerDetailsDrawer
+        open={viewCustomerOpen}
+        onOpenChange={setViewCustomerOpen}
+        customerId={selectedCustomerId}
       />
 
       {/* Delete Confirmation Dialog */}

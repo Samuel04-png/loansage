@@ -12,6 +12,8 @@ import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { createNotification } from '../../../lib/firebase/notifications';
+import { approveLoan, rejectLoan as rejectLoanWorkflow } from '../../../lib/loans/workflow';
+import { UserRole } from '../../../types/loan-workflow';
 
 export function PendingApprovalsPage() {
   const { profile } = useAuth();
@@ -54,17 +56,26 @@ export function PendingApprovalsPage() {
     enabled: !!profile?.agency_id,
   });
 
-  const approveLoan = useMutation({
+  const approveLoanMutation = useMutation({
     mutationFn: async (loanId: string) => {
-      if (!profile?.agency_id) throw new Error('Agency ID not found');
+      if (!profile?.agency_id || !profile?.id) throw new Error('Agency ID or user ID not found');
       
-      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
-      await updateDoc(loanRef, {
-        status: 'approved',
-        approvedBy: profile.id,
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      });
+      const userRole = (profile?.role === 'admin' ? UserRole.ADMIN :
+                       profile?.role === 'owner' ? UserRole.ADMIN :
+                       profile?.employee_category === 'accountant' ? UserRole.ACCOUNTANT :
+                       UserRole.ADMIN) as UserRole;
+
+      const result = await approveLoan(
+        loanId,
+        profile.agency_id,
+        profile.id,
+        userRole,
+        'Loan approved by admin/accountant'
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to approve loan');
+      }
 
       // Create notification
       const loan = pendingLoans.find((l: any) => l.id === loanId);
@@ -89,18 +100,26 @@ export function PendingApprovalsPage() {
     },
   });
 
-  const rejectLoan = useMutation({
+  const rejectLoanMutation = useMutation({
     mutationFn: async ({ loanId, reason }: { loanId: string; reason?: string }) => {
-      if (!profile?.agency_id) throw new Error('Agency ID not found');
+      if (!profile?.agency_id || !profile?.id) throw new Error('Agency ID or user ID not found');
       
-      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
-      await updateDoc(loanRef, {
-        status: 'rejected',
-        rejectedBy: profile.id,
-        rejectedAt: new Date(),
-        rejectionReason: reason || 'Not specified',
-        updatedAt: new Date(),
-      });
+      const userRole = (profile?.role === 'admin' ? UserRole.ADMIN :
+                       profile?.role === 'owner' ? UserRole.ADMIN :
+                       profile?.employee_category === 'accountant' ? UserRole.ACCOUNTANT :
+                       UserRole.ADMIN) as UserRole;
+
+      const result = await rejectLoanWorkflow(
+        loanId,
+        profile.agency_id,
+        profile.id,
+        userRole,
+        reason || 'Loan rejected by admin/accountant'
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to reject loan');
+      }
 
       // Create notification
       const loan = pendingLoans.find((l: any) => l.id === loanId);
@@ -239,11 +258,11 @@ export function PendingApprovalsPage() {
                         </Link>
                         <Button
                           size="sm"
-                          onClick={() => approveLoan.mutate(loan.id)}
-                          disabled={approveLoan.isPending}
+                          onClick={() => approveLoanMutation.mutate(loan.id)}
+                          disabled={approveLoanMutation.isPending}
                           className="bg-green-600 hover:bg-green-700"
                         >
-                          {approveLoan.isPending ? (
+                          {approveLoanMutation.isPending ? (
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           ) : (
                             <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -255,11 +274,11 @@ export function PendingApprovalsPage() {
                           size="sm"
                           onClick={() => {
                             const reason = prompt('Rejection reason (optional):');
-                            rejectLoan.mutate({ loanId: loan.id, reason: reason || undefined });
+                            rejectLoanMutation.mutate({ loanId: loan.id, reason: reason || undefined });
                           }}
-                          disabled={rejectLoan.isPending}
+                          disabled={rejectLoanMutation.isPending}
                         >
-                          {rejectLoan.isPending ? (
+                          {rejectLoanMutation.isPending ? (
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           ) : (
                             <XCircle className="w-4 h-4 mr-2" />

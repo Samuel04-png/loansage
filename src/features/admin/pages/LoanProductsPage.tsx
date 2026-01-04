@@ -33,6 +33,7 @@ import {
 } from '../../../components/ui/table';
 import { Plus, Edit, Trash2, Package, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 import {
   createLoanProduct,
   getLoanProducts,
@@ -220,10 +221,15 @@ export function LoanProductsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center justify-between"
+      >
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Loan Products</h1>
-          <p className="text-neutral-600 mt-1">Create and manage custom loan products</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Loan Products</h1>
+          <p className="helper-text">Create and manage custom loan products</p>
         </div>
         <div className="flex gap-2">
           {products.length === 0 && (
@@ -244,7 +250,7 @@ export function LoanProductsPage() {
             New Product
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       <Card>
         <CardContent className="p-0">

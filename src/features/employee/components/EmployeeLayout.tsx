@@ -42,6 +42,7 @@ import {
   Wifi,
   WifiOff,
   Loader2,
+  Package,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
@@ -79,6 +80,7 @@ export function EmployeeLayout() {
   };
 
   // Role-specific navigation based on employee category
+  // Cleaned up: Removed redundant links, focused on core actions
   const getNavItems = () => {
     const baseItems = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/employee/dashboard' },
@@ -88,17 +90,17 @@ export function EmployeeLayout() {
 
     const category = profile?.employee_category;
 
+    // Simplified shared items - removed Calendar, Files, and Tasks for cleaner sidebar
+    // These can be accessed through dashboard or settings if needed
     const sharedItems = [
-      { id: 'tasks', label: 'Tasks', icon: ClipboardCheck, path: '/employee/tasks' },
-      { id: 'calendar', label: 'Calendar', icon: Calendar, path: '/employee/calendar' },
-      { id: 'files', label: 'Files', icon: Folder, path: '/employee/files' },
       { id: 'support', label: 'Support', icon: MessageSquare, path: '/employee/support' },
     ];
 
     if (category === 'loan_officer') {
+      // Loan Officers get: Customers, Loans, Collateral, Support
       return [
         ...baseItems,
-        { id: 'create-loan', label: 'Originate Loan', icon: FileText, path: '/employee/loans/create' },
+        { id: 'collateral', label: 'Collateral', icon: Package, path: '/employee/collateral' },
         ...sharedItems,
       ];
     }
@@ -108,6 +110,7 @@ export function EmployeeLayout() {
         ...baseItems,
         { id: 'collections', label: 'Collections', icon: Wallet, path: '/employee/collections' },
         { id: 'overdue', label: 'Overdue', icon: AlertTriangle, path: '/employee/overdue' },
+        { id: 'collateral', label: 'Collateral', icon: Package, path: '/employee/collateral' },
         ...sharedItems,
       ];
     }
@@ -155,18 +158,18 @@ export function EmployeeLayout() {
     <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-[#0F172A]">
       {/* Sidebar - Desktop - Reference Style */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-[#1E293B] fixed inset-y-0 z-30 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)]">
-        {/* Logo Section */}
+        {/* Logo Section - Fixed sizing */}
         <div className="h-16 flex items-center px-6 border-b border-neutral-200/50 dark:border-neutral-800/50">
           <img 
             src={logoUrl || '/logo/tengaloanlogo.png'} 
             alt={agencyName} 
-            className="h-20 w-auto mr-3 max-h-20 object-contain"
+            className="h-10 w-auto mr-3 max-h-10 object-contain flex-shrink-0"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />
           <div className="flex-1 min-w-0">
-            <span className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight block leading-tight truncate">
+            <span className="text-base font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight block leading-tight truncate">
               {agencyName}
             </span>
             <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wider uppercase">
@@ -190,23 +193,23 @@ export function EmployeeLayout() {
               <Link
                 to={item.path}
                 className={cn(
-                  'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative',
+                  'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 group relative',
                   activePath === item.id
-                    ? 'bg-[#006BFF]/10 dark:bg-blue-900/30 text-[#006BFF] dark:text-blue-400 font-semibold'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                    ? 'bg-[#006BFF] text-white shadow-md shadow-blue-500/20'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800'
                 )}
               >
                 <item.icon
                   className={cn(
                     'w-5 h-5 mr-3 transition-colors',
-                    activePath === item.id ? 'text-[#006BFF] dark:text-blue-400' : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
+                    activePath === item.id ? 'text-white' : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
                   )}
                 />
                 <span className="flex-1">{item.label}</span>
                 {activePath === item.id && (
                   <motion.div
                     layoutId="activeIndicator"
-                    className="absolute right-2 w-1.5 h-1.5 rounded-full bg-[#006BFF]"
+                    className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full bg-white/50"
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
                 )}
@@ -255,9 +258,9 @@ export function EmployeeLayout() {
                 <img 
                   src={logoUrl || '/logo/tengaloanlogo.png'} 
                   alt={agencyName} 
-                  className="h-12 w-auto mr-3 max-h-12 object-contain"
+                  className="h-8 w-auto mr-3 max-h-8 object-contain flex-shrink-0"
                 />
-                <span className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{agencyName}</span>
+                <span className="text-base font-semibold text-neutral-900 dark:text-neutral-100 truncate">{agencyName}</span>
               </div>
             </SheetTitle>
           </SheetHeader>
@@ -268,15 +271,15 @@ export function EmployeeLayout() {
                 to={item.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={cn(
-                  'flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all',
+                  'flex items-center w-full px-3 py-3 text-sm font-medium rounded-xl transition-all',
                   activePath === item.id
-                    ? 'bg-[#006BFF]/10 dark:bg-blue-900/30 text-[#006BFF] dark:text-blue-400 font-semibold'
-                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                    ? 'bg-[#006BFF] text-white shadow-md shadow-blue-500/20'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800'
                 )}
               >
                 <item.icon className={cn(
                   'w-5 h-5 mr-3',
-                  activePath === item.id ? 'text-[#006BFF]' : 'text-neutral-400'
+                  activePath === item.id ? 'text-white' : 'text-neutral-400'
                 )} />
                 {item.label}
               </Link>

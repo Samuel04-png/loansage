@@ -85,7 +85,7 @@ export enum LoanAuditAction {
  */
 export const STATUS_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
   [LoanStatus.DRAFT]: [LoanStatus.PENDING],
-  [LoanStatus.PENDING]: [LoanStatus.UNDER_REVIEW, LoanStatus.DRAFT], // Can go back to draft
+  [LoanStatus.PENDING]: [LoanStatus.APPROVED, LoanStatus.REJECTED, LoanStatus.DRAFT], // Simplified: pending → approved/rejected directly
   [LoanStatus.UNDER_REVIEW]: [LoanStatus.APPROVED, LoanStatus.REJECTED, LoanStatus.PENDING], // Can go back to pending
   [LoanStatus.APPROVED]: [LoanStatus.DISBURSED, LoanStatus.REJECTED], // Can be rejected even after approval
   [LoanStatus.REJECTED]: [], // Terminal state (unless admin override)

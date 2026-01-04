@@ -55,7 +55,10 @@ export function subscribeToDashboardStats(
     return () => {};
   }
 
-  console.log('subscribeToDashboardStats: Setting up listeners for agency:', agencyId);
+  // Only log in development to reduce console noise
+  if (process.env.NODE_ENV === 'development') {
+    console.log('subscribeToDashboardStats: Setting up listeners for agency:', agencyId);
+  }
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -173,7 +176,10 @@ export function subscribeToDashboardStats(
     unsubscribeLoans = onSnapshot(
       query(loansRef, orderBy('createdAt', 'desc'), limit(1000)),
       (snapshot) => {
+        // Only log in development
+      if (process.env.NODE_ENV === 'development') {
         console.log('Loans snapshot received:', snapshot.size, 'loans');
+      }
         loansData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         updateStats();
       },
@@ -236,7 +242,10 @@ export function subscribeToDashboardStats(
   const unsubscribeCustomers = onSnapshot(
     customersRef,
     (snapshot) => {
-      console.log('Customers snapshot received:', snapshot.size, 'customers');
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Customers snapshot received:', snapshot.size, 'customers');
+      }
       customersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateStats();
     },
@@ -248,7 +257,10 @@ export function subscribeToDashboardStats(
   const unsubscribeEmployees = onSnapshot(
     employeesRef,
     (snapshot) => {
-      console.log('Employees snapshot received:', snapshot.size, 'employees');
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Employees snapshot received:', snapshot.size, 'employees');
+      }
       employeesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateStats();
     },

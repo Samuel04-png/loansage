@@ -158,10 +158,13 @@ if (!isDemoMode && typeof window !== 'undefined' && !wasInitialized) {
       errorCode === 'failed-precondition' ||
       errorCode === 'internal' ||
       errorCode === 'unimplemented' ||
+      errorCode === 'unavailable' ||
       errorMessage.includes('backing store') ||
       errorMessage.includes('IndexedDB') ||
       errorMessage.includes('corrupted') ||
-      errorMessage.includes('Internal error');
+      errorMessage.includes('Internal error') ||
+      errorMessage.includes('IndexedDbTransactionError') ||
+      errorMessage.includes('getHighestListenSequenceNumber');
     
     if (isPersistenceError) {
       // Attempt 2: Fallback to memory cache (no offline support, but app will work)

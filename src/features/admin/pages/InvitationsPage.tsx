@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Mail, Copy, CheckCircle2, XCircle, Loader2, Trash2, Send, MoreVertical, User, Clock, ExternalLink } from 'lucide-react';
 import { formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
@@ -115,8 +116,8 @@ export function InvitationsPage() {
         className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
       >
         <div>
-          <h2 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">Invitations</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Manage employee and customer invitations</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Invitations</h1>
+          <p className="helper-text">Manage employee and customer invitations</p>
         </div>
         <Button 
           onClick={(e) => {
@@ -315,12 +316,16 @@ export function InvitationsPage() {
               </Table>
             </div>
           ) : (
-            <div className="text-center py-16 text-neutral-500">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-                <Mail className="w-8 h-8 text-neutral-400" />
-              </div>
-              <p className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-1">No invitations yet</p>
-              <p className="text-sm text-neutral-500">Get started by inviting your first employee</p>
+            <div className="p-12">
+              <EmptyState
+                icon={<Mail />}
+                title="No invitations yet"
+                description="Get started by inviting your first employee or customer to join your agency."
+                action={{
+                  label: 'Invite Employee',
+                  onClick: () => setInviteDrawerOpen(true),
+                }}
+              />
             </div>
           )}
         </CardContent>

@@ -54,6 +54,27 @@ export function AddPaymentDialog({
 
     setLoading(true);
     try {
+      // First, check if loan exists and is in a valid state for payments
+      const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
+      const loanSnap = await getDoc(loanRef);
+      
+      if (!loanSnap.exists()) {
+        toast.error('Loan not found');
+        setLoading(false);
+        return;
+      }
+      
+      const loanData = loanSnap.data();
+      const loanStatus = loanData.status?.toLowerCase();
+      
+      // Validate loan is in a state that can accept payments
+      const payableStatuses = ['active', 'disbursed', 'overdue', 'approved'];
+      if (!payableStatuses.includes(loanStatus)) {
+        toast.error(`Cannot record payment for loan in "${loanStatus}" status. Loan must be Active or Disbursed.`);
+        setLoading(false);
+        return;
+      }
+
       // Get all repayments for this loan
       const repaymentsRef = collection(db, 'agencies', agencyId, 'loans', loanId, 'repayments');
       const repaymentsSnapshot = await getDocs(repaymentsRef);
@@ -62,11 +83,8 @@ export function AddPaymentDialog({
         ...doc.data(),
       }));
 
-      if (repayments.length === 0) {
-        toast.error('No repayments found for this loan');
-        setLoading(false);
-        return;
-      }
+      // If no repayment schedule exists, use AD-HOC payment mode
+      const useAdHocPayment = repayments.length === 0;
 
       // Sort repayments by due date (oldest first) and filter unpaid ones
       const unpaidRepayments = repayments
@@ -81,147 +99,200 @@ export function AddPaymentDialog({
           return dateA.getTime() - dateB.getTime();
         });
 
-      if (unpaidRepayments.length === 0) {
-        toast.error('All repayments are already paid');
+      // If we have repayments but all are paid
+      if (!useAdHocPayment && unpaidRepayments.length === 0) {
+        toast.error('All scheduled repayments are already paid');
         setLoading(false);
         return;
       }
 
       // Generate deterministic transaction ID for idempotency based on payment context
-      // This ensures the same payment attempt (same amount, method, date) always uses the same ID, preventing duplicates
-      // Removed Date.now() to achieve true determinism - same form values = same ID
       const paymentDateStr = paymentDate ? new Date(paymentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       const deterministicId = transactionId?.trim() || 
-        `bulk-payment-${loanId}-${paymentAmount.toFixed(2)}-${paymentMethod}-${paymentDateStr}`;
+        `payment-${loanId}-${paymentAmount.toFixed(2)}-${paymentMethod}-${paymentDateStr}-${Date.now()}`;
       const paymentTransactionId = deterministicId;
       const paymentDateTimestamp = paymentDate ? new Date(paymentDate) : new Date();
 
-      // Get repayment IDs for transaction
-      const repaymentIds = unpaidRepayments.map((r: any) => r.id);
-
-      // Use Firestore transaction for atomic updates across all repayments
-      await runTransaction(db, async (transaction) => {
-        // Re-read each repayment within transaction to get latest state
-        const currentRepayments = await Promise.all(
-          repaymentIds.map(async (repaymentId) => {
-            const repaymentDocRef = doc(db, 'agencies', agencyId, 'loans', loanId, 'repayments', repaymentId);
-            const repaymentSnap = await transaction.get(repaymentDocRef);
-            if (!repaymentSnap.exists()) {
-              return null;
-            }
-            return {
-              id: repaymentId,
-              ...repaymentSnap.data(),
-            };
-          })
-        );
+      if (useAdHocPayment) {
+        // ===== AD-HOC PAYMENT MODE =====
+        // No repayment schedule exists - record payment directly against loan balance
+        console.log('Using ad-hoc payment mode (no repayment schedule)');
         
-        const validRepayments = currentRepayments.filter(r => r !== null) as any[];
-
-        // Sort repayments by due date (oldest first) and filter unpaid ones
-        const currentUnpaidRepayments = validRepayments
-          .filter((r: any) => {
-            const amountDue = Number(r.amountDue || 0);
-            const amountPaid = Number(r.amountPaid || 0);
-            return amountPaid < amountDue;
-          })
-          .sort((a: any, b: any) => {
-            const dateA = a.dueDate?.toDate?.() || a.dueDate || new Date(0);
-            const dateB = b.dueDate?.toDate?.() || b.dueDate || new Date(0);
-            return dateA.getTime() - dateB.getTime();
-          });
-
-        if (currentUnpaidRepayments.length === 0) {
-          throw new Error('All repayments are already paid');
-        }
-
-        // Check if this bulk payment transaction already exists (idempotency)
-        const firstRepaymentId = currentUnpaidRepayments[0].id;
-        const bulkPaymentCheckRef = doc(
-          db,
-          'agencies',
-          agencyId,
-          'loans',
-          loanId,
-          'repayments',
-          firstRepaymentId,
-          'paymentHistory',
-          paymentTransactionId
-        );
-        
-        const bulkPaymentCheckSnap = await transaction.get(bulkPaymentCheckRef);
-        if (bulkPaymentCheckSnap.exists()) {
-          // This bulk payment already processed - idempotent
-          throw new Error('This payment has already been recorded');
-        }
-
-        // Distribute payment across repayments (oldest first)
-        let remainingPayment = paymentAmount;
-
-        for (const repayment of currentUnpaidRepayments) {
-          if (remainingPayment <= 0) break;
-
-          const amountDue = Number(repayment.amountDue || 0);
-          const amountPaid = Number(repayment.amountPaid || 0);
-          const remaining = amountDue - amountPaid;
-
-          const paymentForThisRepayment = Math.min(remainingPayment, remaining);
-          const newAmountPaid = amountPaid + paymentForThisRepayment;
-          const isFullyPaid = newAmountPaid >= amountDue;
-
-          // Update repayment atomically
-          const repaymentRef = doc(
-            db,
-            'agencies',
-            agencyId,
-            'loans',
-            loanId,
-            'repayments',
-            repayment.id
-          );
-
-          transaction.update(repaymentRef, {
-            amountPaid: newAmountPaid,
-            status: isFullyPaid ? 'paid' : repayment.status,
-            paidAt: isFullyPaid ? serverTimestamp() : repayment.paidAt,
-            paymentMethod: paymentMethod || null,
+        await runTransaction(db, async (transaction) => {
+          // Re-read loan to get current balance
+          const currentLoanSnap = await transaction.get(loanRef);
+          if (!currentLoanSnap.exists()) {
+            throw new Error('Loan not found');
+          }
+          
+          const currentLoan = currentLoanSnap.data();
+          const currentBalance = Number(currentLoan.outstandingBalance || currentLoan.remainingBalance || currentLoan.totalPayable || 0);
+          
+          if (paymentAmount > currentBalance) {
+            throw new Error(`Payment amount (${paymentAmount.toLocaleString()}) exceeds outstanding balance (${currentBalance.toLocaleString()})`);
+          }
+          
+          const newBalance = Math.max(0, currentBalance - paymentAmount);
+          const totalPaid = Number(currentLoan.totalPaid || 0) + paymentAmount;
+          const isFullyPaid = newBalance <= 0;
+          
+          // Update loan with new balance
+          transaction.update(loanRef, {
+            outstandingBalance: newBalance,
+            remainingBalance: newBalance,
+            totalPaid: totalPaid,
             lastPaymentDate: serverTimestamp(),
-            lastPaymentAmount: paymentForThisRepayment,
+            lastPaymentAmount: paymentAmount,
+            status: isFullyPaid ? 'paid' : currentLoan.status,
             updatedAt: serverTimestamp(),
           });
+          
+          // Create payment record in payments subcollection
+          const paymentRef = doc(collection(db, 'agencies', agencyId, 'loans', loanId, 'payments'), paymentTransactionId);
+          
+          transaction.set(paymentRef, {
+            id: paymentTransactionId,
+            amount: paymentAmount,
+            paymentMethod: paymentMethod || 'cash',
+            paymentDate: Timestamp.fromDate(paymentDateTimestamp),
+            recordedBy: user?.id || '',
+            recordedAt: serverTimestamp(),
+            notes: notes || null,
+            transactionId: transactionId || null,
+            type: 'ad_hoc', // Indicates this is not against a scheduled installment
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance,
+          });
+        });
+        
+        console.log('Ad-hoc payment recorded successfully');
+      } else {
+        // ===== SCHEDULED PAYMENT MODE =====
+        // Distribute payment across scheduled repayments
+        const repaymentIds = unpaidRepayments.map((r: any) => r.id);
 
-          // Create payment history entry with unique ID for idempotency
-          const paymentHistoryRef = doc(
+        await runTransaction(db, async (transaction) => {
+          // Re-read each repayment within transaction to get latest state
+          const currentRepayments = await Promise.all(
+            repaymentIds.map(async (repaymentId) => {
+              const repaymentDocRef = doc(db, 'agencies', agencyId, 'loans', loanId, 'repayments', repaymentId);
+              const repaymentSnap = await transaction.get(repaymentDocRef);
+              if (!repaymentSnap.exists()) {
+                return null;
+              }
+              return {
+                id: repaymentId,
+                ...repaymentSnap.data(),
+              };
+            })
+          );
+          
+          const validRepayments = currentRepayments.filter(r => r !== null) as any[];
+
+          // Sort repayments by due date (oldest first) and filter unpaid ones
+          const currentUnpaidRepayments = validRepayments
+            .filter((r: any) => {
+              const amountDue = Number(r.amountDue || 0);
+              const amountPaid = Number(r.amountPaid || 0);
+              return amountPaid < amountDue;
+            })
+            .sort((a: any, b: any) => {
+              const dateA = a.dueDate?.toDate?.() || a.dueDate || new Date(0);
+              const dateB = b.dueDate?.toDate?.() || b.dueDate || new Date(0);
+              return dateA.getTime() - dateB.getTime();
+            });
+
+          if (currentUnpaidRepayments.length === 0) {
+            throw new Error('All repayments are already paid');
+          }
+
+          // Check if this payment transaction already exists (idempotency)
+          const firstRepaymentId = currentUnpaidRepayments[0].id;
+          const paymentCheckRef = doc(
             db,
             'agencies',
             agencyId,
             'loans',
             loanId,
             'repayments',
-            repayment.id,
+            firstRepaymentId,
             'paymentHistory',
-            `${paymentTransactionId}-${repayment.id}`
+            paymentTransactionId
           );
+          
+          const paymentCheckSnap = await transaction.get(paymentCheckRef);
+          if (paymentCheckSnap.exists()) {
+            throw new Error('This payment has already been recorded');
+          }
 
-          const { Timestamp } = await import('firebase/firestore');
-          const paymentHistoryData: any = {
-            amount: paymentForThisRepayment,
-            paymentMethod: paymentMethod || 'cash',
-            recordedBy: user?.id || '',
-            recordedAt: Timestamp.fromDate(paymentDateTimestamp) || serverTimestamp(),
-            notes: notes || null,
-            transactionId: paymentTransactionId,
-          };
+          // Distribute payment across repayments (oldest first)
+          let remainingPayment = paymentAmount;
 
-          transaction.set(paymentHistoryRef, paymentHistoryData);
+          for (const repayment of currentUnpaidRepayments) {
+            if (remainingPayment <= 0) break;
 
-          remainingPayment -= paymentForThisRepayment;
-        }
+            const amountDue = Number(repayment.amountDue || 0);
+            const amountPaid = Number(repayment.amountPaid || 0);
+            const remaining = amountDue - amountPaid;
 
-        if (remainingPayment > 0) {
-          throw new Error(`Payment amount exceeds total due. Remaining: ${remainingPayment.toLocaleString()}`);
-        }
-      });
+            const paymentForThisRepayment = Math.min(remainingPayment, remaining);
+            const newAmountPaid = amountPaid + paymentForThisRepayment;
+            const isFullyPaid = newAmountPaid >= amountDue;
+
+            // Update repayment atomically
+            const repaymentRef = doc(
+              db,
+              'agencies',
+              agencyId,
+              'loans',
+              loanId,
+              'repayments',
+              repayment.id
+            );
+
+            transaction.update(repaymentRef, {
+              amountPaid: newAmountPaid,
+              status: isFullyPaid ? 'paid' : repayment.status,
+              paidAt: isFullyPaid ? serverTimestamp() : repayment.paidAt,
+              paymentMethod: paymentMethod || null,
+              lastPaymentDate: serverTimestamp(),
+              lastPaymentAmount: paymentForThisRepayment,
+              updatedAt: serverTimestamp(),
+            });
+
+            // Create payment history entry with unique ID for idempotency
+            const paymentHistoryRef = doc(
+              db,
+              'agencies',
+              agencyId,
+              'loans',
+              loanId,
+              'repayments',
+              repayment.id,
+              'paymentHistory',
+              `${paymentTransactionId}-${repayment.id}`
+            );
+
+            const paymentHistoryData: any = {
+              amount: paymentForThisRepayment,
+              paymentMethod: paymentMethod || 'cash',
+              recordedBy: user?.id || '',
+              recordedAt: Timestamp.fromDate(paymentDateTimestamp),
+              notes: notes || null,
+              transactionId: paymentTransactionId,
+              type: 'scheduled',
+            };
+
+            transaction.set(paymentHistoryRef, paymentHistoryData);
+
+            remainingPayment -= paymentForThisRepayment;
+          }
+
+          if (remainingPayment > 0) {
+            throw new Error(`Payment amount exceeds total due. Remaining: ${remainingPayment.toLocaleString()}`);
+          }
+        });
+      }
 
       // Update loan summary (remaining balance, total paid, upcoming due date, status)
       const { updateLoanAfterPayment } = await import('../../lib/firebase/repayment-helpers');

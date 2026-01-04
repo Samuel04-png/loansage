@@ -32,6 +32,7 @@ import {
 } from '../../../components/ui/table';
 import { Building2, Plus, Edit, Trash2, TrendingUp, Users, DollarSign, FileText, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 import {
   createBranch,
   getBranches,
@@ -195,10 +196,15 @@ export function BranchesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center justify-between"
+      >
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Branches</h1>
-          <p className="text-neutral-600 mt-1">Manage multiple branch locations</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Branches</h1>
+          <p className="helper-text">Manage multiple branch locations</p>
         </div>
         <Button onClick={() => {
           setEditingBranch(null);
@@ -208,7 +214,7 @@ export function BranchesPage() {
           <Plus className="w-4 h-4 mr-2" />
           New Branch
         </Button>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {branches.map((branch) => (

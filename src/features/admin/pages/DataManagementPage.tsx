@@ -6,7 +6,11 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Upload, Download, FileText, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, History } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { exportLoans, exportCustomers, exportEmployees } from '../../../lib/data-export';
 import { importCustomersFromCSV, importLoansFromCSV, findCustomerByIdentifier } from '../../../lib/data-import';
@@ -157,10 +161,14 @@ export function DataManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Data Management</h2>
-        <p className="text-neutral-600 dark:text-neutral-400">Import and export your data with smart assistance</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Data Management</h1>
+        <p className="helper-text">Import and export your data with smart assistance</p>
+      </motion.div>
 
       <Tabs defaultValue="import" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">

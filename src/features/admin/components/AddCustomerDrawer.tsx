@@ -173,10 +173,10 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
       });
 
       // Create customer invitation if email is provided
-      if (data.email) {
+      if (data.email && data.email.trim()) {
         try {
           const invitation = await createCustomerInvitation(profile.agency_id, customer.id, {
-            email: data.email,
+            email: data.email.trim(),
             note: `You've been invited to join ${agency?.name || 'our agency'} as a customer.`,
             createdBy: user.id,
           });
@@ -192,41 +192,47 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
             await sendInvitationEmail({
               agencyId: profile.agency_id,
               invitationId: invitation.id,
-              email: data.email,
+              email: data.email.trim(),
               role: 'customer',
               inviteUrl: inviteUrl,
-              note: invitation.note,
+              note: invitation.note || `You've been invited to join ${agency?.name || 'our agency'} as a customer.`,
               agencyName: agency?.name,
             });
             
-            toast.success('Customer created and invitation email sent!');
+            toast.success(
+              `Customer created successfully! Invitation email sent to ${data.email.trim()}`,
+              { duration: 5000 }
+            );
           } catch (emailError: any) {
             console.error('Failed to send invitation email:', emailError);
             // Still show success - customer is created, email can be resent
             const inviteUrl = invitation.inviteUrl || `${window.location.origin}/auth/accept-invite?token=${invitation.token}`;
-            toast.success(
-              <div>
-                <p className="font-semibold">Customer created!</p>
-                <p className="text-xs mt-1">Email sending failed. Invitation link: <a href={inviteUrl} className="text-blue-600 underline break-all" target="_blank" rel="noopener noreferrer">{inviteUrl}</a></p>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(inviteUrl);
-                    toast.success('Invitation link copied to clipboard!');
-                  }}
-                  className="text-xs mt-2 text-blue-600 underline"
-                >
-                  Copy link
-                </button>
-              </div>,
-              { duration: 15000 }
+            // Show toast with copyable link
+            const toastId = toast.success(
+              `Customer created! Email sending failed. Click to copy invitation link.`,
+              { 
+                duration: 20000,
+                onClick: () => {
+                  navigator.clipboard.writeText(inviteUrl);
+                  toast.success('Invitation link copied to clipboard!', { id: toastId });
+                }
+              }
             );
+            // Also log the link for easy access
+            console.log('Invitation link:', inviteUrl);
           }
         } catch (error: any) {
-          console.warn('Failed to create customer invitation:', error);
-          toast.success('Customer created successfully! (Invitation creation failed)');
+          console.error('Failed to create customer invitation:', error);
+          toast.error(
+            `Customer created, but invitation failed: ${error.message || 'Please create invitation manually'}`,
+            { duration: 8000 }
+          );
         }
       } else {
-        toast.success('Customer created successfully!');
+        toast.success(
+          'Customer created successfully! No email provided - invitation not sent. Add email later to send invitation.',
+          { duration: 5000 }
+        );
       }
 
       reset();
@@ -285,16 +291,23 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="email">Email (Optional)</Label>
+                <Label htmlFor="email">
+                  Email Address
+                  <span className="text-xs text-neutral-500 ml-2 font-normal">(Recommended - sends invitation)</span>
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="customer@example.com"
                   {...register('email')}
+                  className={errors.email ? 'border-red-500' : ''}
                 />
                 {errors.email && (
                   <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
                 )}
+                <p className="text-xs text-neutral-500 mt-1">
+                  An invitation link will be sent to this email to create their account
+                </p>
               </div>
 
               <div>

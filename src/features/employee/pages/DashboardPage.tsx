@@ -40,84 +40,45 @@ export function EmployeeDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['employee-dashboard-stats', employee?.id, profile?.agency_id, profile?.employee_category],
     queryFn: async () => {
-      if (!employee?.id || !profile?.agency_id) return null;
+      if (!employee?.id || !profile?.agency_id || !user?.id) return null;
 
-      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-      
-      // Role-specific loan queries
-      let loansQuery;
-      if (isAccountant || isManager || profile?.role === 'admin') {
-        // Accountants and Managers see all loans
-        loansQuery = firestoreQuery(loansRef, orderBy('createdAt', 'desc'));
-      } else {
-        // Other roles see only their assigned loans
-        loansQuery = firestoreQuery(loansRef, where('officerId', '==', user?.id), orderBy('createdAt', 'desc'));
-      }
-      
-      const loansSnapshot = await getDocs(loansQuery);
-      const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const activeLoans = loans.filter((l: any) => l.status === 'active');
-      const pendingLoans = loans.filter((l: any) => l.status === 'pending');
-      const approvedLoans = loans.filter((l: any) => l.status === 'approved');
-      
-      // For Accountants: Get pending disbursements (approved but not disbursed)
-      const pendingDisbursements = isAccountant 
-        ? loans.filter((l: any) => l.status === 'approved' && !l.disbursed)
-        : [];
-
-      // Get assigned customers
-      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
-      const myCustomersQuery = firestoreQuery(customersRef, where('createdBy', '==', user?.id));
-      const customersSnapshot = await getDocs(myCustomersQuery);
-      const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // Get pending approvals (loans pending approval)
-      const pendingApprovals = loans.filter((l: any) => l.status === 'pending');
-
-      // Get overdue loans
-      const now = new Date();
-      let overdueCount = 0;
-      for (const loan of activeLoans) {
-        const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loan.id, 'repayments');
-        const overdueQuery = firestoreQuery(
-          repaymentsRef,
-          where('status', '==', 'pending'),
-          where('dueDate', '<=', now)
-        );
-        const overdueSnapshot = await getDocs(overdueQuery);
-        if (overdueSnapshot.size > 0) {
-          overdueCount++;
+      try {
+        const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+        
+        // Role-specific loan queries
+        let loansQuery;
+        if (isAccountant || isManager || profile?.role === 'admin') {
+          // Accountants and Managers see all loans
+          loansQuery = firestoreQuery(loansRef, orderBy('createdAt', 'desc'));
+        } else {
+          // Other roles see only their assigned loans (use createdBy instead of officerId)
+          loansQuery = firestoreQuery(loansRef, where('createdBy', '==', user.id), orderBy('createdAt', 'desc'));
         }
-      }
+        
+        const loansSnapshot = await getDocs(loansQuery);
+        const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Calculate total portfolio value
-      const totalPortfolioValue = activeLoans.reduce((sum, l: any) => sum + Number(l.amount || 0), 0);
+        const activeLoans = loans.filter((l: any) => l.status === 'active');
+        const pendingLoans = loans.filter((l: any) => l.status === 'pending');
+        const approvedLoans = loans.filter((l: any) => l.status === 'approved');
+        
+        // For Accountants: Get pending disbursements (approved but not disbursed)
+        const pendingDisbursements = isAccountant 
+          ? loans.filter((l: any) => l.status === 'approved' && !l.disbursed)
+          : [];
 
-      // Get recent loans
-      const recentLoans = loans
-        .sort((a: any, b: any) => {
-          const aDate = a.createdAt?.toDate?.() || a.createdAt || new Date(0);
-          const bDate = b.createdAt?.toDate?.() || b.createdAt || new Date(0);
-          return bDate.getTime() - aDate.getTime();
-        })
-        .slice(0, 5);
+        // Get assigned customers
+        const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+        const myCustomersQuery = firestoreQuery(customersRef, where('createdBy', '==', user?.id));
+        const customersSnapshot = await getDocs(myCustomersQuery);
+        const customers = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Get priority queue (pending approvals waiting for this officer's action)
-      // For Loan Officers, these are loans they created that are pending approval
-      const priorityQueue = pendingApprovals
-        .filter((l: any) => l.officerId === user?.id) // Only loans created by this officer
-        .sort((a: any, b: any) => {
-          const aDate = a.createdAt?.toDate?.() || a.createdAt || new Date(0);
-          const bDate = b.createdAt?.toDate?.() || b.createdAt || new Date(0);
-          return aDate.getTime() - bDate.getTime(); // Oldest first
-        })
-        .slice(0, 5);
+        // Get pending approvals (loans pending approval)
+        const pendingApprovals = loans.filter((l: any) => l.status === 'pending');
 
-      // For Collections: Get overdue repayments count
-      let overdueRepaymentsCount = 0;
-      if (isCollections || isManager) {
+        // Get overdue loans
         const now = new Date();
+        let overdueCount = 0;
         for (const loan of activeLoans) {
           try {
             const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loan.id, 'repayments');
@@ -127,33 +88,81 @@ export function EmployeeDashboard() {
               where('dueDate', '<=', now)
             );
             const overdueSnapshot = await getDocs(overdueQuery);
-            overdueRepaymentsCount += overdueSnapshot.size;
+            if (overdueSnapshot.size > 0) {
+              overdueCount++;
+            }
           } catch (error) {
             console.warn('Failed to fetch overdue repayments:', error);
           }
         }
+
+        // Calculate total portfolio value
+        const totalPortfolioValue = activeLoans.reduce((sum, l: any) => sum + Number(l.amount || 0), 0);
+
+        // Get recent loans
+        const recentLoans = loans
+          .sort((a: any, b: any) => {
+            const aDate = a.createdAt?.toDate?.() || a.createdAt || new Date(0);
+            const bDate = b.createdAt?.toDate?.() || b.createdAt || new Date(0);
+            return bDate.getTime() - aDate.getTime();
+          })
+          .slice(0, 5);
+
+        // Get priority queue (pending approvals waiting for this officer's action)
+        // For Loan Officers, these are loans they created that are pending approval
+        const priorityQueue = pendingApprovals
+          .filter((l: any) => l.createdBy === user?.id || l.officerId === user?.id) // Only loans created by this officer
+          .sort((a: any, b: any) => {
+            const aDate = a.createdAt?.toDate?.() || a.createdAt || new Date(0);
+            const bDate = b.createdAt?.toDate?.() || b.createdAt || new Date(0);
+            return aDate.getTime() - bDate.getTime(); // Oldest first
+          })
+          .slice(0, 5);
+
+        // For Collections: Get overdue repayments count
+        let overdueRepaymentsCount = 0;
+        if (isCollections || isManager) {
+          const now = new Date();
+          for (const loan of activeLoans) {
+            try {
+              const repaymentsRef = collection(db, 'agencies', profile.agency_id, 'loans', loan.id, 'repayments');
+              const overdueQuery = firestoreQuery(
+                repaymentsRef,
+                where('status', '==', 'pending'),
+                where('dueDate', '<=', now)
+              );
+              const overdueSnapshot = await getDocs(overdueQuery);
+              overdueRepaymentsCount += overdueSnapshot.size;
+            } catch (error) {
+              console.warn('Failed to fetch overdue repayments:', error);
+            }
+          }
+        }
+
+        // For Underwriters: Get pending reviews
+        const pendingReviews = isUnderwriter || isManager
+          ? loans.filter((l: any) => l.status === 'pending' || l.status === 'under_review')
+          : [];
+
+        return {
+          totalLoans: loans.length,
+          activeLoans: activeLoans.length,
+          pendingLoans: pendingLoans.length,
+          approvedLoans: approvedLoans.length,
+          totalCustomers: customers.length,
+          pendingApprovals: pendingApprovals.length,
+          overdueCount,
+          totalPortfolioValue,
+          recentLoans,
+          priorityQueue,
+          pendingDisbursements: pendingDisbursements.length,
+          overdueRepaymentsCount,
+          pendingReviews: pendingReviews.length,
+        };
+      } catch (error: any) {
+        console.error('Error fetching employee dashboard stats:', error);
+        return null;
       }
-
-      // For Underwriters: Get pending reviews
-      const pendingReviews = isUnderwriter || isManager
-        ? loans.filter((l: any) => l.status === 'pending' || l.status === 'under_review')
-        : [];
-
-      return {
-        totalLoans: loans.length,
-        activeLoans: activeLoans.length,
-        pendingLoans: pendingLoans.length,
-        approvedLoans: approvedLoans.length,
-        totalCustomers: customers.length,
-        pendingApprovals: pendingApprovals.length,
-        overdueCount,
-        totalPortfolioValue,
-        recentLoans,
-        priorityQueue,
-        pendingDisbursements: pendingDisbursements.length,
-        overdueRepaymentsCount,
-        pendingReviews: pendingReviews.length,
-      };
     },
     enabled: !!employee?.id && !!profile?.agency_id && !!user?.id,
   });
@@ -197,8 +206,8 @@ export function EmployeeDashboard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Welcome back!</h2>
-        <p className="text-neutral-600 dark:text-neutral-400">
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Welcome back!</h1>
+        <p className="helper-text">
           Here's an overview of your work today.
         </p>
       </motion.div>

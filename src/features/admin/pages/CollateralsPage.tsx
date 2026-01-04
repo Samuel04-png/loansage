@@ -8,6 +8,8 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
 import { Checkbox } from '../../../components/ui/checkbox';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import {
   Table,
   TableBody,
@@ -67,13 +69,14 @@ export function CollateralsPage() {
           allCollaterals.map(async (coll: any) => {
             if (coll.loanId) {
               try {
-                const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', coll.loanId);
+                const loanRef = firestoreDoc(db, 'agencies', profile.agency_id, 'loans', coll.loanId);
                 const loanSnap = await getDoc(loanRef);
                 if (loanSnap.exists()) {
-                  coll.loan = { id: loanSnap.id, ...loanSnap.data() };
+                  const loanData = loanSnap.data();
+                  coll.loan = { id: loanSnap.id, ...loanData } as any;
                   
                   // Calculate loan coverage ratio
-                  const loanAmount = Number(coll.loan.amount || 0);
+                  const loanAmount = Number((coll.loan as any).amount || 0);
                   const collateralValue = Number(coll.estimatedValue || coll.value || 0);
                   coll.loanCoverageRatio = loanAmount > 0 ? (collateralValue / loanAmount) * 100 : 0;
                 }
@@ -97,14 +100,15 @@ export function CollateralsPage() {
             );
             const loanCollateralSnapshot = await getDocs(loanCollateralRef);
             
-            loanCollateralSnapshot.docs.forEach(doc => {
-              const existing = collateralsWithLoanDetails.find(c => c.id === doc.id);
+            loanCollateralSnapshot.docs.forEach(docItem => {
+              const existing = collateralsWithLoanDetails.find(c => c.id === docItem.id);
               if (!existing) {
-                const collateralData = { id: doc.id, loanId: loan.id, loan: loan, ...doc.data() };
-                const loanAmount = Number(loan.amount || 0);
+                const collateralDocData = docItem.data();
+                const collateralData: any = { id: docItem.id, loanId: loan.id, loan: loan as any, ...collateralDocData };
+                const loanAmount = Number((loan as any).amount || 0);
                 const collateralValue = Number(collateralData.estimatedValue || collateralData.value || 0);
                 collateralData.loanCoverageRatio = loanAmount > 0 ? (collateralValue / loanAmount) * 100 : 0;
-                collateralsWithLoanDetails.push(collateralData);
+                collateralsWithLoanDetails.push(collateralData as any);
               }
             });
           } catch (error) {
@@ -352,8 +356,8 @@ export function CollateralsPage() {
         className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Collaterals</h2>
-          <p className="text-sm text-neutral-600">Manage all loan collaterals and their valuations</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Collaterals</h1>
+          <p className="helper-text">Manage all loan collaterals and their valuations</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <Button variant="outline" onClick={exportCollaterals} className="rounded-xl">
@@ -529,8 +533,13 @@ export function CollateralsPage() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            <div className="p-6 space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-5 w-5" />
+                  <Skeleton className="h-16 flex-1" />
+                </div>
+              ))}
             </div>
           ) : filteredCollaterals.length > 0 ? (
             <div className="overflow-x-auto">
@@ -732,9 +741,18 @@ export function CollateralsPage() {
               </Table>
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No collaterals found</p>
+            <div className="p-12">
+              <EmptyState
+                icon={<FileText />}
+                title="No collaterals found"
+                description={searchTerm 
+                  ? "Try adjusting your search to find collaterals."
+                  : "Start by adding collateral to secure your loans."}
+                action={!searchTerm ? {
+                  label: 'Add Collateral',
+                  onClick: () => setAddDrawerOpen(true),
+                } : undefined}
+              />
             </div>
           )}
         </CardContent>

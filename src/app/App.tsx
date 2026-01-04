@@ -76,6 +76,7 @@ import { EmployeeCustomersPage } from '../features/employee/pages/CustomersPage'
 import { CollectionsPage } from '../features/employee/pages/CollectionsPage';
 import { OverduePage } from '../features/employee/pages/OverduePage';
 import { PendingApprovalsPage } from '../features/employee/pages/PendingApprovalsPage';
+import { CollateralPage } from '../features/employee/pages/CollateralPage';
 import { LoanDetailPage as EmployeeLoanDetailPage } from '../features/admin/pages/LoanDetailPage';
 
 // Customer pages
@@ -211,6 +212,7 @@ function AppContent() {
                 <Route path="overdue" element={<OverduePage />} />
                 <Route path="underwriting" element={<UnderwriterPage />} />
                 <Route path="loans/pending" element={<PendingApprovalsPage />} />
+                <Route path="collateral" element={<CollateralPage />} />
                 <Route index element={<EmployeeDashboard />} />
               </Route>
 

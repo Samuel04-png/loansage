@@ -239,38 +239,18 @@ export async function approveLoan(
 
   const currentStatus = loanSnap.data().status as LoanStatus;
 
-  // Determine target status
-  let targetStatus = LoanStatus.APPROVED;
-  if (currentStatus === LoanStatus.PENDING) {
-    targetStatus = LoanStatus.UNDER_REVIEW; // First move to under review
-  }
-
+  // Allow direct approval from PENDING status (simplified workflow)
+  // Loan officers submit → PENDING → Admin/Accountant approves → APPROVED
   const approval: LoanApproval = {
     decision: 'approved',
     reviewedBy: userId,
     reviewedAt: new Date().toISOString(),
     notes: notes,
     previousStatus: currentStatus,
-    newStatus: targetStatus === LoanStatus.UNDER_REVIEW ? LoanStatus.APPROVED : targetStatus,
+    newStatus: LoanStatus.APPROVED,
   };
 
-  // If currently pending, first move to under review
-  if (currentStatus === LoanStatus.PENDING) {
-    const reviewResult = await changeLoanStatus({
-      loanId,
-      agencyId,
-      newStatus: LoanStatus.UNDER_REVIEW,
-      userId,
-      userRole,
-      notes: 'Loan moved to under review',
-    });
-
-    if (!reviewResult.success) {
-      return reviewResult;
-    }
-  }
-
-  // Then approve
+  // Approve directly (pending → approved)
   return await changeLoanStatus({
     loanId,
     agencyId,
@@ -310,22 +290,7 @@ export async function rejectLoan(
     newStatus: LoanStatus.REJECTED,
   };
 
-  // If currently pending, first move to under review
-  if (currentStatus === LoanStatus.PENDING) {
-    const reviewResult = await changeLoanStatus({
-      loanId,
-      agencyId,
-      newStatus: LoanStatus.UNDER_REVIEW,
-      userId,
-      userRole,
-      notes: 'Loan moved to under review',
-    });
-
-    if (!reviewResult.success) {
-      return reviewResult;
-    }
-  }
-
+  // Reject directly from PENDING or UNDER_REVIEW
   return await changeLoanStatus({
     loanId,
     agencyId,

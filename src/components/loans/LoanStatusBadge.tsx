@@ -1,9 +1,9 @@
 /**
- * Loan Status Badge Component
- * Displays loan status with appropriate styling
+ * Loan Status Badge Component - Premium Design
+ * Displays loan status with pill-shaped, subtle background styling
  */
 
-import { Badge } from '../ui/badge';
+import { cn } from '../../lib/utils';
 import { LoanStatus } from '../../types/loan-workflow';
 import { 
   FileEdit, 
@@ -14,87 +14,123 @@ import {
   DollarSign, 
   TrendingUp, 
   AlertTriangle, 
-  CheckCircle 
+  CheckCircle,
+  Ban 
 } from 'lucide-react';
 
 interface LoanStatusBadgeProps {
   status: LoanStatus | string | undefined;
   className?: string;
+  size?: 'sm' | 'default';
 }
 
-const statusConfig: Record<LoanStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
-  [LoanStatus.DRAFT]: {
+// Premium status styling - subtle backgrounds with strong text
+const statusConfig: Record<string, { 
+  label: string; 
+  bgClass: string; 
+  textClass: string; 
+  icon: any;
+}> = {
+  draft: {
     label: 'Draft',
-    variant: 'outline',
+    bgClass: 'bg-slate-100 dark:bg-slate-800',
+    textClass: 'text-slate-700 dark:text-slate-300',
     icon: FileEdit,
   },
-  [LoanStatus.PENDING]: {
+  pending: {
     label: 'Pending',
-    variant: 'secondary',
+    bgClass: 'bg-amber-100 dark:bg-amber-900/30',
+    textClass: 'text-amber-700 dark:text-amber-400',
     icon: Clock,
   },
-  [LoanStatus.UNDER_REVIEW]: {
+  under_review: {
     label: 'Under Review',
-    variant: 'secondary',
+    bgClass: 'bg-blue-100 dark:bg-blue-900/30',
+    textClass: 'text-blue-700 dark:text-blue-400',
     icon: Eye,
   },
-  [LoanStatus.APPROVED]: {
+  approved: {
     label: 'Approved',
-    variant: 'default',
+    bgClass: 'bg-emerald-100 dark:bg-emerald-900/30',
+    textClass: 'text-emerald-700 dark:text-emerald-400',
     icon: CheckCircle2,
   },
-  [LoanStatus.REJECTED]: {
+  rejected: {
     label: 'Rejected',
-    variant: 'destructive',
+    bgClass: 'bg-red-100 dark:bg-red-900/30',
+    textClass: 'text-red-700 dark:text-red-400',
     icon: XCircle,
   },
-  [LoanStatus.DISBURSED]: {
+  disbursed: {
     label: 'Disbursed',
-    variant: 'default',
+    bgClass: 'bg-violet-100 dark:bg-violet-900/30',
+    textClass: 'text-violet-700 dark:text-violet-400',
     icon: DollarSign,
   },
-  [LoanStatus.ACTIVE]: {
+  active: {
     label: 'Active',
-    variant: 'default',
+    bgClass: 'bg-green-100 dark:bg-green-900/30',
+    textClass: 'text-green-700 dark:text-green-400',
     icon: TrendingUp,
   },
-  [LoanStatus.OVERDUE]: {
+  overdue: {
     label: 'Overdue',
-    variant: 'destructive',
+    bgClass: 'bg-orange-100 dark:bg-orange-900/30',
+    textClass: 'text-orange-700 dark:text-orange-400',
     icon: AlertTriangle,
   },
-  [LoanStatus.CLOSED]: {
+  defaulted: {
+    label: 'Defaulted',
+    bgClass: 'bg-red-100 dark:bg-red-900/30',
+    textClass: 'text-red-700 dark:text-red-400',
+    icon: Ban,
+  },
+  cancelled: {
+    label: 'Cancelled',
+    bgClass: 'bg-gray-100 dark:bg-gray-800',
+    textClass: 'text-gray-600 dark:text-gray-400',
+    icon: XCircle,
+  },
+  closed: {
     label: 'Closed',
-    variant: 'secondary',
+    bgClass: 'bg-slate-100 dark:bg-slate-800',
+    textClass: 'text-slate-600 dark:text-slate-400',
+    icon: CheckCircle,
+  },
+  paid: {
+    label: 'Paid',
+    bgClass: 'bg-teal-100 dark:bg-teal-900/30',
+    textClass: 'text-teal-700 dark:text-teal-400',
     icon: CheckCircle,
   },
 };
 
-export function LoanStatusBadge({ status, className }: LoanStatusBadgeProps) {
-  // Normalize status - treat undefined, empty, or 'draft' as 'pending'
-  const normalizedStatus = (!status || status === '' || status === 'draft') 
-    ? LoanStatus.PENDING 
-    : status;
+export function LoanStatusBadge({ status, className, size = 'default' }: LoanStatusBadgeProps) {
+  // Normalize status to lowercase string
+  const normalizedStatus = (!status || status === '') 
+    ? 'pending' 
+    : String(status).toLowerCase().replace(/_/g, '_');
   
-  const config = statusConfig[normalizedStatus as LoanStatus];
-  
-  // Handle missing config (unknown status)
-  if (!config) {
-    return (
-      <Badge variant="outline" className={`flex items-center gap-1 ${className || ''}`}>
-        <Clock className="w-3 h-3" />
-        {normalizedStatus}
-      </Badge>
-    );
-  }
-
+  const config = statusConfig[normalizedStatus] || statusConfig['pending'];
   const Icon = config.icon;
 
+  const sizeClasses = size === 'sm' 
+    ? 'px-2 py-0.5 text-xs gap-1' 
+    : 'px-2.5 py-1 text-xs gap-1.5';
+
   return (
-    <Badge variant={config.variant} className={`flex items-center gap-1 ${className || ''}`}>
-      <Icon className="w-3 h-3" />
+    <span 
+      className={cn(
+        'inline-flex items-center font-medium rounded-full whitespace-nowrap',
+        config.bgClass,
+        config.textClass,
+        sizeClasses,
+        className
+      )}
+    >
+      <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
       {config.label}
-    </Badge>
+    </span>
   );
 }
 

@@ -35,15 +35,41 @@ export function CustomerDashboard() {
     queryFn: async () => {
       if (!customer?.id || !profile?.agency_id) return null;
 
-      // Get active loans
-      const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
-      const activeLoansQuery = firestoreQuery(
-        loansRef,
-        where('customerId', '==', customer.id),
-        where('status', '==', 'active')
-      );
-      const loansSnapshot = await getDocs(activeLoansQuery);
-      const loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      try {
+        // Get active loans
+        const loansRef = collection(db, 'agencies', profile.agency_id, 'loans');
+        let loans: any[] = [];
+        try {
+          // Try compound query first
+          const activeLoansQuery = firestoreQuery(
+            loansRef,
+            where('customerId', '==', customer.id),
+            where('status', '==', 'active')
+          );
+          const loansSnapshot = await getDocs(activeLoansQuery);
+          loans = loansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (queryError: any) {
+          // If compound query fails (missing index), use fallback
+          if (queryError?.code === 'failed-precondition' || queryError?.message?.includes('index')) {
+            console.warn('Compound query failed, using fallback');
+            try {
+              const allLoansQuery = firestoreQuery(
+                loansRef,
+                where('customerId', '==', customer.id)
+              );
+              const allLoansSnapshot = await getDocs(allLoansQuery);
+              loans = allLoansSnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .filter((loan: any) => loan.status === 'active');
+            } catch (fallbackError) {
+              console.error('Fallback query failed:', fallbackError);
+              loans = [];
+            }
+          } else {
+            console.error('Error fetching active loans:', queryError);
+            loans = [];
+          }
+        }
 
       // Get all repayments for active loans
       let allRepayments: any[] = [];
@@ -92,27 +118,71 @@ export function CustomerDashboard() {
       const totalLoanAmount = loans.reduce((sum: number, loan: any) => sum + Number(loan.amount || 0), 0);
       const totalOutstanding = totalLoanAmount - paidAmount;
 
-      // Get loan history (all loans)
-      const allLoansQuery = firestoreQuery(
-        loansRef,
-        where('customerId', '==', customer.id),
-        orderBy('createdAt', 'desc'),
-        limit(5)
-      );
-      const allLoansSnapshot = await getDocs(allLoansQuery);
-      const loanHistory = allLoansSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
-      }));
+        // Get loan history (all loans)
+        let loanHistory: any[] = [];
+        try {
+          const allLoansQuery = firestoreQuery(
+            loansRef,
+            where('customerId', '==', customer.id),
+            orderBy('createdAt', 'desc'),
+            limit(5)
+          );
+          const allLoansSnapshot = await getDocs(allLoansQuery);
+          loanHistory = allLoansSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+          }));
+        } catch (historyError: any) {
+          // If query fails, use fallback
+          if (historyError?.code === 'failed-precondition' || historyError?.message?.includes('index')) {
+            console.warn('Loan history query failed, using fallback');
+            try {
+              const allLoansQuery = firestoreQuery(
+                loansRef,
+                where('customerId', '==', customer.id)
+              );
+              const allLoansSnapshot = await getDocs(allLoansQuery);
+              loanHistory = allLoansSnapshot.docs
+                .map(doc => ({
+                  id: doc.id,
+                  ...doc.data(),
+                  createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+                }))
+                .sort((a: any, b: any) => {
+                  const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt || 0);
+                  const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt || 0);
+                  return bDate.getTime() - aDate.getTime();
+                })
+                .slice(0, 5);
+            } catch (fallbackError) {
+              console.error('Fallback loan history query failed:', fallbackError);
+              loanHistory = [];
+            }
+          } else {
+            console.error('Error fetching loan history:', historyError);
+            loanHistory = [];
+          }
+        }
 
-      return {
-        totalLoans: loans.length,
-        totalOutstanding,
-        nextPayment,
-        loanHistory,
-        currency: 'ZMW',
-      };
+        return {
+          totalLoans: loans.length,
+          totalOutstanding,
+          nextPayment,
+          loanHistory,
+          currency: 'ZMW',
+        };
+      } catch (error: any) {
+        console.error('Error fetching customer dashboard data:', error);
+        // Return default values on error
+        return {
+          totalLoans: 0,
+          totalOutstanding: 0,
+          nextPayment: null,
+          loanHistory: [],
+          currency: 'ZMW',
+        };
+      }
     },
     enabled: !!customer?.id && !!profile?.agency_id,
   });
@@ -140,8 +210,8 @@ export function CustomerDashboard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">Welcome back!</h2>
-        <p className="text-neutral-600 dark:text-neutral-400">Here's an overview of your loans.</p>
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Welcome back!</h1>
+        <p className="helper-text">Here's an overview of your loans</p>
       </motion.div>
 
       <div className="grid gap-6 md:grid-cols-4">

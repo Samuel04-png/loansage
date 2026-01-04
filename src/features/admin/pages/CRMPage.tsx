@@ -224,13 +224,14 @@ export function CRMPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-3">
-          <Users className="w-8 h-8 text-[#006BFF]" />
-          Customer Relationship Management
-        </h1>
-        <p className="text-neutral-600 mt-2">Manage customer relationships, interactions, and marketing campaigns</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Customer Relationship Management</h1>
+        <p className="helper-text">Manage customer relationships, interactions, and marketing campaigns</p>
+      </motion.div>
 
       {/* Segment Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

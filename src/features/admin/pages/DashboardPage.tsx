@@ -179,17 +179,30 @@ export function AdminDashboard() {
     }
 
     // Fallback to real-time subscription only if cached stats are stale
-    console.log('Dashboard: Using real-time subscription (cached stats stale)');
-    setIsLoading(true);
-    const unsubscribe = subscribeToDashboardStats(profile.agency_id, (newStats) => {
-      setStats(newStats);
-      setIsLoading(false);
-    });
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Dashboard: Using real-time subscription (cached stats stale)');
+    }
+    let unsubscribe: (() => void) | null = null;
+    
+    const setupSubscription = () => {
+      if (unsubscribe) {
+        unsubscribe(); // Clean up previous subscription
+      }
+      unsubscribe = subscribeToDashboardStats(profile.agency_id, (newStats) => {
+        setStats(newStats);
+        setIsLoading(false);
+      });
+    };
+
+    setupSubscription();
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
-  }, [profile?.agency_id, cachedStats]);
+  }, [profile?.agency_id]); // Removed cachedStats from dependencies to prevent re-subscriptions
 
   // Fetch additional data for charts (cached, not real-time)
   const { data: chartData } = useQuery({

@@ -79,22 +79,28 @@ export function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex justify-between items-center flex-wrap gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Notifications</h2>
-          <p className="text-slate-600">
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Notifications</h1>
+          <p className="helper-text">
             {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'All caught up!'}
           </p>
         </div>
         {unreadCount > 0 && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={markAllAsRead}
-            className="text-sm text-primary-600 hover:text-primary-700 font-medium"
           >
             Mark all as read
-          </button>
+          </Button>
         )}
-      </div>
+      </motion.div>
 
       <Card>
         <CardContent className="p-0">

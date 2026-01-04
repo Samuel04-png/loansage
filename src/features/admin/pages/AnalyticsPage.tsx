@@ -17,7 +17,10 @@ import { useTheme } from '../../../components/providers/ThemeProvider';
 import { useFeatureGate } from '../../../hooks/useFeatureGate';
 import { predictPortfolioDefaults } from '../../../lib/ai/predictive-analytics';
 import { UpgradeModal } from '../../../components/pricing/UpgradeModal';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Lock } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 
 export function AnalyticsPage() {
   const { profile } = useAuth();
@@ -59,18 +62,57 @@ export function AnalyticsPage() {
   if (forecastLoading || healthLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-12 w-32" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+      >
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Advanced Analytics</h1>
-          <p className="text-neutral-600 dark:text-neutral-400 mt-1">Revenue forecasting, portfolio health, and trend analysis</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Advanced Analytics</h1>
+          <p className="helper-text">Revenue forecasting, portfolio health, and trend analysis</p>
         </div>
         <div className="flex gap-2 flex-wrap flex-shrink-0">
           <Button
@@ -95,7 +137,7 @@ export function AnalyticsPage() {
             24 Months
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {portfolioHealth && (
         <Card>

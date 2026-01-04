@@ -21,6 +21,11 @@ const customerSchema = z.object({
   nrcNumber: z.string().min(5, 'NRC/ID number is required'),
   address: z.string().min(5, 'Address is required'),
   dateOfBirth: z.string().optional(),
+  // Additional fields matching Admin form
+  employer: z.string().optional(),
+  employmentStatus: z.enum(['employed', 'self-employed', 'unemployed', 'retired', 'student']).optional(),
+  monthlyIncome: z.string().optional(),
+  jobTitle: z.string().optional(),
 });
 
 type CustomerFormData = z.infer<typeof customerSchema>;
@@ -61,7 +66,7 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
       // Generate customer ID
       const customerId = await generateCustomerId(profile.agency_id);
 
-      // Create customer
+      // Create customer with all fields
       const customer = await createCustomer(profile.agency_id, {
         fullName: data.fullName,
         phone: data.phone,
@@ -69,6 +74,10 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
         nrc: data.nrcNumber,
         address: data.address,
         createdBy: user.id,
+        employer: data.employer || undefined,
+        employmentStatus: data.employmentStatus || undefined,
+        monthlyIncome: data.monthlyIncome ? parseFloat(data.monthlyIncome) : undefined,
+        jobTitle: data.jobTitle || undefined,
       });
 
       // Assign to current employee
@@ -94,7 +103,9 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
       return customer;
     },
     onSuccess: () => {
+      // Invalidate all relevant customer queries
       queryClient.invalidateQueries({ queryKey: ['employee-customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success('Customer created successfully');
       reset();
       onOpenChange(false);
@@ -199,6 +210,59 @@ export function AddCustomerDrawer({ open, onOpenChange, onSuccess }: AddCustomer
                 type="date"
                 {...register('dateOfBirth')}
               />
+            </div>
+
+            {/* Employment Information - Matching Admin Form */}
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-4">Employment Information (Optional)</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="employmentStatus">Employment Status</Label>
+                  <select
+                    id="employmentStatus"
+                    {...register('employmentStatus')}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Select status</option>
+                    <option value="employed">Employed</option>
+                    <option value="self-employed">Self-Employed</option>
+                    <option value="unemployed">Unemployed</option>
+                    <option value="retired">Retired</option>
+                    <option value="student">Student</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="employer">Employer</Label>
+                  <Input
+                    id="employer"
+                    placeholder="Company name"
+                    {...register('employer')}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="jobTitle">Job Title</Label>
+                  <Input
+                    id="jobTitle"
+                    placeholder="Position"
+                    {...register('jobTitle')}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyIncome">Monthly Income (ZMW)</Label>
+                  <Input
+                    id="monthlyIncome"
+                    type="number"
+                    placeholder="0.00"
+                    {...register('monthlyIncome')}
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </DrawerBody>

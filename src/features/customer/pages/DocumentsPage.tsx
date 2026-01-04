@@ -7,10 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Upload, FileText, Download, Trash2, Loader2, Image as ImageIcon } from 'lucide-react';
 import { formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { uploadCustomerDocument } from '../../../lib/firebase/storage-helpers';
+import { motion } from 'framer-motion';
 
 export function DocumentsPage() {
   const { profile } = useAuth();
@@ -38,22 +41,27 @@ export function DocumentsPage() {
     queryFn: async () => {
       if (!customer?.id || !profile?.agency_id) return [];
 
-      const documentsRef = collection(
-        db,
-        'agencies',
-        profile.agency_id,
-        'customers',
-        customer.id,
-        'documents'
-      );
-      const q = firestoreQuery(documentsRef, orderBy('uploadedAt', 'desc'));
-      const snapshot = await getDocs(q);
-      
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        uploadedAt: doc.data().uploadedAt?.toDate?.() || doc.data().uploadedAt,
-      }));
+      try {
+        const documentsRef = collection(
+          db,
+          'agencies',
+          profile.agency_id,
+          'customers',
+          customer.id,
+          'documents'
+        );
+        const q = firestoreQuery(documentsRef, orderBy('uploadedAt', 'desc'));
+        const snapshot = await getDocs(q);
+        
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          uploadedAt: doc.data().uploadedAt?.toDate?.() || doc.data().uploadedAt,
+        }));
+      } catch (error: any) {
+        console.error('Error fetching customer documents:', error);
+        return [];
+      }
     },
     enabled: !!customer?.id && !!profile?.agency_id,
   });
@@ -139,10 +147,15 @@ export function DocumentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex justify-between items-center flex-wrap gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Documents</h2>
-          <p className="text-slate-600">Upload and manage your documents</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Documents</h1>
+          <p className="helper-text">Upload and manage your documents</p>
         </div>
         <div>
           <Input
@@ -169,7 +182,7 @@ export function DocumentsPage() {
             )}
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       <Card>
         <CardContent className="p-0">

@@ -8,7 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Select } from '../../../components/ui/select';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Download, Calendar, TrendingUp, DollarSign, Users, FileText, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import { exportLoans, exportCustomers, exportRepayments } from '../../../lib/data-export';
@@ -341,41 +345,86 @@ export function ReportsPage() {
   const totalLoanAmount = filteredData?.loans?.reduce((sum: number, loan: any) => sum + Number(loan.amount || 0), 0) || 0;
   const totalRepayments = filteredData?.repayments?.filter((r: any) => r.status === 'paid' || r.status === 'completed').reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount || 0), 0) || 0;
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-4 w-24 mb-4" />
+                <Skeleton className="h-8 w-32 mb-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-48" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-64 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Show error state if query failed
   if (queryError) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">Reports & Analytics</h2>
-            <p className="text-slate-600 dark:text-neutral-400">Comprehensive insights into your loan portfolio</p>
+            <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Reports & Analytics</h1>
+            <p className="helper-text">Comprehensive insights into your loan portfolio</p>
           </div>
         </div>
         <Card>
-          <CardContent className="py-12 text-center">
-            <FileText className="w-16 h-16 mx-auto mb-4 text-neutral-400" />
-            <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">Failed to load reports</p>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
-              {queryError instanceof Error ? queryError.message : 'An error occurred while loading report data'}
-            </p>
-            <Button 
-              variant="outline" 
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
+          <CardContent className="p-12">
+            <EmptyState
+              icon={<FileText className="w-12 h-12" />}
+              title="Unable to load reports"
+              description={queryError instanceof Error ? queryError.message : 'An error occurred while loading report data. Please try refreshing the page.'}
+              action={{
+                label: 'Refresh Page',
+                onClick: () => window.location.reload(),
+              }}
+            />
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  const hasData = filteredData && (filteredData.loans?.length > 0 || filteredData.customers?.length > 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-neutral-100">Reports & Analytics</h2>
-          <p className="text-slate-600 dark:text-neutral-400">Comprehensive insights into your loan portfolio</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Reports & Analytics</h1>
+          <p className="helper-text">Comprehensive insights into your loan portfolio</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <Select
@@ -420,7 +469,7 @@ export function ReportsPage() {
             Export
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -480,15 +529,12 @@ export function ReportsPage() {
             <CardTitle>Loan Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
-              </div>
-            ) : filteredData?.loans?.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <FileText className="w-12 h-12 text-neutral-400 mb-3" />
-                <p className="text-neutral-600 dark:text-neutral-400">No loan data for the selected period</p>
-              </div>
+            {filteredData?.loans?.length === 0 ? (
+              <EmptyState
+                icon={<FileText />}
+                title="No loan data available"
+                description={`No loans found for the selected ${dateRange} period. Try selecting a different time range.`}
+              />
             ) : (
               <div style={{ height: '300px', position: 'relative' }}>
                 <Pie data={loanStatusData} options={pieChartOptions} />
@@ -502,10 +548,12 @@ export function ReportsPage() {
             <CardTitle>Loan Performance</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
-              </div>
+            {filteredData?.loans?.length === 0 ? (
+              <EmptyState
+                icon={<TrendingUp />}
+                title="No performance data"
+                description={`No loan data available for the selected ${dateRange} period to calculate performance metrics.`}
+              />
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-neutral-800 rounded-lg">

@@ -250,11 +250,11 @@ export function AdminLayout() {
       <Link
         to={item.path}
         className={cn(
-          'flex items-center w-full px-3 py-2 rounded-lg transition-colors duration-200 group relative',
+          'flex items-center w-full px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
           collapsed ? 'justify-center' : '',
           isActive
-            ? 'bg-white dark:bg-neutral-800 text-[#006BFF] dark:text-blue-400 font-medium shadow-sm border border-neutral-200/50 dark:border-neutral-700/50'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+            ? 'text-[#006BFF] dark:text-blue-400 font-semibold bg-[#006BFF]/5 dark:bg-blue-500/10'
+            : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
         )}
         onClick={(e) => {
           // Prevent navigation if already on this page to avoid flickering
@@ -263,18 +263,24 @@ export function AdminLayout() {
           }
         }}
       >
+        {/* Left border accent for active state */}
+        {isActive && (
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#006BFF] dark:bg-blue-400 rounded-r-full" />
+        )}
         <Icon
           className={cn(
             'flex-shrink-0 transition-colors duration-200',
             collapsed ? 'w-5 h-5' : 'w-4 h-4 mr-3',
-            isActive ? 'text-[#006BFF]' : 'text-neutral-400 group-hover:text-neutral-600'
+            isActive 
+              ? 'text-[#006BFF] dark:text-blue-400' 
+              : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
           )}
         />
         {!collapsed && (
           <>
             <span className="flex-1 text-sm">{item.label}</span>
             {item.badge && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-[#006BFF]/10 text-[#006BFF] dark:bg-blue-500/20 dark:text-blue-400 rounded-full">
                 {item.badge}
               </span>
             )}

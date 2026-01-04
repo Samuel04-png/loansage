@@ -6,7 +6,12 @@ import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { Select } from '../../../components/ui/select';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Search, FileText, Loader2, User, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 import { formatDateTime } from '../../../lib/utils';
 
 export function ActivityLogsPage() {
@@ -71,10 +76,14 @@ export function ActivityLogsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Activity Logs</h2>
-        <p className="text-slate-600">Track all system activities and user actions</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Activity Logs</h1>
+        <p className="helper-text">Track all system activities and user actions</p>
+      </motion.div>
 
       <Card>
         <CardHeader className="p-4 border-b border-slate-100">
@@ -88,23 +97,31 @@ export function ActivityLogsPage() {
               />
               <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             </div>
-            <select
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <Select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
+              className="w-auto min-w-[140px]"
             >
               <option value="all">All Actions</option>
               <option value="create">Create</option>
               <option value="update">Update</option>
               <option value="delete">Delete</option>
               <option value="login">Login</option>
-            </select>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            <div className="p-6 space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-start gap-4">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-64" />
+                    <Skeleton className="h-3 w-96" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredLogs.length > 0 ? (
             <div className="divide-y max-h-[calc(100vh-20rem)] overflow-y-auto">
@@ -145,9 +162,14 @@ export function ActivityLogsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No activity logs found</p>
+            <div className="p-12">
+              <EmptyState
+                icon={<FileText />}
+                title="No activity logs found"
+                description={searchTerm || actionFilter !== 'all' 
+                  ? "Try adjusting your search or filter criteria to find activity logs."
+                  : "Activity logs will appear here as users interact with the system."}
+              />
             </div>
           )}
         </CardContent>

@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../lib/firebase/config';
 import { storageService } from '../../../lib/firebase/storage';
 import { generateCustomerId } from '../../../lib/firebase/helpers';
+import { createCustomer, createLoan as createLoanFirestore, addCollateral } from '../../../lib/firebase/firestore-helpers';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
@@ -69,7 +71,7 @@ type LoanTermsFormData = z.infer<typeof loanTermsSchema>;
 
 export function LoanOriginationPage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { agency } = useAgency();
   const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -122,54 +124,78 @@ export function LoanOriginationPage() {
   // Calculate total steps from flow
   const totalSteps = loanFlowSteps.length || 7; // Fallback to 7 if no flow
 
-  // Step 1: Customer search
+  // Step 1: Customer search - Using Firestore with searchKeywords for efficiency
   const { data: customers } = useQuery({
     queryKey: ['customers', profile?.agency_id, searchTerm],
     queryFn: async () => {
       if (!profile?.agency_id || !searchTerm) return [];
 
-      // For Firebase, we need to query differently
-      // Since Firestore doesn't support complex joins like Supabase, we'll search customers directly
-      const result = await new Promise<any>((resolve, reject) => {
-        supabase
-          .from('customers')
-          .select('*')
-          .eq('agency_id', profile.agency_id)
-          .or(`customer_id.ilike.%${searchTerm}%,nrc_number.ilike.%${searchTerm}%`)
-          .limit(10)
-          .then(
-            (res: any) => {
-              if (res.error) reject(res.error);
-              else resolve(res.data || []);
-            },
-            (err: any) => reject(err)
+      try {
+        const { getDocs, query: firestoreQuery, collection: firestoreCollection, where, limit } = await import('firebase/firestore');
+        const customersRef = firestoreCollection(db, 'agencies', profile.agency_id, 'customers');
+        
+        const searchLower = searchTerm.toLowerCase().trim();
+        let filteredCustomers: any[] = [];
+        
+        // Try using searchKeywords array-contains query first (most efficient)
+        try {
+          const keywordQuery = firestoreQuery(
+            customersRef,
+            where('searchKeywords', 'array-contains', searchLower),
+            limit(10)
           );
-      });
-
-      // Fetch user data separately for each customer
-      const customersWithUsers = await Promise.all(
-        (result || []).map(async (cust: any) => {
-          if (cust.user_id) {
-            const userResult = await new Promise<any>((resolve, reject) => {
-              supabase
-                .from('users')
-                .select('email, full_name, phone')
-                .eq('id', cust.user_id)
-                .single()
-                .then(
-                  (res: any) => {
-                    if (res.error) resolve(null);
-                    else resolve(res.data);
-                  },
-                  () => resolve(null)
-                );
-            });
-            return { ...cust, users: userResult };
+          const keywordSnapshot = await getDocs(keywordQuery);
+          
+          if (!keywordSnapshot.empty) {
+            filteredCustomers = keywordSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
           }
-          return cust;
-        })
-      );
-      return customersWithUsers;
+        } catch (keywordError: any) {
+          // searchKeywords query failed - fall back to client-side filtering
+          console.warn('searchKeywords query failed, using fallback:', keywordError.message);
+        }
+        
+        // Fallback: Get all customers and filter client-side
+        if (filteredCustomers.length === 0) {
+          const snapshot = await getDocs(customersRef);
+          const allCustomers = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          
+          // Filter by search term (case-insensitive) - Name, Email, Phone, NRC, ID
+          filteredCustomers = allCustomers.filter((cust: any) => {
+            const fullName = (cust.fullName || cust.name || '').toLowerCase();
+            const email = (cust.email || '').toLowerCase();
+            const phone = (cust.phone || '').toLowerCase();
+            const nrc = (cust.nrc || cust.nrcNumber || '').toLowerCase();
+            const customerId = (cust.customerId || cust.customer_id || cust.id || '').toLowerCase();
+            
+            return fullName.includes(searchLower) ||
+                   email.includes(searchLower) ||
+                   phone.includes(searchLower) ||
+                   nrc.includes(searchLower) ||
+                   customerId.includes(searchLower);
+          }).slice(0, 10); // Limit to 10 results
+        }
+        
+        // Format for compatibility with existing UI
+        return filteredCustomers.map((cust: any) => ({
+          ...cust,
+          users: {
+            full_name: cust.fullName || cust.name,
+            email: cust.email,
+            phone: cust.phone,
+          },
+          nrc_number: cust.nrc || cust.nrcNumber,
+          customer_id: cust.customerId || cust.id,
+        }));
+      } catch (error) {
+        console.error('Error searching customers:', error);
+        return [];
+      }
     },
     enabled: !!profile?.agency_id && searchTerm.length > 2,
   });
@@ -244,39 +270,86 @@ export function LoanOriginationPage() {
     return true;
   };
 
+  const queryClient = useQueryClient();
+  
   const createLoan = useMutation({
     mutationFn: async (loanData: any) => {
-      if (!profile?.agency_id) throw new Error('Not authenticated');
+      if (!profile?.agency_id || !user?.id) throw new Error('Not authenticated');
 
-      const result = await new Promise<any>((resolve, reject) => {
-        supabase
-          .from('loans')
-          .insert({
-            ...loanData,
-            agency_id: profile.agency_id,
-            status: 'draft', // Create in DRAFT status - must be submitted separately
-            created_by: profile.id,
-          })
-          .select('*')
-          .single()
-          .then(
-            (res: any) => {
-              if (res.error) reject(res.error);
-              else resolve(res.data);
-            },
-            (err: any) => reject(err)
-          );
+      // Generate a unique loan ID
+      const loanId = `LOAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const loanNumber = `LN-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+      
+      // Create loan in Firestore with COMPLETE schema for Admin reporting
+      const loanRef = doc(db, 'agencies', profile.agency_id, 'loans', loanId);
+      await setDoc(loanRef, {
+        // === Core Identifiers ===
+        id: loanId,
+        loanNumber: loanNumber,
+        agencyId: profile.agency_id, // CRITICAL: Required for Admin reports
+        
+        // === Customer Info ===
+        customerId: loanData.customerId,
+        customerName: loanData.customerName || null, // Denormalized for quick access
+        
+        // === Loan Details ===
+        loanType: loanData.loanType,
+        amount: loanData.amount,
+        currency: loanData.currency || 'ZMW',
+        interestRate: loanData.interestRate,
+        durationMonths: loanData.durationMonths,
+        repaymentFrequency: loanData.repaymentFrequency,
+        
+        // === Documents & Collateral ===
+        documentUrls: loanData.documentUrls || [],
+        aiAnalysis: loanData.aiAnalysis || null,
+        hasCollateral: loanData.collateralData?.length > 0,
+        collateralIncluded: loanData.collateralData?.length > 0,
+        
+        // === Workflow Status ===
+        status: 'draft', // Create in DRAFT status - must be submitted separately
+        
+        // === CRITICAL: Originator Info for Admin Reporting ===
+        createdBy: user.id, // User ID who created this loan
+        officerId: user.id, // Assigned loan officer ID
+        originatorName: profile.full_name || profile.email || 'Unknown Officer', // Name for "Loans by Staff" report
+        originatorEmail: profile.email || null, // Email for traceability
+        branchId: profile.branch_id || null, // Branch association for branch reports
+        branchName: profile.branch_name || null, // Denormalized branch name
+        
+        // === Timestamps ===
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
-      return result;
+      // Add collateral records if any
+      if (loanData.collateralData && loanData.collateralData.length > 0) {
+        for (const item of loanData.collateralData) {
+          try {
+            await addCollateral(profile.agency_id, loanId, {
+              type: item.type || 'other',
+              name: item.name || 'Collateral',
+              description: item.description || '',
+              estimatedValue: item.estimatedValue || 0,
+              photos: item.photos || [],
+            });
+          } catch (collateralError) {
+            console.warn('Failed to add collateral item:', collateralError);
+          }
+        }
+      }
+
+      return { id: loanId, loanNumber };
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['employee-loans'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
       toast.success('Loan application created as draft! You can submit it for review when ready.');
-      // Optionally navigate to loan detail page or stay on form
       navigate(`/employee/loans/${data.id}`);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to submit loan');
+      console.error('Error creating loan:', error);
+      toast.error(error.message || 'Failed to create loan. Please check your permissions.');
     },
   });
 
@@ -358,105 +431,57 @@ export function LoanOriginationPage() {
     let customerId = selectedCustomer?.id;
     if (!selectedCustomer) {
       try {
-        // Create user first
-        const userResult = await new Promise<any>((resolve, reject) => {
-          supabase
-            .from('users')
-            .insert({
-              email: borrowerForm.getValues('email'),
-              full_name: borrowerForm.getValues('fullName'),
-              phone: borrowerForm.getValues('phone'),
-              role: 'customer',
-            })
-            .select('*')
-            .single()
-            .then(
-              (res: any) => {
-                if (res.error) reject(res.error);
-                else resolve(res.data);
-              },
-              (err: any) => reject(err)
-            );
+        if (!profile?.agency_id || !user?.id) {
+          throw new Error('Not authenticated');
+        }
+        
+        // Create customer in Firestore directly
+        const customerResult = await createCustomer(profile.agency_id, {
+          fullName: borrowerForm.getValues('fullName'),
+          email: borrowerForm.getValues('email'),
+          phone: borrowerForm.getValues('phone'),
+          nrc: borrowerForm.getValues('nrcNumber'),
+          address: borrowerForm.getValues('address'),
+          dateOfBirth: borrowerForm.getValues('dateOfBirth'),
+          createdBy: user.id,
         });
-
-        // Generate customer ID using helper function
-        const customerIdData = await generateCustomerId(profile?.agency_id || '');
-
-        // Create customer
-        const customerResult = await new Promise<any>((resolve, reject) => {
-          supabase
-            .from('customers')
-            .insert({
-              user_id: userResult.id,
-              agency_id: profile?.agency_id,
-              customer_id: customerIdData || `CUST-${Date.now()}`,
-              nrc_number: borrowerForm.getValues('nrcNumber'),
-              date_of_birth: borrowerForm.getValues('dateOfBirth'),
-              address: borrowerForm.getValues('address'),
-            })
-            .select('*')
-            .single()
-            .then(
-              (res: any) => {
-                if (res.error) reject(res.error);
-                else resolve(res.data);
-              },
-              (err: any) => reject(err)
-            );
-        });
+        
         customerId = customerResult.id;
+        
+        // Invalidate customers query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['employee-customers'] });
+        
       } catch (error: any) {
-        toast.error('Failed to create customer: ' + error.message);
+        console.error('Failed to create customer:', error);
+        toast.error('Failed to create customer: ' + (error.message || 'Missing or insufficient permissions.'));
         return;
       }
     }
 
-    // Create collateral records
-    let collateralIds: string[] = [];
-    if (safeCollateral.length > 0) {
-      try {
-        const collateralPromises = collateral.map(async (item) => {
-          const result = await new Promise<any>((resolve, reject) => {
-            supabase
-              .from('collateral')
-              .insert({
-                agency_id: profile?.agency_id,
-                type: item.type,
-                description: item.description,
-                estimated_value: item.estimated_value,
-                currency: item.currency || 'ZMW',
-              })
-              .select('*')
-              .single()
-              .then(
-                (res: any) => {
-                  if (res.error) reject(res.error);
-                  else resolve(res.data);
-                },
-                (err: any) => reject(err)
-              );
-          });
-          return result.id;
-        });
-
-        collateralIds = await Promise.all(collateralPromises);
-      } catch (error: any) {
-        toast.error('Failed to save collateral: ' + error.message);
-        return;
-      }
-    }
+    // Note: Collateral will be added to the loan after creation
+    // Store collateral data to be added to the loan document
+    const collateralData = safeCollateral.map(item => ({
+      type: item.type || 'other',
+      name: item.name || item.description || 'Unnamed collateral',
+      description: item.description || '',
+      estimatedValue: item.estimated_value || item.estimatedValue || 0,
+      currency: item.currency || 'ZMW',
+      photos: item.photos || [],
+    }));
 
     const loanData = {
-      customer_id: customerId || '',
-      loan_type: safeLoanType || '',
+      customerId: customerId || '',
+      customerName: selectedCustomer?.fullName || selectedCustomer?.name || selectedCustomer?.users?.full_name || 'Unknown Customer', // For Admin reports
+      loanType: safeLoanType || '',
       amount: loanTermsForm.getValues('amount') || 0,
       currency: loanTermsForm.getValues('currency') || 'ZMW',
-      interest_rate: loanTermsForm.getValues('interestRate') || 15,
-      duration_months: loanTermsForm.getValues('durationMonths') || 12,
-      repayment_frequency: loanTermsForm.getValues('repaymentFrequency') || 'monthly',
-      collateral_ids: collateralIds || [],
-      document_urls: uploadedDocUrls || [],
-      ai_analysis: aiAnalysis || null,
+      interestRate: loanTermsForm.getValues('interestRate') || 15,
+      durationMonths: loanTermsForm.getValues('durationMonths') || 12,
+      repaymentFrequency: loanTermsForm.getValues('repaymentFrequency') || 'monthly',
+      collateralData: collateralData,
+      documentUrls: uploadedDocUrls || [],
+      aiAnalysis: aiAnalysis || null,
     };
 
     createLoan.mutate(loanData);

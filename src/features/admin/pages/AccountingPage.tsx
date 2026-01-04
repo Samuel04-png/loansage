@@ -7,6 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Badge } from '../../../components/ui/badge';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
+import { motion } from 'framer-motion';
+import { cn } from '../../../lib/utils';
 import { DollarSign, TrendingUp, TrendingDown, Calendar, FileText, Download, Filter, Search, Loader2, Upload, CheckCircle2, AlertCircle, FileCheck, Eye, Edit } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -246,36 +250,70 @@ export function AccountingPage() {
 
   if (loansLoading || repaymentsLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-4 w-24 mb-4" />
+                <Skeleton className="h-8 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  const hasData = financialData && (financialData.totalPortfolio > 0 || financialData.totalCollections > 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
+      >
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Accounting & Finance</h2>
-          <p className="text-slate-600">Financial overview and loan portfolio management</p>
+          <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Accounting & Finance</h1>
+          <p className="helper-text">Financial overview and loan portfolio management</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          <select
-            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
+            className="w-auto min-w-[140px]"
           >
             <option value="week">This Week</option>
             <option value="month">This Month</option>
             <option value="quarter">This Quarter</option>
             <option value="year">This Year</option>
-          </select>
+          </Select>
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" />
             Export Report
           </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Financial Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

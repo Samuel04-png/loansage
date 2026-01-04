@@ -7,8 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Input } from '../../../components/ui/input';
+import { Select } from '../../../components/ui/select';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { EmptyState } from '../../../components/ui/empty-state';
 import { Search, Calendar, DollarSign, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDateSafe } from '../../../lib/utils';
+import { motion } from 'framer-motion';
 
 export function PaymentsPage() {
   const { profile } = useAuth();
@@ -52,38 +56,77 @@ export function PaymentsPage() {
     queryFn: async () => {
       if (!loans || loans.length === 0 || !profile?.agency_id) return [];
 
-      const allRepayments: any[] = [];
+      try {
+        const allRepayments: any[] = [];
 
-      for (const loan of loans) {
-        const repaymentsRef = collection(
-          db,
-          'agencies',
-          profile.agency_id,
-          'loans',
-          loan.id,
-          'repayments'
-        );
-        
-        let q = firestoreQuery(repaymentsRef, orderBy('dueDate', 'desc'));
-        
-        if (filter !== 'all') {
-          q = firestoreQuery(repaymentsRef, where('status', '==', filter), orderBy('dueDate', 'desc'));
+        for (const loan of loans) {
+          try {
+            const repaymentsRef = collection(
+              db,
+              'agencies',
+              profile.agency_id,
+              'loans',
+              loan.id,
+              'repayments'
+            );
+            
+            try {
+              let q;
+              if (filter !== 'all') {
+                q = firestoreQuery(repaymentsRef, where('status', '==', filter), orderBy('dueDate', 'desc'));
+              } else {
+                q = firestoreQuery(repaymentsRef, orderBy('dueDate', 'desc'));
+              }
+
+              const snapshot = await getDocs(q);
+              const loanRepayments = snapshot.docs.map(doc => ({
+                id: doc.id,
+                loanId: loan.id,
+                loanNumber: loan.id,
+                ...doc.data(),
+                dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
+                paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
+              }));
+
+              allRepayments.push(...loanRepayments);
+            } catch (queryError: any) {
+              // If compound query fails, try simple query
+              if (queryError?.code === 'failed-precondition' || queryError?.message?.includes('index')) {
+                try {
+                  const simpleSnapshot = await getDocs(repaymentsRef);
+                  const loanRepayments = simpleSnapshot.docs
+                    .map(doc => ({
+                      id: doc.id,
+                      loanId: loan.id,
+                      loanNumber: loan.id,
+                      ...doc.data(),
+                      dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
+                      paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
+                    }))
+                    .filter((r: any) => filter === 'all' || r.status === filter)
+                    .sort((a: any, b: any) => {
+                      const aDate = a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate || 0);
+                      const bDate = b.dueDate instanceof Date ? b.dueDate : new Date(b.dueDate || 0);
+                      return bDate.getTime() - aDate.getTime();
+                    });
+                  allRepayments.push(...loanRepayments);
+                } catch (fallbackError) {
+                  console.warn(`Failed to fetch repayments for loan ${loan.id}:`, fallbackError);
+                }
+              } else {
+                console.warn(`Failed to fetch repayments for loan ${loan.id}:`, queryError);
+              }
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch repayments for loan ${loan.id}:`, error);
+          }
         }
 
-        const snapshot = await getDocs(q);
-        const loanRepayments = snapshot.docs.map(doc => ({
-          id: doc.id,
-          loanId: loan.id,
-          loanNumber: loan.id,
-          ...doc.data(),
-          dueDate: doc.data().dueDate?.toDate?.() || doc.data().dueDate,
-          paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
-        }));
-
-        allRepayments.push(...loanRepayments);
+        return allRepayments;
+      } catch (error: any) {
+        console.error('Error fetching repayments:', error);
+        return [];
       }
-
-      return allRepayments;
     },
     enabled: !!loans && loans.length > 0 && !!profile?.agency_id,
   });
@@ -134,10 +177,14 @@ export function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Payments & Repayment Schedule</h2>
-        <p className="text-slate-600">View your payment history and upcoming payments</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <h1 className="page-title text-neutral-900 dark:text-neutral-100 mb-1">Payments & Repayment Schedule</h1>
+        <p className="helper-text">View your payment history and upcoming payments</p>
+      </motion.div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -190,22 +237,24 @@ export function PaymentsPage() {
               />
               <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             </div>
-            <select
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <Select
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
+              className="w-auto min-w-[140px]"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="paid">Paid</option>
               <option value="overdue">Overdue</option>
-            </select>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
+            <div className="space-y-4 p-6">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
             </div>
           ) : filteredRepayments.length > 0 ? (
             <div className="overflow-x-auto">
@@ -248,10 +297,11 @@ export function PaymentsPage() {
               </table>
             </div>
           ) : (
-            <div className="text-center py-12 text-slate-500">
-              <Calendar className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-              <p>No payments found</p>
-            </div>
+            <EmptyState
+              icon={<Calendar className="w-12 h-12" />}
+              title="No payments found"
+              description="You don't have any payment records yet. Payments will appear here once your loans are active."
+            />
           )}
         </CardContent>
       </Card>
