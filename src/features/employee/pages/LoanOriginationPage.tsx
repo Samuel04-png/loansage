@@ -43,7 +43,9 @@ import { analyzeLoanRisk } from '../../../services/aiService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getEnabledLoanTypes, getLoanTypeTemplate, getLoanTypeConfig } from '../../../lib/firebase/loan-type-config';
 import { useAgency } from '../../../hooks/useAgency';
+import { useLoanPackages, getPackagesForLoanType, type LoanPackage } from '../../../hooks/useLoanPackages';
 import { getLoanTypeIcon } from '../../../lib/loan-type-icons';
+import { Package, Lock, Unlock } from 'lucide-react';
 import type { LoanTypeConfig, LoanTypeId, LoanStep } from '../../../types/loan-config';
 import { buildLoanFlow, getNextStepId, getPreviousStepId, getStepIndex } from '../../../lib/loan-flow/flow-engine';
 import { shouldRenderCollateral, shouldRenderEmployment, shouldRenderBusiness, shouldRenderGuarantor } from '../../../lib/loan-type/rules';
@@ -73,6 +75,7 @@ export function LoanOriginationPage() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   const { agency } = useAgency();
+  const { packages: loanPackages, isEnterprise, hasPackages } = useLoanPackages();
   const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -83,6 +86,10 @@ export function LoanOriginationPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [uploadingDocs, setUploadingDocs] = useState(false);
+  
+  // Loan Packages (Enterprise Feature)
+  const [selectedPackage, setSelectedPackage] = useState<LoanPackage | null>(null);
+  const [isPackageLocked, setIsPackageLocked] = useState(false);
   
   // Safe defaults for all form states to prevent undefined crashes
   const safeLoanType = loanType || '';
@@ -271,7 +278,7 @@ export function LoanOriginationPage() {
   };
 
   const queryClient = useQueryClient();
-  
+
   const createLoan = useMutation({
     mutationFn: async (loanData: any) => {
       if (!profile?.agency_id || !user?.id) throw new Error('Not authenticated');
@@ -307,7 +314,7 @@ export function LoanOriginationPage() {
         collateralIncluded: loanData.collateralData?.length > 0,
         
         // === Workflow Status ===
-        status: 'draft', // Create in DRAFT status - must be submitted separately
+            status: 'draft', // Create in DRAFT status - must be submitted separately
         
         // === CRITICAL: Originator Info for Admin Reporting ===
         createdBy: user.id, // User ID who created this loan
@@ -438,10 +445,10 @@ export function LoanOriginationPage() {
         // Create customer in Firestore directly
         const customerResult = await createCustomer(profile.agency_id, {
           fullName: borrowerForm.getValues('fullName'),
-          email: borrowerForm.getValues('email'),
-          phone: borrowerForm.getValues('phone'),
+              email: borrowerForm.getValues('email'),
+              phone: borrowerForm.getValues('phone'),
           nrc: borrowerForm.getValues('nrcNumber'),
-          address: borrowerForm.getValues('address'),
+              address: borrowerForm.getValues('address'),
           dateOfBirth: borrowerForm.getValues('dateOfBirth'),
           createdBy: user.id,
         });
@@ -967,6 +974,116 @@ export function LoanOriginationPage() {
               })}
               className="space-y-5"
             >
+              {/* Loan Packages Selection (Enterprise Feature) */}
+              {isEnterprise && hasPackages && loanType && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/50 dark:to-purple-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Package className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                      Quick Fill with Loan Package
+                    </span>
+                    <Badge variant="outline" className="text-xs bg-indigo-100 text-indigo-700 border-indigo-300">
+                      Enterprise
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <select
+                      className="flex-1 h-10 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-neutral-900 px-3 text-sm focus:ring-2 focus:ring-indigo-500"
+                      value={selectedPackage?.id || ''}
+                      onChange={(e) => {
+                        const pkg = loanPackages.find((p) => p.id === e.target.value);
+                        setSelectedPackage(pkg || null);
+                        
+                        if (pkg) {
+                          // Auto-fill form with package values
+                          loanTermsForm.setValue('amount', pkg.maxAmount);
+                          loanTermsForm.setValue('interestRate', pkg.interestRate);
+                          loanTermsForm.setValue('durationMonths', pkg.defaultTermMonths);
+                          setIsPackageLocked(true);
+                          toast.success(`Applied "${pkg.name}" package`);
+                        } else {
+                          setIsPackageLocked(false);
+                        }
+                      }}
+                    >
+                      <option value="">Select a package (optional)</option>
+                      {getPackagesForLoanType(loanPackages, loanType).map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.name} - {pkg.interestRate}% @ {pkg.defaultTermMonths} months
+                        </option>
+                      ))}
+                    </select>
+                    
+                    {selectedPackage && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsPackageLocked(!isPackageLocked)}
+                        className="flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900"
+                      >
+                        {isPackageLocked ? (
+                          <>
+                            <Lock className="w-4 h-4" />
+                            <span className="text-xs">Locked</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-4 h-4" />
+                            <span className="text-xs">Unlocked</span>
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {selectedPackage && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700"
+                    >
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-white/60 dark:bg-neutral-900/60 p-2 rounded">
+                          <span className="text-indigo-600 font-medium">Amount Range:</span>
+                          <span className="ml-1 text-indigo-900 dark:text-indigo-100">
+                            {selectedPackage.minAmount.toLocaleString()} - {selectedPackage.maxAmount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="bg-white/60 dark:bg-neutral-900/60 p-2 rounded">
+                          <span className="text-indigo-600 font-medium">Interest:</span>
+                          <span className="ml-1 text-indigo-900 dark:text-indigo-100">
+                            {selectedPackage.interestRate}% ({selectedPackage.interestRateType})
+                          </span>
+                        </div>
+                        <div className="bg-white/60 dark:bg-neutral-900/60 p-2 rounded">
+                          <span className="text-indigo-600 font-medium">Term:</span>
+                          <span className="ml-1 text-indigo-900 dark:text-indigo-100">
+                            {selectedPackage.minTermMonths} - {selectedPackage.maxTermMonths} months
+                          </span>
+                        </div>
+                        <div className="bg-white/60 dark:bg-neutral-900/60 p-2 rounded">
+                          <span className="text-indigo-600 font-medium">Collateral:</span>
+                          <span className="ml-1 text-indigo-900 dark:text-indigo-100">
+                            {selectedPackage.collateralRequired ? 'Required' : 'Not Required'}
+                          </span>
+                        </div>
+                      </div>
+                      {selectedPackage.description && (
+                        <p className="mt-2 text-xs text-indigo-700 dark:text-indigo-300">
+                          {selectedPackage.description}
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </motion.div>
+              )}
+              
               {currentLoanTypeConfig && (
                 <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
@@ -988,8 +1105,9 @@ export function LoanOriginationPage() {
                     <Input
                       id="amount"
                       type="number"
-                      className="pl-10 h-11"
+                      className={`pl-10 h-11 ${isPackageLocked ? 'bg-slate-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
                       placeholder="10000"
+                      readOnly={isPackageLocked}
                       {...loanTermsForm.register('amount', { valueAsNumber: true })}
                     />
                   </div>
@@ -1010,8 +1128,9 @@ export function LoanOriginationPage() {
                     id="interestRate"
                     type="number"
                     step="0.1"
-                    className="h-11"
+                    className={`h-11 ${isPackageLocked ? 'bg-slate-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
                     placeholder="15.0"
+                    readOnly={isPackageLocked}
                     {...loanTermsForm.register('interestRate', { valueAsNumber: true })}
                   />
                   {loanTermsForm.formState.errors.interestRate && (
@@ -1034,8 +1153,9 @@ export function LoanOriginationPage() {
                     <Input
                       id="durationMonths"
                       type="number"
-                      className="pl-10 h-11"
+                      className={`pl-10 h-11 ${isPackageLocked ? 'bg-slate-100 dark:bg-neutral-800 cursor-not-allowed' : ''}`}
                       placeholder="12"
+                      readOnly={isPackageLocked}
                       {...loanTermsForm.register('durationMonths', { valueAsNumber: true })}
                     />
                   </div>

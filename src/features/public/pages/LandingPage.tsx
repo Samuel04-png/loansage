@@ -72,6 +72,12 @@ export function LandingPage() {
             </Link>
             <div className="flex items-center gap-3 sm:gap-6">
               <Link 
+                to="/marketplace" 
+                className="hidden sm:block text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors"
+              >
+                Find a Lender
+              </Link>
+              <Link 
                 to="/about" 
                 className="hidden sm:block text-sm font-medium text-slate-600 hover:text-primary-600 transition-colors"
               >
@@ -159,14 +165,16 @@ export function LandingPage() {
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl border-2 hover:bg-slate-50 font-semibold"
-              >
-                <PlayCircle className="mr-2 w-5 h-5" />
-                Watch Demo
-              </Button>
+              <Link to="/marketplace" className="w-full sm:w-auto">
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="w-full sm:w-auto text-base sm:text-lg px-8 sm:px-10 py-6 sm:py-7 rounded-xl border-2 hover:bg-slate-50 font-semibold"
+                >
+                  <Building2 className="mr-2 w-5 h-5" />
+                  Find a Lender
+                </Button>
+              </Link>
             </motion.div>
 
             {/* Trust Indicators */}

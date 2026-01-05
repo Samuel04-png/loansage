@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { AuthProvider } from '../components/providers/AuthProvider';
@@ -24,6 +24,8 @@ import { AboutPage } from '../features/public/pages/AboutPage';
 import { ContactPage } from '../features/public/pages/ContactPage';
 import { PrivacyPage } from '../features/public/pages/PrivacyPage';
 import { TermsPage } from '../features/public/pages/TermsPage';
+import { MarketplacePage } from '../features/public/pages/MarketplacePage';
+import { PublicLayout } from '../features/public/components/PublicLayout';
 
 // Admin pages
 import { AdminLayout } from '../features/admin/components/AdminLayout';
@@ -48,6 +50,7 @@ import { HotkeysPage } from '../features/admin/pages/HotkeysPage';
 import { DownloadAppsPage } from '../features/admin/pages/DownloadAppsPage';
 import { ReferralsPage } from '../features/admin/pages/ReferralsPage';
 import { PlansPage } from '../features/admin/pages/PlansPage';
+import { MarketplaceLeadsPage } from '../features/admin/pages/MarketplaceLeadsPage';
 import { HelpPage } from '../features/admin/pages/HelpPage';
 import { TrashPage } from '../features/admin/pages/TrashPage';
 import { NotificationsPage as AdminNotificationsPage } from '../features/admin/pages/NotificationsPage';
@@ -114,10 +117,13 @@ function AppContent() {
       <Routes>
               {/* Public routes */}
               <Route path="/" element={<LandingPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/terms" element={<TermsPage />} />
+              <Route element={<PublicLayout><Outlet /></PublicLayout>}>
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/marketplace" element={<MarketplacePage />} />
+              </Route>
 
               {/* Auth routes */}
               <Route path="/auth/login" element={<LoginPage />} />
@@ -168,6 +174,7 @@ function AppContent() {
                 <Route path="download-apps" element={<DownloadAppsPage />} />
                 <Route path="referrals" element={<ReferralsPage />} />
                 <Route path="plans" element={<PlansPage />} />
+                <Route path="marketplace/leads" element={<MarketplaceLeadsPage />} />
                 <Route path="help" element={<HelpPage />} />
                 <Route path="trash" element={<TrashPage />} />
                 <Route path="notifications" element={<AdminNotificationsPage />} />

@@ -485,6 +485,38 @@ service cloud.firestore {
           (getUserRole() == 'employee' && getUserEmployeeCategory() == 'manager')
         );
       }
+      
+      // Customer invitations subcollection (for automated onboarding)
+      match /customer_invitations/{invitationId} {
+        // Allow read to anyone (token verification done in code)
+        allow read: if true;
+        // Only Cloud Functions can create (no direct client access needed)
+        allow create: if isAuthenticated() && belongsToAgency(agencyId);
+        // Allow update for status changes (accepted, expired)
+        allow update: if isAuthenticated();
+        // Only admins can delete
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Loan packages subcollection (Enterprise feature)
+      match /loan_packages/{packageId} {
+        // Anyone in agency can read packages
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        // Only admins can create/update/delete (Enterprise plan enforced in Cloud Functions)
+        allow create: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
+      
+      // Notification config subcollection (Enterprise templates)
+      match /notification_config/{configId} {
+        // Anyone in agency can read notification config
+        allow read: if isAuthenticated() && belongsToAgency(agencyId);
+        // Only admins can create/update/delete (Enterprise plan enforced in Cloud Functions)
+        allow create: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow update: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+        allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(agencyId);
+      }
     }
     
     // AI logs collection (read-only for employees, full access for admins)
@@ -530,6 +562,51 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // AI Cache collection (for DeepSeek API response caching)
+    match /ai_cache/{cacheKey} {
+      // Only Cloud Functions can read/write cache
+      // Clients should never access this directly
+      allow read: if false; // No direct client access
+      allow create: if false; // Only Cloud Functions
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    // Marketplace leads collection (public marketplace)
+    match /marketplace_leads/{leadId} {
+      // Public read for borrowers to check their own application status
+      // Agency members can read leads for their agency
+      allow read: if 
+        isAuthenticated() && (
+          // Borrower can read their own lead
+          (resource != null && resource.data.borrowerEmail == request.auth.token.email) ||
+          // Agency members can read leads for their agency
+          (belongsToAgency(resource.data.targetAgencyId))
+        );
+      
+      // Anyone can create a lead (public marketplace application)
+      allow create: if true;
+      
+      // Only agency members can update (accept/reject)
+      allow update: if isAuthenticated() && belongsToAgency(resource.data.targetAgencyId) && (isAdmin() || isLoanOfficer());
+      
+      // Only admins can delete
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+    
+    // Marketplace agency profiles (public lender profiles)
+    match /marketplace_profiles/{profileId} {
+      // Public read - anyone can view lender profiles
+      allow read: if true;
+      
+      // Only agency admins can create/update their profile
+      allow create: if isAuthenticated() && isAdmin() && belongsToAgency(profileId);
+      allow update: if isAuthenticated() && isAdmin() && belongsToAgency(profileId);
+      
+      // Only admins can delete
+      allow delete: if isAuthenticated() && isAdmin() && belongsToAgency(profileId);
     }
   }
 }

@@ -1,11 +1,13 @@
 /**
  * DeepSeek API Proxy Cloud Function
- * Proxies requests to DeepSeek API to avoid CORS issues
+ * Proxies requests to DeepSeek API with rate limiting, caching, and retry logic
  */
 
 import * as functions from 'firebase-functions';
 import { enforceQuota } from './usage-ledger';
 import { isInternalEmail } from './internal-bypass';
+// Lazy import to prevent deployment timeout
+let callDeepSeekWithRateLimit: any;
 
 interface DeepSeekMessage {
   role: 'system' | 'user' | 'assistant';
@@ -52,76 +54,33 @@ export const deepseekProxy = functions.https.onCall(async (data: DeepSeekRequest
   }
 
   try {
-    // Enforce AI calls quota unless internal
-    if (!isInternalEmail(context)) {
+    // Lazy load rate limiter to prevent deployment timeout
+    if (!callDeepSeekWithRateLimit) {
+      const rateLimiterModule = await import('./deepseek-rate-limiter');
+      callDeepSeekWithRateLimit = rateLimiterModule.callDeepSeekWithRateLimit;
+    }
+    
+    // Enforce AI calls quota unless internal (only count non-cached calls)
+    // We'll check this after the cache lookup
+    
+    // Use rate-limited and cached API call
+    const result = await callDeepSeekWithRateLimit(apiKey, messages, {
+      model,
+      temperature,
+      maxTokens,
+      agencyId,
+    });
+    
+    // Only count quota if not from cache
+    if (!result.fromCache && !isInternalEmail(context)) {
       await enforceQuota(agencyId, 'aiCalls', 1);
     }
 
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `DeepSeek API error: ${response.status} ${response.statusText}`;
-      
-      try {
-        const errorData = await response.json();
-        if (errorData.error?.message) {
-          errorMessage = `DeepSeek API error: ${errorData.error.message}`;
-        }
-      } catch (parseError) {
-        const text = await response.text().catch(() => '');
-        if (text) {
-          errorMessage = `DeepSeek API error: ${text}`;
-        }
-      }
-      
-      throw new functions.https.HttpsError(
-        'internal',
-        errorMessage
-      );
-    }
-
-    const data = await response.json();
-    
-    // Check for API-level errors
-    if (data.error) {
-      throw new functions.https.HttpsError(
-        'internal',
-        `DeepSeek API error: ${data.error.message || 'Unknown error'}`
-      );
-    }
-    
-    if (!data.choices || data.choices.length === 0) {
-      throw new functions.https.HttpsError(
-        'internal',
-        'No response from DeepSeek API - empty choices array'
-      );
-    }
-
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-      throw new functions.https.HttpsError(
-        'internal',
-        'No content in DeepSeek API response'
-      );
-    }
-
     return {
-      content,
-      usage: data.usage,
-      model: data.model,
+      content: result.content,
+      usage: result.usage,
+      model,
+      fromCache: result.fromCache,
     };
   } catch (error: any) {
     console.error('DeepSeek API proxy error:', error);
@@ -137,10 +96,14 @@ export const deepseekProxy = functions.https.onCall(async (data: DeepSeekRequest
         'unauthenticated',
         'DeepSeek API authentication failed. Please check your API key.'
       );
-    } else if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+    } else if (
+      error.message?.includes('429') || 
+      error.message?.includes('rate limit') ||
+      error.message?.includes('Rate limit exceeded')
+    ) {
       throw new functions.https.HttpsError(
         'resource-exhausted',
-        'DeepSeek API rate limit exceeded. Please try again later.'
+        error.message || 'DeepSeek API rate limit exceeded. Please try again later.'
       );
     } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
       throw new functions.https.HttpsError(

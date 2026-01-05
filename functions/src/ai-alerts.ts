@@ -186,12 +186,41 @@ export const onLoanCreate = functions.firestore
 
 /**
  * Trigger: onUpdate loan
+ * Only triggers AI analysis on significant field changes to avoid rate limits
  */
 export const onLoanUpdate = functions.firestore
   .document('agencies/{agencyId}/loans/{loanId}')
   .onUpdate(async (change, context) => {
-    const newData = change.after.data();
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
     const { agencyId, loanId } = context.params;
+
+    // Only run AI analysis if significant fields changed
+    // This prevents unnecessary API calls on minor updates (typos, metadata, etc.)
+    const significantFields = [
+      'status',
+      'loanAmount',
+      'terms.amount',
+      'interestRate',
+      'terms.interestRate',
+      'termMonths',
+      'terms.durationMonths',
+      'loanType',
+      'collateral',
+      'borrower',
+      'customerId',
+    ];
+    
+    const hasSignificantChange = significantFields.some(field => {
+      const beforeValue = getNestedValue(beforeData, field);
+      const afterValue = getNestedValue(afterData, field);
+      return JSON.stringify(beforeValue) !== JSON.stringify(afterValue);
+    });
+    
+    if (!hasSignificantChange) {
+      console.log(`Loan ${loanId} updated but no significant changes detected. Skipping AI analysis.`);
+      return;
+    }
 
     try {
       // Get loan type configuration
@@ -203,18 +232,25 @@ export const onLoanUpdate = functions.firestore
       }
 
       const agencyConfig = configSnap.data()!;
-      const loanTypeConfig = agencyConfig.loanTypes?.[newData.loanType];
+      const loanTypeConfig = agencyConfig.loanTypes?.[afterData.loanType];
 
       if (!loanTypeConfig) {
         return;
       }
 
       // Generate alerts for updated loan
-      await generateAlertsForLoan(agencyId, loanId, newData, loanTypeConfig);
+      await generateAlertsForLoan(agencyId, loanId, afterData, loanTypeConfig);
     } catch (error) {
       console.error('Error generating alerts for updated loan:', error);
     }
   });
+
+/**
+ * Helper to get nested object value by dot-notation path
+ */
+function getNestedValue(obj: any, path: string): any {
+  return path.split('.').reduce((current, key) => current?.[key], obj);
+}
 
 /**
  * Scheduled function: Auto-resolve expired alerts

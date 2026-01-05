@@ -63,6 +63,7 @@ import {
   DollarSign,
   TrendingUp,
   FileSpreadsheet,
+  Store,
 } from 'lucide-react';
 import { NotificationDropdown } from '../../../components/NotificationDropdown';
 import { GlobalSearchDialog } from '../../../components/search/GlobalSearchDialog';
@@ -78,6 +79,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { switchAgency } from '../../../lib/firebase/firestore-helpers';
 import { AddAgencyDialog } from './AddAgencyDialog';
 import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
+import { OnboardingTour } from '../../../components/onboarding/OnboardingTour';
 
 export function AdminLayout() {
   const location = useLocation();
@@ -173,6 +175,7 @@ export function AdminLayout() {
     { id: 'activity-logs', label: 'Activity Logs', icon: ClipboardList, path: '/admin/activity-logs' },
     { id: 'compliance', label: 'Compliance', icon: Shield, path: '/admin/compliance' },
     { id: 'data-management', label: 'Data Management', icon: Folder, path: '/admin/data-management' },
+    { id: 'marketplace', label: 'Marketplace Leads', icon: Store, path: '/admin/marketplace/leads' },
     { id: 'settings', label: 'Settings', icon: Settings, path: '/admin/settings' },
   ], []);
 
@@ -246,9 +249,16 @@ export function AdminLayout() {
     const isActive = currentPath === item.path || currentPath.startsWith(item.path + '/');
     const Icon = item.icon;
     
+    // Map tour attributes
+    const tourAttr = item.id === 'customers' ? 'customers' :
+                     item.id === 'loans' ? 'loans' :
+                     item.id === 'reports' ? 'reports' :
+                     item.id === 'settings' ? 'settings' : undefined;
+    
     const content = (
       <Link
         to={item.path}
+        data-tour={tourAttr}
         className={cn(
           'flex items-center w-full px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
           collapsed ? 'justify-center' : '',
@@ -438,7 +448,7 @@ export function AdminLayout() {
                               }
                             }}
                           >
-                            <div className="w-6 h-6 rounded bg-gradient-to-br from-[#006BFF] to-[#4F46E5] flex items-center justify-center mr-3 flex-shrink-0">
+                            <div className="w-6 h-6 rounded bg-slate-900 dark:bg-white flex items-center justify-center mr-3 flex-shrink-0">
                               <workspace.icon className="w-3.5 h-3.5 text-white" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -553,7 +563,7 @@ export function AdminLayout() {
             {!sidebarCollapsed && (
               <Link
                 to="/admin/plans"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-[#006BFF] to-[#4F46E5] text-white hover:from-[#0052CC] hover:to-[#4338CA] transition-all group"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 transition-all group"
               >
                 <CreditCard className="w-4 h-4 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -569,7 +579,7 @@ export function AdminLayout() {
                   <TooltipTrigger asChild>
                     <Link
                       to="/admin/plans"
-                      className="flex items-center justify-center w-full h-10 rounded-lg bg-gradient-to-r from-[#006BFF] to-[#4F46E5] text-white hover:from-[#0052CC] hover:to-[#4338CA] transition-all"
+                      className="flex items-center justify-center w-full h-10 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 transition-all"
                     >
                       <CreditCard className="w-4 h-4" />
                     </Link>
@@ -586,7 +596,7 @@ export function AdminLayout() {
                 <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors group">
                   <Avatar className="h-8 w-8 border-2 border-neutral-200 dark:border-neutral-700">
                     <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
-                    <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                    <AvatarFallback className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
@@ -866,7 +876,7 @@ export function AdminLayout() {
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 flex-shrink-0">
                     <Avatar className="h-9 w-9 border-2 border-neutral-200 dark:border-neutral-700">
                       <AvatarImage src={(profile as any)?.photoURL || (profile as any)?.photo_url || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                      <AvatarFallback className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold">
                         {getUserInitials()}
                       </AvatarFallback>
                     </Avatar>
@@ -907,6 +917,7 @@ export function AdminLayout() {
           >
             <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
             <Outlet />
+            <OnboardingTour role="admin" />
           </div>
         </div>
       </main>

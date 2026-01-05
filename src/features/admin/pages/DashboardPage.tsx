@@ -68,7 +68,7 @@ const StatCard = ({ title, value, change, trend, icon: Icon, onClick, gradient }
     <Card 
       className={cn(
         "h-full cursor-pointer transition-all duration-300 hover:shadow-[0_12px_40px_rgb(0,0,0,0.1)] dark:hover:shadow-[0_12px_40px_rgb(0,0,0,0.4)] rounded-2xl overflow-hidden",
-        gradient && "bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-800/50"
+        gradient && "bg-white dark:bg-slate-900"
       )}
       onClick={onClick}
     >
@@ -403,7 +403,7 @@ export function AdminDashboard() {
                   setInviteDrawerOpen(true);
                 }}
                 type="button"
-                className="bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300"
+                className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
               >
                 <UserPlus className="mr-2 h-4 w-4" />
                 Invite Employee
@@ -440,7 +440,7 @@ export function AdminDashboard() {
       </motion.div>
 
       {/* Main Stats - Reference Style with floating cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4" data-tour="dashboard">
         <StatCard
           title="Total Active Loans"
           value={stats?.totalActiveLoans || 0}

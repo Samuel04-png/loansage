@@ -48,6 +48,7 @@ import { cn } from '../../../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { OnboardingTour } from '../../../components/onboarding/OnboardingTour';
 import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
 
@@ -223,7 +224,7 @@ export function EmployeeLayout() {
           <div className="flex items-center p-3 rounded-xl border border-neutral-200/50 dark:border-neutral-700/50 bg-white dark:bg-neutral-800 mb-3 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-xl transition-shadow">
             <Avatar className="h-10 w-10 border-2 border-neutral-200 dark:border-neutral-700">
               <AvatarImage src={(profile as any)?.avatar_url || (profile as any)?.photoURL || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white font-semibold">
+              <AvatarFallback className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold">
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>
@@ -376,7 +377,7 @@ export function EmployeeLayout() {
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
                   <Avatar className="h-9 w-9 border-2 border-neutral-200 dark:border-neutral-700">
                     <AvatarImage src={(profile as any)?.avatar_url || (profile as any)?.photoURL || undefined} />
-                    <AvatarFallback className="bg-gradient-to-br from-[#006BFF] to-[#4F46E5] text-white text-xs font-semibold">
+                    <AvatarFallback className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-semibold">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
@@ -413,6 +414,7 @@ export function EmployeeLayout() {
           <div className="container mx-auto px-4 lg:px-8 xl:px-16 py-6 lg:py-8 max-w-7xl pb-20 md:pb-8">
             <ErrorBoundary>
               <Outlet />
+              <OnboardingTour role="employee" />
             </ErrorBoundary>
           </div>
         </div>

@@ -7,6 +7,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
+import { getAgencyName, getByteBerryFooter } from './utils/email-utils';
 
 const db = admin.firestore();
 
@@ -107,14 +108,28 @@ async function sendWelcomeEmailToUser(
       return false;
     }
 
-    const emailSubject = '🎉 Welcome to TengaLoans — You\'re officially in!';
-    const emailHtml = getWelcomeEmailTemplate(displayName);
+    // Try to get agency name from user document
+    let agencyName = 'TengaLoans';
+    try {
+      const userRef = db.doc(`users/${uid}`);
+      const userSnap = await userRef.get();
+      if (userSnap.exists) {
+        const userData = userSnap.data();
+        if (userData?.agencyId) {
+          agencyName = await getAgencyName(userData.agencyId);
+        }
+      }
+    } catch (error) {
+      console.warn('Could not fetch agency name for welcome email:', error);
+    }
 
-    // Use custom "from" name if configured, otherwise use the email address
+    const emailSubject = `🎉 Welcome to ${agencyName} — You're officially in!`;
+    const emailHtml = getWelcomeEmailTemplate(displayName, agencyName);
+
+    // Use agency name as sender name
     const emailConfig = functions.config().email;
     const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
-    const fromName = emailConfig?.name || 'TengaLoans';
-    const fromAddress = `${fromName} <${fromEmail}>`;
+    const fromAddress = `${agencyName} <${fromEmail}>`;
 
     await transporter.sendMail({
       from: fromAddress,
@@ -133,7 +148,7 @@ async function sendWelcomeEmailToUser(
 /**
  * Welcome Email HTML Template
  */
-function getWelcomeEmailTemplate(displayName: string): string {
+function getWelcomeEmailTemplate(displayName: string, agencyName: string = 'TengaLoans'): string {
   const userName = displayName || 'there';
   const dashboardUrl = process.env.APP_URL || 'https://tengaloans.com';
   const supportEmail = 'support@tengaloans.com';
@@ -232,12 +247,12 @@ function getWelcomeEmailTemplate(displayName: string): string {
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">TengaLoans</div>
+          <div class="logo">${agencyName}</div>
           <h1>Welcome, ${userName}! 🎉</h1>
         </div>
 
         <div class="content">
-          <p>Congratulations on choosing <strong>TengaLoans</strong> — your intelligent loan management platform!</p>
+          <p>Congratulations on joining <strong>${agencyName}</strong> — your intelligent loan management platform!</p>
           
           <p>You're now part of a platform designed to streamline your microfinance operations with AI-powered insights and automation.</p>
         </div>
@@ -266,10 +281,8 @@ function getWelcomeEmailTemplate(displayName: string): string {
           <p style="margin-top: 15px;">
             <a href="${dashboardUrl}/admin/settings" style="color: #6b7280; text-decoration: none;">Manage email preferences</a>
           </p>
-          <p style="margin-top: 10px; font-size: 11px;">
-            © ${new Date().getFullYear()} TengaLoans. All rights reserved.
-          </p>
         </div>
+        ${getByteBerryFooter()}
       </div>
     </body>
     </html>

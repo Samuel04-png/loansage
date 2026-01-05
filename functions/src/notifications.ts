@@ -8,6 +8,7 @@ import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
 import { enforceQuota } from './usage-ledger';
 import { isInternalEmail } from './internal-bypass';
+import { getAgencyName, getByteBerryFooter } from './utils/email-utils';
 
 const db = admin.firestore();
 
@@ -83,15 +84,21 @@ export const sendNotifications = functions.https.onCall(
         if (transporter) {
           const emailConfig = functions.config().email;
           const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
-          const fromName = emailConfig?.name || 'TengaLoans';
-          const fromAddress = `${fromName} <${fromEmail}>`;
-          const subject = getEmailSubject(type);
+          
+          // Get agency name for sender name
+          let agencyName = 'TengaLoans';
+          if (agencyId) {
+            agencyName = await getAgencyName(agencyId);
+          }
+          
+          const fromAddress = `${agencyName} <${fromEmail}>`;
+          const subject = getEmailSubject(type, agencyName);
           
           await transporter.sendMail({
             from: fromAddress,
             to: email,
             subject,
-            html: getEmailTemplate(type, message),
+            html: getEmailTemplate(type, message, agencyName),
           });
         }
       }
@@ -235,14 +242,16 @@ async function sendNotificationForRepayment(
       if (transporter) {
         const emailConfig = functions.config().email;
         const fromEmail = emailConfig?.user || 'noreply@tengaloans.com';
-        const fromName = emailConfig?.name || 'TengaLoans';
-        const fromAddress = `${fromName} <${fromEmail}>`;
+        
+        // Get agency name for sender name
+        const agencyName = await getAgencyName(agencyId);
+        const fromAddress = `${agencyName} <${fromEmail}>`;
         
         await transporter.sendMail({
           from: fromAddress,
           to: email,
-          subject: getEmailSubject(type),
-          html: getEmailTemplate(type, message),
+          subject: getEmailSubject(type, agencyName),
+          html: getEmailTemplate(type, message, agencyName),
         });
       }
     } catch (error) {
@@ -251,27 +260,72 @@ async function sendNotificationForRepayment(
   }
 }
 
-function getEmailSubject(type: string): string {
+function getEmailSubject(type: string, agencyName: string = 'TengaLoans'): string {
   const subjects: Record<string, string> = {
-    payment_reminder: 'Payment Reminder - TengaLoans',
-    payment_due: 'Payment Due Today - TengaLoans',
-    overdue: 'Overdue Payment Notice - TengaLoans',
-    defaulted: 'Loan Defaulted - TengaLoans',
-    payment_received: 'Payment Received - TengaLoans',
-    loan_approved: 'Loan Approved - TengaLoans',
-    loan_rejected: 'Loan Application Update - TengaLoans',
+    payment_reminder: `Payment Reminder – ${agencyName}`,
+    payment_due: `Payment Due Today – ${agencyName}`,
+    overdue: `Overdue Payment Notice – ${agencyName}`,
+    defaulted: `Loan Defaulted – ${agencyName}`,
+    payment_received: `Payment Received – ${agencyName}`,
+    loan_approved: `Loan Approved – ${agencyName}`,
+    loan_rejected: `Loan Application Update – ${agencyName}`,
   };
-  return subjects[type] || 'Notification from TengaLoans';
+  return subjects[type] || `Notification from ${agencyName}`;
 }
 
-function getEmailTemplate(type: string, message: string): string {
+function getEmailTemplate(type: string, message: string, agencyName: string = 'TengaLoans'): string {
   return `
+    <!DOCTYPE html>
     <html>
-      <body style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>${getEmailSubject(type)}</h2>
-        <p>${message}</p>
-        <p>Thank you for using TengaLoans.</p>
-      </body>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          line-height: 1.6;
+          color: #333;
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        .container {
+          background-color: #ffffff;
+          border-radius: 8px;
+          padding: 40px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+          border-bottom: 1px solid #e5e5e5;
+          padding-bottom: 20px;
+        }
+        .logo {
+          font-size: 24px;
+          font-weight: bold;
+          color: #006BFF;
+        }
+        .content {
+          color: #4a4a4a;
+          margin: 20px 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">${agencyName}</div>
+        </div>
+        <div class="content">
+          <h2 style="color: #1a1a1a; font-size: 20px; margin-bottom: 15px;">${getEmailSubject(type, agencyName)}</h2>
+          <p>${message}</p>
+          <p style="margin-top: 20px;">Thank you for using ${agencyName}.</p>
+        </div>
+        ${getByteBerryFooter()}
+      </div>
+    </body>
     </html>
   `;
 }

@@ -6,6 +6,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
+import { getByteBerryFooter } from './utils/email-utils';
 
 // Email transporter (configure with your email service)
 const getTransporter = () => {
@@ -78,9 +79,9 @@ export const sendInvitationEmail = functions.https.onCall(
         note,
       });
 
-      // Use custom "from" name if configured, otherwise use the email address
+      // Use agency name as sender name
       const fromEmail = functions.config().email?.user || 'noreply@tengaloans.com';
-      const fromName = functions.config().email?.name || 'TengaLoans';
+      const fromName = finalAgencyName; // Use agency name instead of hardcoded TengaLoans
       const fromAddress = `${fromName} <${fromEmail}>`;
 
       await transporter.sendMail({
@@ -254,10 +255,8 @@ function getInvitationEmailTemplate({
 
         <div class="footer">
           <p>Need help? Contact us at <a href="mailto:${supportEmail}" style="color: #006BFF;">${supportEmail}</a></p>
-          <p style="margin-top: 10px; font-size: 11px;">
-            © ${new Date().getFullYear()} TengaLoans. All rights reserved.
-          </p>
         </div>
+        ${getByteBerryFooter()}
       </div>
     </body>
     </html>
