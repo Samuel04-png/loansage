@@ -220,33 +220,35 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
     enabled: !!paymentHistory && paymentHistory.length > 0,
   });
 
-  // Calculate financials
-  const principal = Number(loan.amount || 0);
-  const interestRate = Number(loan.interestRate || 0);
-  const durationMonths = Number(loan.durationMonths || 0);
+  // Calculate financials - with safe defaults
+  const principal = Number(loan?.amount || 0);
+  const interestRate = Number(loan?.interestRate || 0);
+  const durationMonths = Number(loan?.durationMonths || 0);
   const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
 
   // Calculate totals - use loan's calculated values if available, otherwise calculate
-  const totalPaid = loan.totalPaid !== undefined 
+  const totalPaid = loan?.totalPaid !== undefined 
     ? Number(loan.totalPaid || 0)
-    : loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
+    : (loan?.repayments && Array.isArray(loan.repayments))
+      ? loan.repayments.reduce((sum: number, r: any) => sum + Number(r?.amountPaid || 0), 0)
+      : 0;
   const totalPayable = financials.totalAmount;
   const remainingBalance = loan.remainingBalance !== undefined
     ? Number(loan.remainingBalance || 0)
     : Math.max(0, totalPayable - totalPaid);
   
-  // Get upcoming due date from loan or calculate from repayments
-  const upcomingDueDate = loan.upcomingDueDate?.toDate?.() || loan.upcomingDueDate || 
-    (loan.repayments?.length > 0 
+  // Get upcoming due date from loan or calculate from repayments - with safe array check
+  const upcomingDueDate = loan?.upcomingDueDate?.toDate?.() || loan?.upcomingDueDate || 
+    (loan?.repayments && Array.isArray(loan.repayments) && loan.repayments.length > 0
       ? loan.repayments
           .filter((r: any) => {
-            const amountDue = Number(r.amountDue || 0);
-            const amountPaid = Number(r.amountPaid || 0);
-            return amountPaid < amountDue && r.status !== 'paid';
+            const amountDue = Number(r?.amountDue || 0);
+            const amountPaid = Number(r?.amountPaid || 0);
+            return amountPaid < amountDue && r?.status !== 'paid';
           })
           .sort((a: any, b: any) => {
-            const dateA = a.dueDate?.toDate?.() || a.dueDate || new Date(0);
-            const dateB = b.dueDate?.toDate?.() || b.dueDate || new Date(0);
+            const dateA = a?.dueDate?.toDate?.() || a?.dueDate || new Date(0);
+            const dateB = b?.dueDate?.toDate?.() || b?.dueDate || new Date(0);
             return dateA.getTime() - dateB.getTime();
           })[0]?.dueDate?.toDate?.() || null
       : null);
@@ -257,16 +259,18 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
       return { status: 'Paid in Full', variant: 'success' as const, icon: CheckCircle2 };
     }
     
-    // Check for overdue repayments
-    const hasOverdue = loan.repayments?.some((r: any) => {
-      if (r.status === 'paid') return false;
-      try {
-        const dueDate = r.dueDate?.toDate?.() || r.dueDate || new Date();
-        return dueDate < new Date();
-      } catch {
-        return false;
-      }
-    });
+    // Check for overdue repayments - with safe array check
+    const hasOverdue = (loan?.repayments && Array.isArray(loan.repayments))
+      ? loan.repayments.some((r: any) => {
+          if (r?.status === 'paid') return false;
+          try {
+            const dueDate = r?.dueDate?.toDate?.() || r?.dueDate || new Date();
+            return dueDate < new Date();
+          } catch {
+            return false;
+          }
+        })
+      : false;
 
     if (hasOverdue) {
       return { status: 'Overdue', variant: 'destructive' as const, icon: AlertTriangle };
@@ -485,7 +489,7 @@ export function RepaymentSection({ loan, agencyId }: RepaymentSectionProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paymentHistory.map((payment, index) => {
+                    {(paymentHistory && Array.isArray(paymentHistory) ? paymentHistory : []).map((payment, index) => {
                       const paymentDate = payment.recordedAt?.toDate?.() || payment.recordedAt || new Date();
                       const paymentDetails = getPaymentDetails(payment);
                       const staffName = staffNames?.[payment.recordedBy] || payment.recordedBy || 'Unknown';

@@ -91,8 +91,11 @@ export function EditLoanDrawer({ open, onOpenChange, loanId, onSuccess }: EditLo
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
+      // Invalidate all loan-related queries to ensure UI updates
+      queryClient.invalidateQueries({ queryKey: ['loan'] }); // All loan queries
       queryClient.invalidateQueries({ queryKey: ['employee-loans'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] }); // Admin loans page
+      queryClient.invalidateQueries({ queryKey: ['customer-loans'] }); // Customer loans
       toast.success('Loan updated successfully');
       onOpenChange(false);
       onSuccess?.();

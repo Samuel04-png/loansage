@@ -102,6 +102,27 @@ export async function updateLoan(
   if (data.repaymentFrequency !== undefined) updateData.repaymentFrequency = data.repaymentFrequency;
   if (data.loanType !== undefined) updateData.loanType = data.loanType;
 
+  // Recalculate financials if amount, interest rate, or duration changed
+  if (data.amount !== undefined || data.interestRate !== undefined || data.durationMonths !== undefined) {
+    const { calculateLoanFinancials } = await import('./loan-calculations');
+    const principal = data.amount !== undefined ? data.amount : loan.amount;
+    const rate = data.interestRate !== undefined ? data.interestRate : loan.interestRate;
+    const months = data.durationMonths !== undefined ? data.durationMonths : loan.durationMonths;
+    
+    if (principal && rate && months) {
+      const financials = calculateLoanFinancials(Number(principal), Number(rate), Number(months));
+      updateData.totalAmount = financials.totalAmount;
+      updateData.totalInterest = financials.totalInterest;
+      updateData.monthlyPayment = financials.monthlyPayment;
+      
+      // Recalculate remaining balance if totalPaid exists
+      if (loan.totalPaid !== undefined) {
+        updateData.remainingBalance = Math.max(0, financials.totalAmount - Number(loan.totalPaid || 0));
+        updateData.outstandingBalance = updateData.remainingBalance;
+      }
+    }
+  }
+
   // Update the loan
   await updateDoc(loanRef, updateData);
 

@@ -171,18 +171,22 @@ export function LoansPage() {
               paidAt: doc.data().paidAt?.toDate?.() || doc.data().paidAt,
             }));
             
-            const totalPaid = loan.repayments.reduce((sum: number, r: any) => 
-              sum + Number(r.amountPaid || 0), 0);
+            const totalPaid = (loan.repayments && Array.isArray(loan.repayments))
+              ? loan.repayments.reduce((sum: number, r: any) => 
+                  sum + Number(r?.amountPaid || 0), 0)
+              : 0;
             loan.totalPaid = totalPaid;
 
-            // Get next payment due date
-            const pendingRepayments = loan.repayments
-              .filter((r: any) => r.status === 'pending' && r.dueDate)
-              .sort((a: any, b: any) => {
-                const dateA = a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate);
-                const dateB = b.dueDate instanceof Date ? b.dueDate : new Date(b.dueDate);
-                return dateA.getTime() - dateB.getTime();
-              });
+            // Get next payment due date - with safe array check
+            const pendingRepayments = (loan.repayments && Array.isArray(loan.repayments))
+              ? loan.repayments
+                  .filter((r: any) => r?.status === 'pending' && r?.dueDate)
+                  .sort((a: any, b: any) => {
+                    const dateA = a?.dueDate instanceof Date ? a.dueDate : new Date(a?.dueDate || 0);
+                    const dateB = b?.dueDate instanceof Date ? b.dueDate : new Date(b?.dueDate || 0);
+                    return dateA.getTime() - dateB.getTime();
+                  })
+              : [];
             loan.nextPaymentDue = pendingRepayments[0]?.dueDate || null;
           } catch (error) {
             loan.repayments = [];
@@ -232,13 +236,19 @@ export function LoansPage() {
             return false;
           }
         } else if (statusFilter === 'overdue') {
-          // Overdue loans: have pending repayments past due date
+          // Overdue loans: have pending repayments past due date - with safe array check
           const now = new Date();
-          const hasOverdueRepayment = loan.repayments?.some((r: any) => {
-            if (r.status !== 'pending') return false;
-            const dueDate = r.dueDate instanceof Date ? r.dueDate : new Date(r.dueDate);
-            return dueDate < now;
-          });
+          const hasOverdueRepayment = (loan.repayments && Array.isArray(loan.repayments))
+            ? loan.repayments.some((r: any) => {
+                if (r?.status !== 'pending') return false;
+                try {
+                  const dueDate = r?.dueDate instanceof Date ? r.dueDate : new Date(r?.dueDate || 0);
+                  return dueDate < now;
+                } catch {
+                  return false;
+                }
+              })
+            : false;
           if (!hasOverdueRepayment) {
             return false;
           }
@@ -597,14 +607,22 @@ export function LoansPage() {
   });
 
   const stats = useMemo(() => {
-    if (!loans) return null;
+    if (!loans || !Array.isArray(loans)) return null;
     
     return {
       total: loans.length,
-      totalPortfolio: loans.reduce((sum: number, l: any) => sum + Number(l.amount || 0), 0),
-      totalCollected: loans.reduce((sum: number, l: any) => sum + (l.totalPaid || 0), 0),
-      totalOutstanding: loans.reduce((sum: number, l: any) => sum + (l.remainingBalance || 0), 0),
-      expectedProfit: loans.reduce((sum: number, l: any) => sum + (l.expectedProfit || 0), 0),
+      totalPortfolio: (loans && Array.isArray(loans)) 
+        ? loans.reduce((sum: number, l: any) => sum + Number(l?.amount || 0), 0)
+        : 0,
+      totalCollected: (loans && Array.isArray(loans))
+        ? loans.reduce((sum: number, l: any) => sum + (l?.totalPaid || 0), 0)
+        : 0,
+      totalOutstanding: (loans && Array.isArray(loans))
+        ? loans.reduce((sum: number, l: any) => sum + (l?.remainingBalance || 0), 0)
+        : 0,
+      expectedProfit: (loans && Array.isArray(loans))
+        ? loans.reduce((sum: number, l: any) => sum + (l?.expectedProfit || 0), 0)
+        : 0,
     };
   }, [loans]);
 
@@ -972,7 +990,7 @@ export function LoansPage() {
                             {loan.customer?.phone && (
                               <div className="text-xs text-neutral-500 flex items-center gap-1">
                                 <Phone className="w-3 h-3" />
-                                {loan.customer.phone}
+                                {loan.customer?.phone}
                               </div>
                             )}
                           </div>

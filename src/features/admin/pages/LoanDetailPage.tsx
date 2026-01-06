@@ -436,23 +436,25 @@ export function LoanDetailPage() {
     );
   }
   
-  // Calculate financials
-  const principal = Number(loan.amount || 0);
-  const interestRate = Number(loan.interestRate || 0);
-  const durationMonths = Number(loan.durationMonths || 0);
+  // Calculate financials - with safe defaults
+  const principal = Number(loan?.amount || 0);
+  const interestRate = Number(loan?.interestRate || 0);
+  const durationMonths = Number(loan?.durationMonths || 0);
   const financials = calculateLoanFinancials(principal, interestRate, durationMonths);
-  const totalPaid = loan.repayments?.reduce((sum: number, r: any) => sum + Number(r.amountPaid || 0), 0) || 0;
+  const totalPaid = (loan?.repayments && Array.isArray(loan.repayments))
+    ? loan.repayments.reduce((sum: number, r: any) => sum + Number(r?.amountPaid || 0), 0)
+    : 0;
   const remainingBalance = Math.max(0, financials.totalAmount - totalPaid);
-  const startDate = loan.createdAt?.toDate?.() || loan.createdAt || new Date();
-  const endDate = loan.endDate?.toDate?.() || loan.endDate || (() => {
+  const startDate = loan?.createdAt?.toDate?.() || loan?.createdAt || new Date();
+  const endDate = loan?.endDate?.toDate?.() || loan?.endDate || (() => {
     const end = new Date(startDate);
     end.setMonth(end.getMonth() + durationMonths);
     return end;
   })();
 
-  // Get permissions for current user and loan status
-  const isLoanOwner = loan.created_by === user?.id || loan.officerId === user?.id;
-  const permissions = getLoanPermissions(userRole, loan.status as LoanStatus, isLoanOwner);
+  // Get permissions for current user and loan status - with safe defaults
+  const isLoanOwner = loan?.created_by === user?.id || loan?.officerId === user?.id;
+  const permissions = getLoanPermissions(userRole, (loan?.status || 'pending') as LoanStatus, isLoanOwner);
 
   return (
     <div className="space-y-6">
@@ -695,33 +697,33 @@ export function LoanDetailPage() {
                 </CardTitle>
             </CardHeader>
               <CardContent className="space-y-4">
-                {loan.customer ? (
+                {loan?.customer ? (
                   <>
               <div>
                       <p className="text-sm font-medium text-neutral-600 mb-1">Name</p>
                       <p className="text-lg font-semibold text-neutral-900">
-                        {loan.customer.fullName || loan.customer.name || 'N/A'}
+                        {loan.customer?.fullName || loan.customer?.name || 'N/A'}
                 </p>
               </div>
-                    {loan.customer.nrcNumber && (
+                    {loan.customer?.nrcNumber && (
               <div>
                         <p className="text-sm font-medium text-neutral-600 mb-1">NRC</p>
                         <p className="text-base text-neutral-900 dark:text-neutral-100">{loan.customer.nrcNumber}</p>
                       </div>
                     )}
-                    {loan.customer.phone && (
+                    {loan.customer?.phone && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-4 h-4 text-neutral-400" />
                         <p className="text-base text-neutral-900">{loan.customer.phone}</p>
                       </div>
                     )}
-                    {loan.customer.email && (
+                    {loan.customer?.email && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-neutral-400" />
                         <p className="text-base text-neutral-900">{loan.customer.email}</p>
                       </div>
                     )}
-                    {loan.customer.address && (
+                    {loan.customer?.address && (
                       <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-neutral-400 mt-0.5" />
                         <p className="text-base text-neutral-900">{loan.customer.address}</p>
@@ -733,7 +735,7 @@ export function LoanDetailPage() {
                         {(customerLoans?.length || 0) + 1}
                       </p>
               </div>
-                    {customerLoans && customerLoans.length > 0 && (
+                    {customerLoans && Array.isArray(customerLoans) && customerLoans.length > 0 && (
                       <div>
                         <p className="text-sm font-medium text-neutral-600 mb-2">Other Loans</p>
                         <div className="space-y-2">
@@ -764,7 +766,7 @@ export function LoanDetailPage() {
               </div>
               </div>
                     )}
-                    {loan.customer.id && (
+                    {loan.customer?.id && (
                     <Link to={`/admin/customers/${loan.customer.id}`}>
                       <Button variant="outline" className="w-full rounded-lg">
                         View Customer Profile
@@ -897,7 +899,7 @@ export function LoanDetailPage() {
 
         {/* Repayments Tab */}
         <TabsContent value="repayments" className="mt-6">
-          {loan.id && profile?.agency_id && (
+          {loan?.id && profile?.agency_id && (
             <RepaymentSection loan={loan} agencyId={profile.agency_id} />
           )}
         </TabsContent>
@@ -923,7 +925,7 @@ export function LoanDetailPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              {loan.collateral && loan.collateral.length > 0 ? (
+              {loan?.collateral && Array.isArray(loan.collateral) && loan.collateral.length > 0 ? (
                 <div className="space-y-4">
                   {loan.collateral.map((coll: any) => (
                     <div
@@ -960,7 +962,7 @@ export function LoanDetailPage() {
                             {coll.condition && <span className="capitalize">Condition: {coll.condition}</span>}
                             {coll.location && <span>Location: {coll.location}</span>}
                           </div>
-                          {coll.photos && coll.photos.length > 0 && (
+                          {coll?.photos && Array.isArray(coll.photos) && coll.photos.length > 0 && (
                             <div className="mt-3 flex gap-2">
                               {coll.photos.slice(0, 3).map((photo: string, idx: number) => (
                                 <img
@@ -1018,7 +1020,7 @@ export function LoanDetailPage() {
               </CardTitle>
           </CardHeader>
           <CardContent>
-              {activityLogs && activityLogs.length > 0 ? (
+              {activityLogs && Array.isArray(activityLogs) && activityLogs.length > 0 ? (
                 <div className="space-y-4">
                   {activityLogs.map((log: any) => (
                     <div
@@ -1080,18 +1082,18 @@ export function LoanDetailPage() {
       </Tabs>
 
       {/* Dialogs */}
-      {loan.id && (
+      {loan?.id && (
           <LoanStatusDialog
             open={statusDialogOpen}
             onOpenChange={setStatusDialogOpen}
             loanId={loan.id}
-            currentStatus={loan.status || 'pending'}
+            currentStatus={loan?.status || 'pending'}
             agencyId={profile?.agency_id || ''}
           />
       )}
 
       {/* Add Payment Dialog */}
-      {loan.id && profile?.agency_id && (
+      {loan?.id && profile?.agency_id && (
         <AddPaymentDialog
           open={paymentDialogOpen}
           onOpenChange={setPaymentDialogOpen}
@@ -1113,7 +1115,7 @@ export function LoanDetailPage() {
           }}
           loanId={loanId}
           agencyId={agency.id}
-          currentStatus={loan.status as LoanStatus}
+          currentStatus={(loan?.status || 'pending') as LoanStatus}
           initialAction={selectedAction}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
@@ -1130,8 +1132,12 @@ export function LoanDetailPage() {
           onOpenChange={setEditLoanDrawerOpen}
           loanId={loanId}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['loan', loanId] });
-            queryClient.invalidateQueries({ queryKey: ['loans'] });
+            // Comprehensive cache invalidation to ensure UI updates
+            queryClient.invalidateQueries({ queryKey: ['loan'] }); // All loan queries
+            queryClient.invalidateQueries({ queryKey: ['loans'] }); // Admin loans page
+            queryClient.invalidateQueries({ queryKey: ['employee-loans'] }); // Employee loans page
+            queryClient.invalidateQueries({ queryKey: ['customer-loans'] }); // Customer loans
+            refetchLoan(); // Force refetch current loan
           }}
         />
       )}
@@ -1182,8 +1188,8 @@ export function LoanDetailPage() {
       <AddCollateralDrawer
         open={addCollateralDrawerOpen}
         onOpenChange={setAddCollateralDrawerOpen}
-        initialLoanId={loanId}
-        initialCustomerId={loan?.customerId || (loan as any)?.customer_id}
+        initialLoanId={loanId || ''}
+        initialCustomerId={loan?.customerId || (loan as any)?.customer_id || ''}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['loan', profile?.agency_id, loanId] });
           queryClient.invalidateQueries({ queryKey: ['collaterals', profile?.agency_id] });
