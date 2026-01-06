@@ -23,8 +23,19 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '../../../components/ui/dropdown-menu';
-import { Plus, Search, MoreVertical, UserPlus, Loader2, Download, Upload, Eye } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
+import { Plus, Search, MoreVertical, UserPlus, Loader2, Download, Upload, Eye, Edit, Archive } from 'lucide-react';
 import { formatDateSafe } from '../../../lib/utils';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
@@ -48,10 +59,43 @@ export function EmployeesPage() {
       if (!profile?.agency_id) return [];
 
       const employeesRef = collection(db, 'agencies', profile.agency_id, 'employees');
-      const snapshot = await getDocs(employeesRef);
+      const { query: firestoreQuery, where } = await import('firebase/firestore');
+      // Filter out archived employees
+      const q = firestoreQuery(employeesRef, where('status', '!=', 'archived'));
+      const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
     enabled: !!profile?.agency_id,
+  });
+
+  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [employeeToArchive, setEmployeeToArchive] = useState<any>(null);
+
+  // Archive employee mutation
+  const archiveEmployee = useMutation({
+    mutationFn: async (employeeId: string) => {
+      if (!profile?.agency_id || !user?.id) throw new Error('Not authenticated');
+      
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const employeeRef = doc(db, 'agencies', profile.agency_id, 'employees', employeeId);
+      await updateDoc(employeeRef, {
+        status: 'archived',
+        archivedAt: serverTimestamp(),
+        archivedBy: user.id,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success('Employee archived successfully');
+      setArchiveDialogOpen(false);
+      setEmployeeToArchive(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to archive employee');
+    },
   });
 
   const filteredEmployees = employees?.filter((emp: any) => {
@@ -275,12 +319,34 @@ export function EmployeesPage() {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuItem asChild>
                               <Link to={`/admin/employees/${emp.id}`} className="cursor-pointer">
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedEmployee(emp);
+                                setEditEmployeeOpen(true);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Employee
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEmployeeToArchive(emp);
+                                setArchiveDialogOpen(true);
+                              }}
+                              className="cursor-pointer text-amber-600 focus:text-amber-600"
+                              disabled={emp.status === 'archived'}
+                            >
+                              <Archive className="mr-2 h-4 w-4" />
+                              {emp.status === 'archived' ? 'Archived' : 'Archive'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -319,6 +385,36 @@ export function EmployeesPage() {
           queryClient.invalidateQueries({ queryKey: ['employees'] });
         }}
       />
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to archive {employeeToArchive?.name || 'this employee'}? 
+              This will hide them from the active employee list. You can restore them later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => employeeToArchive && archiveEmployee.mutate(employeeToArchive.id)}
+              disabled={archiveEmployee.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {archiveEmployee.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Archiving...
+                </>
+              ) : (
+                'Archive'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

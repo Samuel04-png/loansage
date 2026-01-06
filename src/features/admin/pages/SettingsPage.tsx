@@ -15,7 +15,8 @@ import { Badge } from '../../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { cn } from '../../../lib/utils';
-import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database, Calculator, Percent, Calendar, DollarSign, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, Save, UserPlus, Users, Building2, User, Lock, Trash2, Edit2, Database, Calculator, Percent, Calendar, DollarSign, Sparkles, CheckCircle2, XCircle, Bell } from 'lucide-react';
+import { Switch } from '../../../components/ui/switch';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createAgency, updateAgency as updateAgencyHelper } from '../../../lib/firebase/firestore-helpers';
@@ -1387,6 +1388,61 @@ export function SettingsPage() {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Notification Settings */}
+            <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Notification Preferences
+                </CardTitle>
+                <CardDescription className="text-sm text-neutral-600">
+                  Control when you receive notifications about loan updates
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between py-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="notifications-enabled" className="text-sm font-semibold text-neutral-900">
+                      Receive Loan Updates
+                    </Label>
+                    <p className="text-xs text-neutral-500">
+                      Get notified when loan status changes, payments are due, or important updates occur
+                    </p>
+                  </div>
+                  <Switch
+                    id="notifications-enabled"
+                    checked={notificationsEnabled}
+                    onCheckedChange={async (checked) => {
+                      setNotificationsEnabled(checked);
+                      if (!user?.id) return;
+                      
+                      try {
+                        const { doc: getDocRef, updateDoc, getDoc } = await import('firebase/firestore');
+                        const userRef = getDocRef(db, 'users', user.id);
+                        const userSnap = await getDoc(userRef);
+                        
+                        if (userSnap.exists()) {
+                          const currentData = userSnap.data();
+                          await updateDoc(userRef, {
+                            settings: {
+                              ...(currentData.settings || {}),
+                              notifications_enabled: checked,
+                            },
+                          });
+                          toast.success(checked ? 'Notifications enabled' : 'Notifications disabled');
+                          queryClient.invalidateQueries({ queryKey: ['profile'] });
+                        }
+                      } catch (error: any) {
+                        console.error('Failed to update notification settings:', error);
+                        toast.error(error.message || 'Failed to update notification settings');
+                        setNotificationsEnabled(!checked); // Revert on error
+                      }
+                    }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </motion.div>

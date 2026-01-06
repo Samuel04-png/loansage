@@ -21,9 +21,12 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { Plus, Search, ChevronRight, Loader2, Users, Download, Upload, MoreVertical } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import { AddCustomerDrawer } from '../components/AddCustomerDrawer';
+import { EditCustomerDrawer } from '../components/EditCustomerDrawer';
 import { exportCustomers } from '../../../lib/data-export';
 import { importCustomersFromCSV } from '../../../lib/data-import';
-import { createCustomer } from '../../../lib/firebase/firestore-helpers';
+import { createCustomer, updateCustomer } from '../../../lib/firebase/firestore-helpers';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
@@ -32,15 +35,32 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '../../../components/ui/dropdown-menu';
 import { TableCard, TableCardRow } from '../../../components/ui/responsive-table';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Breadcrumbs } from '../../../components/ui/breadcrumbs';
+import { Edit, Archive, Trash2, Eye } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
 
 export function CustomersPage() {
   const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [addCustomerDrawerOpen, setAddCustomerDrawerOpen] = useState(false);
+  const [editCustomerDrawerOpen, setEditCustomerDrawerOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [customerToArchive, setCustomerToArchive] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,10 +70,37 @@ export function CustomersPage() {
       if (!profile?.agency_id) return [];
 
       const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
-      const snapshot = await getDocs(customersRef);
+      const { query: firestoreQuery, where } = await import('firebase/firestore');
+      // Filter out archived customers
+      const q = firestoreQuery(customersRef, where('status', '!=', 'archived'));
+      const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
     enabled: !!profile?.agency_id,
+  });
+
+  // Archive customer mutation
+  const archiveCustomer = useMutation({
+    mutationFn: async (customerId: string) => {
+      if (!profile?.agency_id || !user?.id) throw new Error('Not authenticated');
+      
+      const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customerId);
+      await updateDoc(customerRef, {
+        status: 'archived',
+        archivedAt: serverTimestamp(),
+        archivedBy: user.id,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Customer archived successfully');
+      setArchiveDialogOpen(false);
+      setCustomerToArchive(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to archive customer');
+    },
   });
 
   const filteredCustomers = customers?.filter((cust: any) => {
@@ -263,11 +310,34 @@ export function CustomersPage() {
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem asChild>
                                   <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
+                                    <Eye className="mr-2 h-4 w-4" />
                                     View Details
                                   </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedCustomer(cust);
+                                    setEditCustomerDrawerOpen(true);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Customer
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setCustomerToArchive(cust);
+                                    setArchiveDialogOpen(true);
+                                  }}
+                                  className="cursor-pointer text-amber-600 focus:text-amber-600"
+                                  disabled={cust.status === 'archived'}
+                                >
+                                  <Archive className="mr-2 h-4 w-4" />
+                                  {cust.status === 'archived' ? 'Archived' : 'Archive'}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -317,11 +387,36 @@ export function CustomersPage() {
                                 <MoreVertical className="h-5 w-5" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-48">
                               <DropdownMenuItem asChild>
                                 <Link to={`/admin/customers/${cust.id}`} className="cursor-pointer">
+                                  <Eye className="mr-2 h-4 w-4" />
                                   View Details
                                 </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCustomer(cust);
+                                  setEditCustomerDrawerOpen(true);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Customer
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCustomerToArchive(cust);
+                                  setArchiveDialogOpen(true);
+                                }}
+                                className="cursor-pointer text-amber-600 focus:text-amber-600"
+                                disabled={cust.status === 'archived'}
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                {cust.status === 'archived' ? 'Archived' : 'Archive'}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

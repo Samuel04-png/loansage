@@ -21,8 +21,14 @@ export function calculateLoanFinancials(
   interestRate: number,
   durationMonths: number
 ): LoanFinancials {
-  const monthlyRate = interestRate / 100 / 12;
-  const totalInterest = principal * (interestRate / 100) * (durationMonths / 12);
+  // Ensure interestRate is treated as a percentage (e.g., 12 means 12%, not 0.12)
+  // If rate is already in decimal form (0.12), convert it
+  const normalizedRate = interestRate > 1 ? interestRate : interestRate * 100;
+  
+  const monthlyRate = normalizedRate / 100 / 12;
+  // Calculate total interest: Principal * Annual Rate * Years
+  // Example: 10,000 * 0.12 * 1 = 1,200 (for 12% annual rate over 1 year)
+  const totalInterest = principal * (normalizedRate / 100) * (durationMonths / 12);
   const totalAmount = principal + totalInterest;
   
   // Calculate monthly payment using amortization formula

@@ -4,18 +4,20 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Info, Lightbulb, CheckCircle2, XCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { AlertTriangle, Info, Lightbulb, CheckCircle2, XCircle, ArrowRight, Loader2, X } from 'lucide-react';
 import { AIInsight } from '../../lib/ai/intelligence-engine';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cn } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 
 interface AIInsightsPanelProps {
   insights: AIInsight[];
   isLoading?: boolean;
   maxItems?: number;
   onActionClick?: (action: AIInsight['action']) => void;
+  storageKey?: string; // Key for localStorage to track dismissed state
 }
 
 const severityColors = {
@@ -33,9 +35,29 @@ const typeIcons = {
   suggestion: CheckCircle2,
 };
 
-export function AIInsightsPanel({ insights, isLoading, maxItems = 10, onActionClick }: AIInsightsPanelProps) {
+export function AIInsightsPanel({ insights, isLoading, maxItems = 10, onActionClick, storageKey = 'ai-insights-dismissed' }: AIInsightsPanelProps) {
   const navigate = useNavigate();
+  const [isDismissed, setIsDismissed] = useState(false);
+  
+  // Check localStorage on mount
+  useEffect(() => {
+    const dismissed = localStorage.getItem(storageKey);
+    if (dismissed === 'true') {
+      setIsDismissed(true);
+    }
+  }, [storageKey]);
+  
+  const handleDismiss = () => {
+    setIsDismissed(true);
+    localStorage.setItem(storageKey, 'true');
+  };
+  
   const displayedInsights = insights.slice(0, maxItems);
+  
+  // Don't render if dismissed
+  if (isDismissed) {
+    return null;
+  }
 
   const handleAction = (action: AIInsight['action']) => {
     if (!action) return;
@@ -107,9 +129,27 @@ export function AIInsightsPanel({ insights, isLoading, maxItems = 10, onActionCl
   }
 
   return (
-    <div className="space-y-3">
-      <AnimatePresence>
-        {displayedInsights.map((insight, index) => {
+    <Card className="rounded-2xl border border-neutral-200/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Lightbulb className="w-5 h-5 text-[#006BFF]" />
+            AI Intelligence Insights
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg hover:bg-neutral-100"
+            onClick={handleDismiss}
+            title="Dismiss insights"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <AnimatePresence>
+          {displayedInsights.map((insight, index) => {
           const Icon = typeIcons[insight.type] || Info;
           const colorClass = severityColors[insight.severity] || severityColors.low;
 
@@ -160,8 +200,9 @@ export function AIInsightsPanel({ insights, isLoading, maxItems = 10, onActionCl
             </motion.div>
           );
         })}
-      </AnimatePresence>
-    </div>
+        </AnimatePresence>
+      </CardContent>
+    </Card>
   );
 }
 

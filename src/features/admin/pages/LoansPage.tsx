@@ -228,7 +228,9 @@ export function LoansPage() {
     let filtered = loans.filter((loan: any) => {
       // Status filter - handle special cases
       if (statusFilter !== 'all') {
-        const loanStatus = (loan.status || '').toLowerCase();
+        // Normalize status: handle null, undefined, empty string, and case variations
+        const loanStatus = (loan.status || '').toString().toLowerCase().trim();
+        const filterStatus = statusFilter.toLowerCase().trim();
         
         if (statusFilter === 'active') {
           // Active includes both 'active' and 'approved' loans
@@ -258,8 +260,13 @@ export function LoansPage() {
             return false;
           }
         } else if (statusFilter === 'pending') {
-          // Pending filter - exact match
+          // Pending filter - exact match for 'pending' status only
           if (loanStatus !== 'pending') {
+            return false;
+          }
+        } else if (statusFilter === 'draft') {
+          // Draft filter - exact match for 'draft' status
+          if (loanStatus !== 'draft') {
             return false;
           }
         } else if (statusFilter === 'under_review') {
@@ -272,8 +279,8 @@ export function LoansPage() {
             return false;
           }
         } else {
-          // Exact match for other filters
-          if (loanStatus !== statusFilter.toLowerCase()) {
+          // Exact match for other filters (already normalized above)
+          if (loanStatus !== filterStatus) {
             return false;
           }
         }
@@ -805,12 +812,15 @@ export function LoansPage() {
             {/* Filter Tabs */}
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
               <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
-                <TabsList className="inline-flex w-full md:grid md:grid-cols-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 p-1 min-w-max md:min-w-0">
+                <TabsList className="inline-flex w-full md:grid md:grid-cols-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 p-1 min-w-max md:min-w-0">
                   <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 whitespace-nowrap">
                     All
                   </TabsTrigger>
                   <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
                     Pending
+                  </TabsTrigger>
+                  <TabsTrigger value="draft" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
+                    Draft
                   </TabsTrigger>
                   <TabsTrigger value="active" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
                     Active

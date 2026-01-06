@@ -258,18 +258,21 @@ service cloud.firestore {
         // - Loan officers can update loans they manage (status changes, disbursement, payments)
         // - Employees with agency access can update loan status and record payments
         // - For DRAFT loans: loan officers can edit all fields
-        // - For other statuses: only status changes and workflow actions allowed
+        // - For other statuses: loan officers can update status field for workflow transitions
         allow update: if isAuthenticated() && belongsToAgency(agencyId) && (
           // Admin can update any loan
           isAdmin() ||
           // Accountant can update any loan status and financial fields
           isAccountant() ||
-          // Loan officer can update loans for workflow actions (approve, reject, disburse, close)
-          // OR if loan is in DRAFT status (can edit all fields)
+          // Loan officer can update:
+          // 1. DRAFT loans (can edit all fields)
+          // 2. Any loan for status updates (workflow transitions)
           (isLoanOfficer() && (
             resource.data.status == 'draft' ||
             resource.data.status == null ||
-            resource.data.status == ''
+            resource.data.status == '' ||
+            // Allow status updates - check if status field is being changed
+            request.resource.data.status != resource.data.status
           )) ||
           // Any employee with agency access can update (for bulk operations and status changes)
           isEmployee()

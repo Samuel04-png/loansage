@@ -39,11 +39,34 @@ export async function createNotification(data: NotificationData): Promise<string
 
 /**
  * Create user-specific notification
+ * Checks user notification preferences before sending
  */
 export async function createUserNotification(
   userId: string,
   data: Omit<NotificationData, 'userId' | 'agencyId'>
-): Promise<string> {
+): Promise<string | null> {
+  // Check user notification preferences
+  try {
+    const { doc: getDocRef, getDoc } = await import('firebase/firestore');
+    const userRef = getDocRef(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      // Check if notifications are disabled in user settings
+      // Default to true (enabled) if setting doesn't exist
+      const notificationsEnabled = userData.settings?.notifications_enabled !== false;
+      
+      if (!notificationsEnabled) {
+        console.log(`Notifications disabled for user ${userId}, skipping notification`);
+        return null;
+      }
+    }
+  } catch (error) {
+    // If we can't check preferences, default to sending (fail open)
+    console.warn('Could not check user notification preferences, sending notification:', error);
+  }
+  
   const notificationsRef = collection(db, 'users', userId, 'notifications');
   
   const notificationData = {

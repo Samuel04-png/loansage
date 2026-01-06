@@ -370,17 +370,12 @@ export function AdminDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="rounded-2xl border border-neutral-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] bg-white">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#006BFF]" />
-                AI Intelligence Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AIInsightsPanel insights={aiInsights} isLoading={false} maxItems={5} />
-            </CardContent>
-          </Card>
+          <AIInsightsPanel 
+            insights={aiInsights} 
+            isLoading={false} 
+            maxItems={5}
+            storageKey="dashboard-ai-insights-dismissed"
+          />
         </motion.div>
       )}
 

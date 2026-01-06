@@ -349,8 +349,12 @@ export function LoanOriginationPage() {
       return { id: loanId, loanNumber };
     },
     onSuccess: (data) => {
+      // Comprehensive cache invalidation
       queryClient.invalidateQueries({ queryKey: ['employee-loans'] });
       queryClient.invalidateQueries({ queryKey: ['loans'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); // Dashboard stats
+      queryClient.invalidateQueries({ queryKey: ['ai-analysis-data'] }); // AI insights data
+      queryClient.invalidateQueries({ queryKey: ['ai_insights'] }); // AI insights
       toast.success('Loan application created as draft! You can submit it for review when ready.');
       navigate(`/employee/loans/${data.id}`);
     },

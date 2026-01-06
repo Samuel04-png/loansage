@@ -106,13 +106,26 @@ export function LoanStatusDialog({ open, onOpenChange, loanId, currentStatus, ag
         // Ignore audit log errors
       });
 
-      // Refetch to ensure data is in sync with server
-      queryClient.invalidateQueries({ queryKey: ['loans', agencyId] });
-      queryClient.invalidateQueries({ queryKey: ['loan', agencyId, loanId] });
+      // Comprehensive cache invalidation
+      queryClient.invalidateQueries({ queryKey: ['loans'] }); // All loan queries
+      queryClient.invalidateQueries({ queryKey: ['loan'] }); // All individual loan queries
+      queryClient.invalidateQueries({ queryKey: ['employee-loans'] }); // Employee loans
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); // Dashboard stats
+      queryClient.invalidateQueries({ queryKey: ['ai-analysis-data'] }); // AI insights data
+      queryClient.invalidateQueries({ queryKey: ['ai_insights'] }); // AI insights
       setNotes('');
     } catch (error: any) {
       console.error('Error updating loan status:', error);
-      toast.error(error.message || 'Failed to update loan status');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to update loan status';
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'You do not have permission to update this loan status. Please contact an administrator.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
       
       // Rollback optimistic update on error
       if (previousLoanData) {

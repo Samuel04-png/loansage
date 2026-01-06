@@ -28,10 +28,40 @@ export function EmptyState({
     )}>
       {icon && (
         <div className="mb-5 text-neutral-400 dark:text-neutral-500">
-          {typeof icon === 'string' ? icon : React.isValidElement(icon) ? React.cloneElement(icon as React.ReactElement, { 
-            className: 'w-12 h-12',
-            strokeWidth: 1.5 
-          }) : icon}
+          {(() => {
+            // Handle string icons
+            if (typeof icon === 'string') {
+              return icon;
+            }
+            
+            // Handle already rendered React elements
+            if (React.isValidElement(icon)) {
+              return React.cloneElement(icon as React.ReactElement, { 
+                className: 'w-12 h-12',
+                strokeWidth: 1.5 
+              });
+            }
+            
+            // Handle component references - must be a function or valid component type
+            // Check if it's callable/constructable (function component, class component, etc.)
+            const IconComponent = icon as any;
+            if (typeof IconComponent === 'function' || 
+                (typeof IconComponent === 'object' && IconComponent !== null && 
+                 (typeof IconComponent.render === 'function' || IconComponent.$$typeof))) {
+              try {
+                return React.createElement(IconComponent, {
+                  className: 'w-12 h-12',
+                  strokeWidth: 1.5
+                });
+              } catch (error) {
+                console.warn('Failed to render icon:', error);
+                return null;
+              }
+            }
+            
+            // If we can't render it, return null
+            return null;
+          })()}
         </div>
       )}
       <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
