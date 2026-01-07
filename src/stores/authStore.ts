@@ -221,7 +221,26 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, session: state.session }),
+      partialize: (state) => ({ 
+        user: state.user ? {
+          id: state.user.id,
+          email: state.user.email,
+          user_metadata: state.user.user_metadata,
+          app_metadata: {},
+        } : null, 
+        session: state.session ? {
+          access_token: state.session.access_token,
+          refresh_token: state.session.refresh_token,
+          expires_at: state.session.expires_at,
+          token_type: state.session.token_type,
+          user: state.session.user ? {
+            id: state.session.user.id,
+            email: state.session.user.email,
+            user_metadata: state.session.user.user_metadata,
+            app_metadata: {},
+          } : null,
+        } : null,
+      }),
     }
   )
 );

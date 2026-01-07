@@ -112,7 +112,21 @@ export function useAuth() {
                   }
                   
                   if (result.data) {
-                    setProfile(result.data as any);
+                    // Clean the profile data to ensure no nested objects that can't be rendered
+                    const rawProfile = result.data;
+                    const cleanProfile = {
+                      id: rawProfile.id,
+                      email: rawProfile.email || '',
+                      full_name: rawProfile.full_name || null,
+                      phone: rawProfile.phone || null,
+                      role: rawProfile.role || 'admin',
+                      employee_category: rawProfile.employee_category || null,
+                      agency_id: rawProfile.agency_id || null,
+                      is_active: rawProfile.is_active !== false,
+                      photoURL: rawProfile.photoURL || rawProfile.photo_url || null,
+                      onboardingCompleted: rawProfile.onboardingCompleted || false,
+                    };
+                    setProfile(cleanProfile as any);
                   } else {
                     // User doesn't exist (data: null, error: null) - safe to use defaults
                     setProfile({

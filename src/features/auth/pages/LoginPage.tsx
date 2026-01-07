@@ -41,6 +41,7 @@ export function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     try {
+      // Wrap entire login process in try-catch to prevent crashes
       const signInData: { email: string; password: string } = {
         email: data.email as string,
         password: data.password as string,
@@ -85,12 +86,26 @@ export function LoginPage() {
               // Database error - DO NOT create default profile, show error instead
               console.error('❌ Database error fetching user profile:', result.error);
               toast.error('Database connection error. Please refresh the page or contact support.');
+              setLoading(false); // Reset loading state
               return; // Exit early, don't proceed with login
             }
           }
           
           if (result?.data) {
-            profile = result.data;
+            // Clean the profile data to ensure no nested objects that can't be rendered
+            const rawProfile = result.data;
+            profile = {
+              id: rawProfile.id,
+              email: rawProfile.email || '',
+              full_name: rawProfile.full_name || null,
+              phone: rawProfile.phone || null,
+              role: rawProfile.role || 'admin',
+              employee_category: rawProfile.employee_category || null,
+              agency_id: rawProfile.agency_id || null,
+              is_active: rawProfile.is_active !== false,
+              photoURL: rawProfile.photoURL || rawProfile.photo_url || null,
+              onboardingCompleted: rawProfile.onboardingCompleted || false,
+            };
           }
         } catch (error: any) {
           const errorMessage = error?.message || String(error || '');
@@ -107,6 +122,7 @@ export function LoginPage() {
             // Database error - DO NOT create default profile, show error instead
             console.error('❌ Database error during profile fetch:', error);
             toast.error('Database connection error. Please refresh the page or contact support.');
+            setLoading(false); // Reset loading state
             return; // Exit early, don't proceed with login
           }
           
@@ -127,9 +143,23 @@ export function LoginPage() {
           };
         }
 
+        // Ensure profile is a plain object without nested complex objects
+        const cleanProfile = {
+          id: profile.id,
+          email: profile.email || '',
+          full_name: profile.full_name || null,
+          phone: profile.phone || null,
+          role: profile.role || 'admin',
+          employee_category: profile.employee_category || null,
+          agency_id: profile.agency_id || null,
+          is_active: profile.is_active !== false,
+          photoURL: profile.photoURL || profile.photo_url || null,
+          onboardingCompleted: profile.onboardingCompleted || false,
+        };
+
         setUser(user as any);
         setSession(session as any);
-        setProfile(profile as any);
+        setProfile(cleanProfile as any);
 
         toast.success('Welcome back!');
         
@@ -153,21 +183,40 @@ export function LoginPage() {
           // Ignore errors - this is a background operation
         });
         
-        const userRole = profile?.role || user.user_metadata?.role || 'admin';
-        if (userRole === 'admin') {
+        // Navigate with error handling to prevent crashes
+        try {
+          const userRole = cleanProfile?.role || user.user_metadata?.role || 'admin';
+          if (userRole === 'admin') {
+            navigate('/admin/dashboard', { replace: true });
+          } else if (userRole === 'employee') {
+            navigate('/employee/dashboard', { replace: true });
+          } else if (userRole === 'customer') {
+            navigate('/customer/dashboard', { replace: true });
+          } else {
+            navigate(from, { replace: true });
+          }
+        } catch (navError: any) {
+          console.error('Navigation error after login:', navError);
+          // Fallback navigation
           navigate('/admin/dashboard', { replace: true });
-        } else if (userRole === 'employee') {
-          navigate('/employee/dashboard', { replace: true });
-        } else if (userRole === 'customer') {
-          navigate('/customer/dashboard', { replace: true });
-        } else {
-          navigate(from, { replace: true });
         }
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      const errorMessage = error.message || 'Failed to sign in';
-      toast.error(errorMessage);
+      const errorMessage = error?.message || error?.toString() || 'Failed to sign in';
+      
+      // Provide user-friendly error messages
+      if (errorMessage.includes('Invalid login credentials') || errorMessage.includes('wrong password') || errorMessage.includes('invalid')) {
+        toast.error('Invalid email or password. Please try again.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('NetworkError')) {
+        toast.error('Network error. Please check your internet connection and try again.');
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+        toast.error('Request timed out. Please try again.');
+      } else if (errorMessage.includes('user not found') || errorMessage.includes('no user record')) {
+        toast.error('No account found with this email. Please sign up first.');
+      } else {
+        toast.error(errorMessage.length > 100 ? 'An error occurred during login. Please try again.' : errorMessage);
+      }
     } finally {
       setLoading(false);
     }

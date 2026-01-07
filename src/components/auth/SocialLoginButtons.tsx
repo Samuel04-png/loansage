@@ -57,7 +57,20 @@ export function SocialLoginButtons() {
           );
           const profileResult = await Promise.race([profilePromise, timeoutPromise]) as any;
           if (profileResult?.data) {
-            profile = profileResult.data;
+            // Clean the profile data to ensure no nested objects that can't be rendered
+            const rawProfile = profileResult.data;
+            profile = {
+              id: rawProfile.id,
+              email: rawProfile.email || '',
+              full_name: rawProfile.full_name || null,
+              phone: rawProfile.phone || null,
+              role: rawProfile.role || 'admin',
+              employee_category: rawProfile.employee_category || null,
+              agency_id: rawProfile.agency_id || null,
+              is_active: rawProfile.is_active !== false,
+              photoURL: rawProfile.photoURL || rawProfile.photo_url || null,
+              onboardingCompleted: rawProfile.onboardingCompleted || false,
+            };
           }
         } catch (error: any) {
           console.warn('Profile fetch failed, using defaults:', error);
@@ -76,9 +89,23 @@ export function SocialLoginButtons() {
           };
         }
 
+        // Ensure profile is a plain object without nested complex objects
+        const cleanProfile = {
+          id: profile.id,
+          email: profile.email || '',
+          full_name: profile.full_name || null,
+          phone: profile.phone || null,
+          role: profile.role || 'admin',
+          employee_category: profile.employee_category || null,
+          agency_id: profile.agency_id || null,
+          is_active: profile.is_active !== false,
+          photoURL: profile.photoURL || profile.photo_url || null,
+          onboardingCompleted: profile.onboardingCompleted || false,
+        };
+
     setUser(user as any);
     setSession(session as any);
-        setProfile(profile as any);
+    setProfile(cleanProfile as any);
 
         toast.success(`Welcome! Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`);
         
