@@ -13,7 +13,9 @@ import {
   getDoc,
   query,
   where,
-  getDocs
+  getDocs,
+  increment,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { createLoanTransaction } from '../firebase/loan-transactions';
@@ -378,6 +380,34 @@ export async function executeBulkImport(
 
         if (loanResult.success) {
           console.log(`Created loan ${loanResult.loanId} for row ${row.rowIndex}`);
+          
+          // Update customer stats after loan creation
+          // Note: Loans created via bulk import start as 'draft' status
+          // We increment totalLoans and totalBorrowed immediately
+          // activeLoans will be updated when loan status changes to 'active' or 'approved'
+          try {
+            const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
+            
+            // Use Firestore increment to update customer stats atomically
+            // This handles both initialization (if stats don't exist) and increment (if they do)
+            const statsUpdate: any = {
+              totalLoans: increment(1),
+              totalBorrowed: increment(amount),
+              updatedAt: serverTimestamp(),
+            };
+            
+            // Note: Loans created via createLoanTransaction start as 'draft' status
+            // We only increment totalLoans and totalBorrowed here
+            // activeLoans will be updated when loan status changes to 'active' or 'approved'
+            // Use the "Sync Customer Stats" button in Data Management to recalculate if needed
+            
+            await updateDoc(customerRef, statsUpdate);
+            console.log(`Updated customer stats for customer ${customerId}: totalLoans +1, totalBorrowed +${amount}`);
+          } catch (statsError: any) {
+            // Don't fail the import if stats update fails - log and continue
+            console.warn(`Failed to update customer stats for customer ${customerId}:`, statsError);
+          }
+          
           result.created.loans++;
           result.success++;
         } else {
@@ -440,6 +470,7 @@ async function createCustomerInTransaction(
     const customerId = customerRef.id;
 
     // Prepare customer data
+    // IMPORTANT: Include status: 'active' and agencyId for proper filtering in Customers table
     const customerData = {
       fullName: String(data.fullName || '').trim(),
       phone: String(data.phone || '').trim(),
@@ -451,9 +482,15 @@ async function createCustomerInTransaction(
       employer: data.employer || null,
       jobTitle: data.jobTitle || null,
       createdBy,
+      agencyId: agencyId, // Required for queries that filter by agencyId
+      status: 'active', // Required: Customers table filters by status != 'archived'
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       loanIds: [],
+      // Initialize stats for proper display
+      totalLoans: 0,
+      activeLoans: 0,
+      totalBorrowed: 0,
     };
 
     // Check for duplicates (by phone or NRC)

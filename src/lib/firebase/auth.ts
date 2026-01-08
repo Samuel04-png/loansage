@@ -139,8 +139,12 @@ const convertFirebaseUser = async (firebaseUser: FirebaseUser): Promise<User> =>
         console.warn('No cached user data available, using defaults');
       }
     } else {
-      // Other errors, log and continue with defaults
-      console.warn('Failed to fetch user data from Firestore:', error);
+      // Other errors (including timeout), log and continue with defaults
+      // Only log timeout errors in development to reduce console noise
+      const errorMessage = error?.message || String(error || '');
+      if (import.meta.env.DEV || !errorMessage.includes('timeout')) {
+        console.warn('Failed to fetch user data from Firestore:', error);
+      }
     }
   }
 

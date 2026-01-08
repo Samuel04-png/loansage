@@ -693,6 +693,11 @@ export async function createCustomer(
 
   await setDoc(customerRef, {
     id: customerId,
+    agencyId: agencyId, // CRITICAL: Required for queries that filter by agencyId
+    status: 'active', // CRITICAL: Customers table filters by status != 'archived' (must exist)
+    totalLoans: 0,
+    activeLoans: 0,
+    totalBorrowed: 0,
     customerId: customerId, // Human-readable ID alias
     fullName: data.fullName,
     phone: data.phone,
@@ -713,12 +718,16 @@ export async function createCustomer(
     createdBy: data.createdBy,
     agencyId: agencyId, // CRITICAL: Required for unified agency queries
     searchKeywords: searchKeywords, // CRITICAL: Enables efficient array-contains search
-    status: 'active',
+    status: 'active', // CRITICAL: Customers table filters by status != 'archived' (must exist)
     kycStatus: 'pending', // Default KYC status
     kycVerified: false,
     riskScore: null, // Will be calculated later
     profilePhotoURL: null,
     userId: null, // Will be set when customer accepts invitation
+    // Initialize stats for proper display
+    totalLoans: 0,
+    activeLoans: 0,
+    totalBorrowed: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

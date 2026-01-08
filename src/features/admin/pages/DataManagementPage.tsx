@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
@@ -8,7 +8,7 @@ import { Button } from '../../../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { EmptyState } from '../../../components/ui/empty-state';
-import { Upload, Download, FileText, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, History } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, CheckCircle2, XCircle, AlertCircle, Sparkles, History, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import toast from 'react-hot-toast';
@@ -18,12 +18,15 @@ import { createCustomer } from '../../../lib/firebase/firestore-helpers';
 import { createLoanTransaction } from '../../../lib/firebase/loan-transactions';
 import { BulkImportWizard } from '../components/BulkImportWizard';
 import { getImportHistory } from '../../../lib/data-import/bulk-import-service';
+import { syncAllCustomerStats } from '../../../lib/firebase/customer-stats-sync';
 
 export function DataManagementPage() {
   const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const [importing, setImporting] = useState(false);
   const [importType, setImportType] = useState<'customers' | 'loans' | null>(null);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [syncingStats, setSyncingStats] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch data for export
@@ -348,6 +351,181 @@ export function DataManagementPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Repair/Sync Tools */}
+          <Card className="mt-6 border-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                <AlertCircle className="w-5 h-5" />
+                Data Repair Tools
+              </CardTitle>
+              <CardDescription className="text-amber-700 dark:text-amber-300">
+                Fix data inconsistencies and sync customer statistics with actual loan data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                <h4 className="font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+                  Sync Customer Stats
+                </h4>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                  Recalculates and updates customer statistics (Total Loans, Active Loans, Total Borrowed) 
+                  from actual loan data. Use this if customer profiles show incorrect loan counts.
+                </p>
+                <Button
+                  onClick={async () => {
+                    if (!profile?.agency_id) {
+                      toast.error('Agency ID not found');
+                      return;
+                    }
+
+                    setSyncingStats(true);
+                    try {
+                      const result = await syncAllCustomerStats(profile.agency_id);
+                      
+                      if (result.success) {
+                        toast.success(
+                          `Stats sync completed! ${result.customersUpdated} customers updated, ${result.customersSkipped} skipped.`,
+                          { duration: 5000 }
+                        );
+                        // Invalidate queries to refresh UI
+                        queryClient.invalidateQueries({ queryKey: ['customers'] });
+                        queryClient.invalidateQueries({ queryKey: ['all-customers-export'] });
+                      } else {
+                        toast.error(`Sync failed: ${result.errors.join(', ')}`);
+                      }
+                    } catch (error: any) {
+                      console.error('Error syncing customer stats:', error);
+                      toast.error(error.message || 'Failed to sync customer stats');
+                    } finally {
+                      setSyncingStats(false);
+                    }
+                  }}
+                  disabled={syncingStats || !profile?.agency_id}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {syncingStats ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Syncing Customer Stats...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Sync Customer Stats
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                <h4 className="font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+                  Fix Ghost Customers
+                </h4>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                  Updates all customers missing required fields (agencyId, status) to make them visible 
+                  in the Customers table. This fixes customers that appear in dropdowns but not in the main list.
+                </p>
+                <Button
+                  onClick={async () => {
+                    if (!profile?.agency_id) {
+                      toast.error('Agency ID not found');
+                      return;
+                    }
+
+                    if (!confirm(
+                      'This will update all customers missing required fields. Continue?'
+                    )) {
+                      return;
+                    }
+
+                    setSyncingStats(true);
+                    try {
+                      const { collection, getDocs, doc, updateDoc, serverTimestamp, writeBatch } = await import('firebase/firestore');
+                      const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
+                      const snapshot = await getDocs(customersRef);
+                      
+                      const customers = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                      }));
+
+                      // Find customers missing required fields
+                      const customersToFix = customers.filter((customer: any) => 
+                        !customer.status || !customer.agencyId || customer.totalLoans === undefined
+                      );
+
+                      if (customersToFix.length === 0) {
+                        toast.success('All customers are properly configured!');
+                        setSyncingStats(false);
+                        return;
+                      }
+
+                      // Update in batches (Firestore batch limit is 500)
+                      const batchSize = 400;
+                      let totalUpdated = 0;
+                      
+                      for (let i = 0; i < customersToFix.length; i += batchSize) {
+                        const batch = writeBatch(db);
+                        const batchCustomers = customersToFix.slice(i, i + batchSize);
+                        
+                        for (const customer of batchCustomers) {
+                          const customerRef = doc(db, 'agencies', profile.agency_id, 'customers', customer.id);
+                          const updates: any = {
+                            updatedAt: serverTimestamp(),
+                          };
+                          
+                          if (!customer.agencyId) {
+                            updates.agencyId = profile.agency_id;
+                          }
+                          if (!customer.status) {
+                            updates.status = 'active';
+                          }
+                          if (customer.totalLoans === undefined || customer.totalLoans === null) {
+                            updates.totalLoans = 0;
+                            updates.activeLoans = 0;
+                            updates.totalBorrowed = 0;
+                          }
+                          
+                          batch.update(customerRef, updates);
+                        }
+                        
+                        await batch.commit();
+                        totalUpdated += batchCustomers.length;
+                      }
+
+                      toast.success(`Fixed ${totalUpdated} ghost customers! They should now appear in the Customers table.`);
+                      
+                      // Invalidate queries to refresh UI
+                      queryClient.invalidateQueries({ queryKey: ['customers'] });
+                      queryClient.invalidateQueries({ queryKey: ['all-customers-export'] });
+                    } catch (error: any) {
+                      console.error('Error fixing ghost customers:', error);
+                      toast.error(error.message || 'Failed to fix ghost customers');
+                    } finally {
+                      setSyncingStats(false);
+                    }
+                  }}
+                  disabled={syncingStats || !profile?.agency_id}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {syncingStats ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Fixing Ghost Customers...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Fix Ghost Customers
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

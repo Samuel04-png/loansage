@@ -3,7 +3,7 @@
  * Multi-step form for agencies to create their public marketplace listing
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -70,7 +70,10 @@ const identitySchema = z.object({
   ),
   contactPhone: z.preprocess(
     (val) => (val === '' ? undefined : val),
-    z.string().min(10, 'Phone number must be at least 10 characters').optional()
+    z.string().optional().or(z.literal('')).refine(
+      (val) => !val || val.length === 0 || val.length >= 10,
+      { message: 'Phone number must be at least 10 characters' }
+    )
   ),
 });
 
@@ -102,12 +105,14 @@ interface CreateMarketplaceProfileWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialValues?: any; // Existing marketplace profile data for editing
 }
 
 export function CreateMarketplaceProfileWizard({
   open,
   onOpenChange,
   onSuccess,
+  initialValues,
 }: CreateMarketplaceProfileWizardProps) {
   const { profile } = useAuth();
   const { agency } = useAgency();
@@ -115,21 +120,48 @@ export function CreateMarketplaceProfileWizard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>('');
 
-  const identityForm = useForm<IdentityFormData>({
-    resolver: zodResolver(identitySchema),
-    defaultValues: {
+  // Helper function to safely get value or default to empty string (for React inputs)
+  const safeValue = (value: any, fallback: string = '') => {
+    if (value === undefined || value === null) return fallback;
+    return String(value);
+  };
+
+  // Prepare initial values with undefined guards
+  const getIdentityDefaults = () => {
+    if (initialValues) {
+      return {
+        agencyName: safeValue(initialValues.agencyName || initialValues.agency_name, agency?.name || ''),
+        description: safeValue(initialValues.description, agency?.description || ''),
+        logoUrl: safeValue(initialValues.logoUrl || initialValues.logo_url, agency?.logoURL || ''),
+        websiteUrl: safeValue(initialValues.websiteUrl || initialValues.website_url, ''),
+        contactEmail: safeValue(initialValues.contactEmail || initialValues.contact_email, agency?.email || ''),
+        contactPhone: safeValue(initialValues.contactPhone || initialValues.contact_phone, agency?.phone || ''),
+      };
+    }
+    return {
       agencyName: agency?.name || '',
       description: agency?.description || '',
       logoUrl: agency?.logoURL || '',
       websiteUrl: '',
       contactEmail: agency?.email || '',
       contactPhone: agency?.phone || '',
-    },
-  });
+    };
+  };
 
-  const loanConfigForm = useForm<LoanConfigFormData>({
-    resolver: zodResolver(loanConfigSchema),
-    defaultValues: {
+  const getLoanConfigDefaults = () => {
+    if (initialValues) {
+      return {
+        loanTypes: Array.isArray(initialValues.loanTypes) ? initialValues.loanTypes : [],
+        minInterestRate: initialValues.minInterestRate || initialValues.min_interest_rate || 10,
+        maxInterestRate: initialValues.maxInterestRate || initialValues.max_interest_rate || 30,
+        minLoanAmount: initialValues.minLoanAmount || initialValues.min_loan_amount || 1000,
+        maxLoanAmount: initialValues.maxLoanAmount || initialValues.max_loan_amount || 100000,
+        minTermMonths: initialValues.minTermMonths || initialValues.min_term_months || 3,
+        maxTermMonths: initialValues.maxTermMonths || initialValues.max_term_months || 36,
+        requirements: Array.isArray(initialValues.requirements) ? initialValues.requirements : [],
+      };
+    }
+    return {
       loanTypes: [],
       minInterestRate: 10,
       maxInterestRate: 30,
@@ -138,8 +170,35 @@ export function CreateMarketplaceProfileWizard({
       minTermMonths: 3,
       maxTermMonths: 36,
       requirements: [],
-    },
+    };
+  };
+
+  const identityForm = useForm<IdentityFormData>({
+    resolver: zodResolver(identitySchema),
+    defaultValues: getIdentityDefaults(),
   });
+
+  const loanConfigForm = useForm<LoanConfigFormData>({
+    resolver: zodResolver(loanConfigSchema),
+    defaultValues: getLoanConfigDefaults(),
+  });
+
+  // Reset forms when initialValues change (when editing)
+  useEffect(() => {
+    if (open && initialValues) {
+      identityForm.reset(getIdentityDefaults());
+      loanConfigForm.reset(getLoanConfigDefaults());
+      if (initialValues.logoUrl || initialValues.logo_url) {
+        setLogoPreview(safeValue(initialValues.logoUrl || initialValues.logo_url));
+      }
+    } else if (!open) {
+      // Reset to defaults when dialog closes
+      identityForm.reset(getIdentityDefaults());
+      loanConfigForm.reset(getLoanConfigDefaults());
+      setLogoPreview('');
+      setStep(1);
+    }
+  }, [open, initialValues]);
 
   const upsertMarketplaceProfile = httpsCallable(functions, 'upsertMarketplaceProfile');
 
@@ -200,14 +259,15 @@ export function CreateMarketplaceProfileWizard({
       const identityData = identityForm.getValues();
       const loanData = loanConfigForm.getValues();
 
-      const result = await upsertMarketplaceProfile({
+      // Sanitize optional fields - Firestore doesn't accept undefined
+      const sanitizedData = {
         agencyId: profile.agency_id,
         agencyName: identityData.agencyName,
         description: identityData.description,
-        logoUrl: identityData.logoUrl || undefined,
-        websiteUrl: identityData.websiteUrl || undefined,
-        contactEmail: identityData.contactEmail || undefined,
-        contactPhone: identityData.contactPhone || undefined,
+        logoUrl: identityData.logoUrl || null,
+        websiteUrl: identityData.websiteUrl || null,
+        contactEmail: identityData.contactEmail || null,
+        contactPhone: identityData.contactPhone || null,
         minInterestRate: loanData.minInterestRate,
         maxInterestRate: loanData.maxInterestRate,
         minLoanAmount: loanData.minLoanAmount,
@@ -217,16 +277,18 @@ export function CreateMarketplaceProfileWizard({
         loanTypes: loanData.loanTypes,
         requirements: loanData.requirements || [],
         isActive: true, // Make it visible immediately
-      });
+      };
+
+      const result = await upsertMarketplaceProfile(sanitizedData);
 
       if ((result.data as { success: boolean }).success) {
-        toast.success('Marketplace profile created successfully!');
+        toast.success(initialValues ? 'Marketplace profile updated successfully!' : 'Marketplace profile created successfully!');
         onSuccess?.();
         onOpenChange(false);
         // Reset forms
         setStep(1);
-        identityForm.reset();
-        loanConfigForm.reset();
+        identityForm.reset(getIdentityDefaults());
+        loanConfigForm.reset(getLoanConfigDefaults());
         setLogoPreview('');
       }
     } catch (error: any) {
@@ -242,7 +304,7 @@ export function CreateMarketplaceProfileWizard({
       <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-slate-900 dark:text-white">
-            Create Public Listing
+            {initialValues ? 'Edit Public Listing' : 'Create Public Listing'}
           </DialogTitle>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Step {step} of 2: {step === 1 ? 'Agency Identity' : 'Loan Configuration'}
@@ -372,11 +434,11 @@ export function CreateMarketplaceProfileWizard({
                 </div>
 
                 <div>
-                  <Label htmlFor="websiteUrl">Website URL (Optional)</Label>
+                  <Label htmlFor="websiteUrl">Socials URL (Optional)</Label>
                   <Input
                     id="websiteUrl"
                     {...identityForm.register('websiteUrl')}
-                    placeholder="https://yourwebsite.com"
+                    placeholder="https://yourwebsite.com or social media link"
                     className="mt-1"
                   />
                 </div>
@@ -605,7 +667,7 @@ export function CreateMarketplaceProfileWizard({
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Publish Listing
+                  {initialValues ? 'Update Listing' : 'Publish Listing'}
                 </>
               )}
             </Button>

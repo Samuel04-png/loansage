@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../../lib/firebase/config';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -26,11 +26,24 @@ import {
   Loader2,
   Globe,
   Sparkles,
+  RefreshCw,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../../../lib/utils';
 import { CreateMarketplaceProfileWizard } from '../components/CreateMarketplaceProfileWizard';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog';
 
 interface MarketplaceLead {
   id: string;
@@ -56,23 +69,31 @@ export function MarketplaceLeadsPage() {
   const [selectedStatus, setSelectedStatus] = useState<'pending' | 'accepted' | 'rejected'>('pending');
   const [acceptingLeadId, setAcceptingLeadId] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<any>(null);
 
-  // Check if agency has a marketplace profile
-  const { data: hasProfile, isLoading: checkingProfile } = useQuery({
+  // Fetch marketplace profile data (for editing)
+  const { data: marketplaceProfileData, isLoading: checkingProfile } = useQuery({
     queryKey: ['marketplaceProfile', profile?.agency_id],
     queryFn: async () => {
-      if (!profile?.agency_id) return false;
+      if (!profile?.agency_id) return null;
       const profileRef = doc(db, 'marketplace_profiles', profile.agency_id);
       const profileSnap = await getDoc(profileRef);
-      return profileSnap.exists() && profileSnap.data()?.isActive === true;
+      if (profileSnap.exists()) {
+        const data = profileSnap.data();
+        return { exists: true, isActive: data?.isActive === true, data };
+      }
+      return { exists: false, isActive: false, data: null };
     },
     enabled: !!profile?.agency_id,
   });
 
+  const hasProfile = marketplaceProfileData?.exists && marketplaceProfileData?.isActive === true;
+
   const getMarketplaceLeads = httpsCallable(functions, 'getMarketplaceLeads');
   const acceptMarketplaceLead = httpsCallable(functions, 'acceptMarketplaceLead');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['marketplaceLeads', profile?.agency_id, selectedStatus],
     queryFn: async () => {
       if (!profile?.agency_id) return [];
@@ -118,6 +139,35 @@ export function MarketplaceLeadsPage() {
 
     setAcceptingLeadId(lead.id);
     acceptMutation.mutate(lead.id);
+  };
+
+  const handleEditListing = () => {
+    if (marketplaceProfileData?.data) {
+      setEditingProfile(marketplaceProfileData.data);
+      setWizardOpen(true);
+    }
+  };
+
+  const handleRemoveListing = async () => {
+    if (!profile?.agency_id) {
+      toast.error('Agency ID not found');
+      return;
+    }
+
+    try {
+      const profileRef = doc(db, 'marketplace_profiles', profile.agency_id);
+      await deleteDoc(profileRef);
+      
+      toast.success('Listing removed successfully');
+      // Invalidate all marketplace-related queries to refresh public page
+      queryClient.invalidateQueries({ queryKey: ['marketplaceProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['marketplaceProfiles'] }); // Public page query
+      queryClient.invalidateQueries({ queryKey: ['marketplaceLeads'] });
+      setDeleteDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error removing listing:', error);
+      toast.error(error.message || 'Failed to remove listing');
+    }
   };
 
   const leads = data || [];
@@ -204,25 +254,60 @@ export function MarketplaceLeadsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Marketplace Leads</h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Review and accept loan applications from borrowers
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Marketplace Leads</h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Review and accept loan applications from borrowers
+          </p>
+        </div>
+        
+        {/* Edit/Remove Listing Buttons */}
+        {hasProfile && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleEditListing}
+              className="flex items-center gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Edit Listing
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Remove Listing
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Status Filter */}
-      <div className="flex gap-2">
-        {(['pending', 'accepted', 'rejected'] as const).map((status) => (
-          <Button
-            key={status}
-            variant={selectedStatus === status ? 'default' : 'outline'}
-            onClick={() => setSelectedStatus(status)}
-            className="capitalize"
-          >
-            {status}
-          </Button>
-        ))}
+      {/* Status Filter and Refresh */}
+      <div className="flex gap-2 items-center justify-between">
+        <div className="flex gap-2">
+          {(['pending', 'accepted', 'rejected'] as const).map((status) => (
+            <Button
+              key={status}
+              variant={selectedStatus === status ? 'default' : 'outline'}
+              onClick={() => setSelectedStatus(status)}
+              className="capitalize"
+            >
+              {status}
+            </Button>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => refetch()}
+          disabled={isLoading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Leads List */}
@@ -325,7 +410,7 @@ export function MarketplaceLeadsPage() {
                         className="flex-1"
                         onClick={() => {
                           // TODO: Implement reject functionality
-                          toast.info('Reject functionality coming soon');
+                          toast('Reject functionality coming soon', { icon: 'ℹ️' });
                         }}
                       >
                         <XCircle className="w-4 h-4 mr-2" />
@@ -359,11 +444,43 @@ export function MarketplaceLeadsPage() {
 
       <CreateMarketplaceProfileWizard
         open={wizardOpen}
-        onOpenChange={setWizardOpen}
+        onOpenChange={(open) => {
+          setWizardOpen(open);
+          if (!open) {
+            setEditingProfile(null);
+          }
+        }}
+        initialValues={editingProfile}
         onSuccess={() => {
+          // Invalidate all marketplace-related queries to refresh both admin and public pages
           queryClient.invalidateQueries({ queryKey: ['marketplaceProfile'] });
+          queryClient.invalidateQueries({ queryKey: ['marketplaceProfiles'] }); // Public "Find a Lender" page query
+          queryClient.invalidateQueries({ queryKey: ['marketplaceLeads'] });
+          setEditingProfile(null);
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Marketplace Listing</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove your listing? Borrowers will no longer see you on the marketplace.
+              This action cannot be undone, but you can create a new listing anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemoveListing}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Remove Listing
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

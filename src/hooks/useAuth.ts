@@ -160,7 +160,10 @@ export function useAuth() {
                   }
                   
                   // Timeout or user doesn't exist - safe to use defaults
-                  console.warn('⚠️ Profile fetch failed (timeout or non-critical), using defaults:', errorMessage);
+                  // Only log in development to reduce console noise in production
+                  if (import.meta.env.DEV) {
+                    console.warn('⚠️ Profile fetch failed (timeout or non-critical), using defaults:', errorMessage);
+                  }
                   setProfile({
                     id: session.user.id,
                     email: session.user.email || '',
