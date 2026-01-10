@@ -86,7 +86,7 @@ export function ActivityLogsPage() {
       </motion.div>
 
       <Card>
-        <CardHeader className="p-4 border-b border-slate-100">
+        <CardHeader className="p-4 border-b border-slate-100 dark:border-neutral-700">
           <div className="flex gap-4">
             <div className="relative flex-1 max-w-md">
               <Input
@@ -95,7 +95,7 @@ export function ActivityLogsPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
             </div>
             <Select
               value={actionFilter}
@@ -124,16 +124,16 @@ export function ActivityLogsPage() {
               ))}
             </div>
           ) : filteredLogs.length > 0 ? (
-            <div className="divide-y max-h-[calc(100vh-20rem)] overflow-y-auto">
+            <div className="divide-y divide-slate-200 dark:divide-neutral-700 max-h-[calc(100vh-20rem)] overflow-y-auto">
               {filteredLogs.map((log: any) => (
-                <div key={log.id} className="p-4 hover:bg-slate-50 transition-colors">
+                <div key={log.id} className="p-4 hover:bg-slate-50 dark:hover:bg-neutral-900/50 transition-colors">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-slate-400" />
+                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                      <User className="w-5 h-5 text-slate-400 dark:text-neutral-500" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-slate-900">
+                        <span className="font-medium text-foreground">
                           {log.user?.full_name || 'System'}
                         </span>
                         {getActionBadge(log.action)}
@@ -141,15 +141,15 @@ export function ActivityLogsPage() {
                           {log.entity_type}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 mb-2">{log.action}</p>
+                      <p className="text-sm text-muted-foreground mb-2">{log.action}</p>
                       {log.changes && (
-                        <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded mt-2">
+                        <div className="text-xs text-muted-foreground bg-slate-50 dark:bg-neutral-800/50 p-2 rounded mt-2">
                           <pre className="whitespace-pre-wrap font-mono">
                             {JSON.stringify(log.changes, null, 2)}
                           </pre>
                         </div>
                       )}
-                      <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {log.createdAt ? formatDateTime(log.createdAt) : '-'}

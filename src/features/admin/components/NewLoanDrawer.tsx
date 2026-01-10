@@ -22,6 +22,7 @@ import { createAuditLog } from '../../../lib/firebase/firestore-helpers';
 import { assessLoanRisk } from '../../../lib/ai/risk-assessment-engine';
 import { RiskAssessmentDisplay } from '../../../components/risk/RiskAssessmentDisplay';
 import { LOAN_TYPES } from '../../../lib/loan-types';
+import { getLoanSettings } from '../../../lib/firebase/loan-settings';
 import toast from 'react-hot-toast';
 
 const loanSchema = z.object({
@@ -63,6 +64,16 @@ export function NewLoanDrawer({ open, onOpenChange, onSuccess, preselectedCustom
       const customersRef = collection(db, 'agencies', profile.agency_id, 'customers');
       const snapshot = await getDocs(customersRef);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    enabled: !!profile?.agency_id && open,
+  });
+
+  // Fetch loan settings for default values
+  const { data: loanSettings } = useQuery({
+    queryKey: ['loanSettings', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return null;
+      return await getLoanSettings(profile.agency_id);
     },
     enabled: !!profile?.agency_id && open,
   });

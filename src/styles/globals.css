@@ -31,6 +31,11 @@
 @tailwind utilities;
 
 @layer base {
+    /* Ensure headings use high-contrast foreground color in both modes */
+    h1, h2, h3 {
+      color: rgb(var(--foreground));
+    }
+
   :root {
     /* Core colors - Reference style (white/light gray backgrounds) */
     --background: 0 0% 100%;
@@ -110,11 +115,13 @@
 
   .dark {
     /* Dark mode backgrounds - deep charcoal */
-    --background: 222.2 47% 11%;
+    /* Main page background: #121212 (approx 7% lightness) */
+    --background: 0 0% 7%; /* #121212 */
     --foreground: 210 40% 98%;
-    --card: 222.2 47% 13%;
+    /* Card surface slightly lighter than page background: #1E1E1E */
+    --card: 0 0% 12%; /* #1E1E1E */
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 47% 13%;
+    --popover: 0 0% 12%;
     --popover-foreground: 210 40% 98%;
     
     /* Primary - slightly lighter for dark mode visibility */
@@ -153,7 +160,7 @@
     --neutral-500: 215 16% 47%;
     --neutral-300: 217.2 32.6% 30%;
     --bg-surface: 222.2 47% 11%;
-    --card-bg: 222.2 47% 13%;
+    --card-bg: 0 0% 12%;
   }
   
   /* Smooth theme transitions - applied globally */

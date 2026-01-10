@@ -33,10 +33,23 @@ export async function createLoanTransaction(
   }
 
   try {
+    // Defensive: Ensure all IDs are strings (CSV import may pass numbers)
+    const agencyId = String(data.agencyId || '').trim();
+    const customerId = String(data.customerId || '').trim();
+    const officerId = String(data.officerId || '').trim();
+
+    if (!agencyId || !customerId || !officerId) {
+      return {
+        loanId: '',
+        success: false,
+        error: 'Missing required IDs: agencyId, customerId, or officerId',
+      };
+    }
+
     // First validate eligibility
     const validation = await validateLoanEligibility({
-      customerId: data.customerId,
-      agencyId: data.agencyId,
+      customerId,
+      agencyId,
       requestedAmount: data.amount,
     });
 
@@ -50,14 +63,14 @@ export async function createLoanTransaction(
 
     // Check if employee record exists, create if it doesn't
     // Employees are stored with their own IDs, linked via userId field
-    const employeesRef = collection(db, 'agencies', data.agencyId, 'employees');
-    const employeeQuery = query(employeesRef, where('userId', '==', data.officerId));
+    const employeesRef = collection(db, 'agencies', agencyId, 'employees');
+    const employeeQuery = query(employeesRef, where('userId', '==', officerId));
     const employeeSnapshot = await getDocs(employeeQuery);
     
     if (employeeSnapshot.empty) {
       // Employee record doesn't exist - create it automatically
       // Get user info first
-      const userRef = doc(db, 'users', data.officerId);
+      const userRef = doc(db, 'users', officerId);
       const userSnap = await getDoc(userRef);
       
       if (!userSnap.exists()) {
@@ -71,8 +84,8 @@ export async function createLoanTransaction(
       const userData = userSnap.data();
       
       // Create employee record
-      await createEmployee(data.agencyId, {
-        userId: data.officerId,
+      await createEmployee(agencyId, {
+        userId: officerId,
         email: userData.email || '',
         name: userData.full_name || 'Officer',
         role: (userData.role === 'admin' ? 'admin' : 'loan_officer') as any,
@@ -82,10 +95,10 @@ export async function createLoanTransaction(
     const result = await runTransaction(db, async (transaction) => {
       // Generate loan ID
       const loanId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const loanRef = doc(db, 'agencies', data.agencyId, 'loans', loanId);
+      const loanRef = doc(db, 'agencies', agencyId, 'loans', loanId);
 
       // Check if customer exists
-      const customerRef = doc(db, 'agencies', data.agencyId, 'customers', data.customerId);
+      const customerRef = doc(db, 'agencies', agencyId, 'customers', customerId);
       const customerSnap = await transaction.get(customerRef);
 
       if (!customerSnap.exists()) {
@@ -93,7 +106,7 @@ export async function createLoanTransaction(
       }
 
       // Verify user exists (employee record was already created above if needed)
-      const userRef = doc(db, 'users', data.officerId);
+      const userRef = doc(db, 'users', officerId);
       const userSnap = await transaction.get(userRef);
       
       if (!userSnap.exists()) {
@@ -103,8 +116,8 @@ export async function createLoanTransaction(
       // Create loan document with DRAFT status (new workflow)
       transaction.set(loanRef, {
         id: loanId,
-        customerId: data.customerId,
-        officerId: data.officerId,
+        customerId,
+        officerId,
         amount: data.amount,
         interestRate: data.interestRate,
         durationMonths: data.durationMonths,
@@ -140,7 +153,7 @@ export async function createLoanTransaction(
         const repaymentRef = doc(
           db,
           'agencies',
-          data.agencyId,
+          agencyId,
           'loans',
           loanId,
           'repayments',
@@ -162,16 +175,16 @@ export async function createLoanTransaction(
 
       // Create audit log
       const auditLogId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const auditLogRef = doc(db, 'agencies', data.agencyId, 'audit_logs', auditLogId);
+      const auditLogRef = doc(db, 'agencies', agencyId, 'audit_logs', auditLogId);
       transaction.set(auditLogRef, {
         id: auditLogId,
-        actorId: data.officerId,
+        actorId: officerId,
         action: 'create_loan',
         targetCollection: 'loans',
         targetId: loanId,
         metadata: {
           amount: data.amount,
-          customerId: data.customerId,
+          customerId,
           loanType: data.loanType,
         },
         createdAt: serverTimestamp(),
@@ -180,21 +193,58 @@ export async function createLoanTransaction(
       return loanId;
     });
 
-    // Create notification for admins about new loan pending approval (outside transaction)
+    // Create notifications for admins and accountants about new loan pending approval (outside transaction)
     try {
-      const { createNotification } = await import('./notifications');
-      await createNotification({
-        agencyId: data.agencyId,
-        type: 'loan_pending_approval',
-        title: 'New Loan Pending Approval',
-        message: `A new loan application for ${data.amount.toLocaleString()} ZMW is pending approval.`,
-        metadata: { loanId: result, customerId: data.customerId },
-        priority: 'high',
-        actionUrl: `/admin/loans/${result}`,
+      const { collection, getDocs, query, where } = await import('firebase/firestore');
+      const { createUserNotification } = await import('./notifications');
+      
+      // Get all admins and accountants in the agency
+      const employeesRef = collection(db, 'agencies', agencyId, 'employees');
+      const adminQuery = query(employeesRef, where('role', 'in', ['admin', 'manager', 'owner']));
+      const accountantQuery = query(employeesRef, where('employee_category', '==', 'accountant'));
+      
+      const [adminSnapshot, accountantSnapshot] = await Promise.all([
+        getDocs(adminQuery).catch(() => ({ docs: [] })),
+        getDocs(accountantQuery).catch(() => ({ docs: [] }))
+      ]);
+      
+      // Combine and deduplicate employees
+      const allEmployees = new Map();
+      adminSnapshot.docs.forEach(doc => {
+        const employee = doc.data();
+        if (employee.userId) {
+          allEmployees.set(employee.userId, employee);
+        }
       });
+      accountantSnapshot.docs.forEach(doc => {
+        const employee = doc.data();
+        if (employee.userId) {
+          allEmployees.set(employee.userId, employee);
+        }
+      });
+      
+      // Send notification to each admin/accountant
+      const notificationPromises = Array.from(allEmployees.values()).map(async (employee) => {
+        try {
+          await createUserNotification(employee.userId, {
+            type: 'approval_required',
+            title: 'New Loan Pending Approval',
+            message: `A new loan application for ${data.amount.toLocaleString()} ZMW is pending approval.`,
+            loanId: result,
+            customerId,
+            priority: 'high',
+            actionUrl: `/admin/loans/${result}`,
+            metadata: { loanId: result, customerId, amount: data.amount },
+          });
+        } catch (err) {
+          console.warn(`Failed to notify employee ${employee.userId}:`, err);
+        }
+      });
+      
+      await Promise.all(notificationPromises);
     } catch (notifError) {
       // Don't fail loan creation if notification fails
-      console.warn('Failed to create notification:', notifError);
+      console.warn('Failed to create notifications:', notifError);
     }
 
     return {

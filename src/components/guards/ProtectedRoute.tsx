@@ -11,13 +11,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  // First check: User not authenticated at all
+  if (!isAuthenticated || !profile) {
     return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
@@ -25,17 +29,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isOnboardingPage = location.pathname === '/auth/create-organization';
   const hasAgency = !!profile?.agency_id;
   
-  // Only redirect to onboarding if:
-  // 1. User is NOT already on the onboarding page
-  // 2. User does NOT have an agency_id (meaning they haven't created an organization yet)
-  // Once user has an agency_id, they should be able to access all pages
-  // Organization/loan type changes should be done in Settings, not by redirecting to onboarding
-  if (!isOnboardingPage && !hasAgency) {
+  // Second check: Redirect to onboarding if user hasn't completed org setup
+  // Only if they're not already on the onboarding page
+  if (!isOnboardingPage && !hasAgency && profile?.role === 'admin') {
     return <Navigate to="/auth/create-organization" replace />;
   }
   
-  // If user is on onboarding page but already has an agency, redirect to dashboard
-  // (They shouldn't be able to create another organization)
+  // Third check: If user is on onboarding page but already has an agency, redirect to dashboard
   if (isOnboardingPage && hasAgency) {
     const role = profile?.role || 'admin';
     const dashboardPath = role === 'admin' ? '/admin/dashboard' : role === 'employee' ? '/employee/dashboard' : '/customer/dashboard';

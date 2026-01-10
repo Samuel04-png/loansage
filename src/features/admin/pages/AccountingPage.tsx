@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { collection, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -23,6 +24,7 @@ import { Label } from '../../../components/ui/label';
 export function AccountingPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [searchTerm, setSearchTerm] = useState('');
   const [reconciliationDialogOpen, setReconciliationDialogOpen] = useState(false);
@@ -33,6 +35,9 @@ export function AccountingPage() {
   const [transactionDetailOpen, setTransactionDetailOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<'paid' | 'pending' | 'overdue'>('pending');
   const bankStatementFileRef = useRef<HTMLInputElement>(null);
+  
+  // Get filter from URL query params
+  const filterParam = searchParams.get('filter');
 
   // Get all loans for financial calculations
   const { data: loans, isLoading: loansLoading } = useQuery({
@@ -205,8 +210,10 @@ export function AccountingPage() {
     },
   });
 
-  // Monthly breakdown for chart
-  const monthlyData = loans ? (() => {
+  // Monthly breakdown for chart - using useMemo to avoid re-computation
+  const monthlyData = useMemo(() => {
+    if (!loans) return [];
+    
     const months: Record<string, { disbursed: number; collected: number }> = {};
     const now = new Date();
     
@@ -238,15 +245,58 @@ export function AccountingPage() {
     });
 
     return Object.entries(months).map(([name, data]) => ({ name, ...data }));
-  })() : [];
+  }, [loans, repayments]);
 
   // Loan status distribution
-  const statusData = loans ? [
-    { name: 'Active', value: loans.filter((l: any) => l.status === 'active').length, color: '#10b981' },
-    { name: 'Pending', value: loans.filter((l: any) => l.status === 'pending').length, color: '#f59e0b' },
-    { name: 'Completed', value: loans.filter((l: any) => l.status === 'completed' || l.status === 'paid').length, color: '#3b82f6' },
-    { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#ef4444' },
-  ] : [];
+  const statusData = useMemo(() => {
+    if (!loans) return [];
+    
+    return [
+      { name: 'Active', value: loans.filter((l: any) => l.status === 'active').length, color: '#10b981' },
+      { name: 'Pending', value: loans.filter((l: any) => l.status === 'pending').length, color: '#f59e0b' },
+      { name: 'Completed', value: loans.filter((l: any) => l.status === 'completed' || l.status === 'paid').length, color: '#3b82f6' },
+      { name: 'Defaulted', value: loans.filter((l: any) => l.status === 'defaulted').length, color: '#ef4444' },
+    ];
+  }, [loans]);
+
+  // Filter transactions based on query params and search term
+  const filteredTransactions = useMemo(() => {
+    if (!repayments) return [];
+    
+    let filtered = [...repayments];
+    
+    // Apply filter from URL query params
+    if (filterParam === 'cleared') {
+      filtered = filtered.filter((r: any) => r.status === 'paid');
+    } else if (filterParam === 'overdue') {
+      const now = new Date();
+      filtered = filtered.filter((r: any) => {
+        if (r.status === 'paid') return false;
+        const dueDate = r.dueDate instanceof Date ? r.dueDate : (r.dueDate ? new Date(r.dueDate) : null);
+        return dueDate && dueDate < now;
+      });
+    } else if (filterParam === 'renew') {
+      // Renew: Show loans that are completed/paid (can be renewed)
+      filtered = filtered.filter((r: any) => r.status === 'paid');
+    }
+    
+    // Apply search term filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter((r: any) => {
+        return (
+          r.loanId?.toLowerCase().includes(search) ||
+          r.id?.toLowerCase().includes(search) ||
+          r.type?.toLowerCase().includes(search) ||
+          r.description?.toLowerCase().includes(search) ||
+          r.customerName?.toLowerCase().includes(search) ||
+          String(r.amount || '').includes(search)
+        );
+      });
+    }
+    
+    return filtered;
+  }, [repayments, filterParam, searchTerm]);
 
   if (loansLoading || repaymentsLoading) {
     return (
@@ -285,6 +335,7 @@ export function AccountingPage() {
 
   const hasData = financialData && (financialData.totalPortfolio > 0 || financialData.totalCollections > 0);
 
+
   return (
     <div className="space-y-6">
       <motion.div
@@ -321,8 +372,8 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Total Portfolio</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
+                <p className="text-sm font-medium text-muted-foreground">Total Portfolio</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
                   {formatCurrency(financialData?.totalPortfolio || 0, 'ZMW')}
                 </p>
               </div>
@@ -335,7 +386,7 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Collections ({dateRange})</p>
+                <p className="text-sm font-medium text-muted-foreground">Collections ({dateRange})</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-1">
                   {formatCurrency(financialData?.totalCollections || 0, 'ZMW')}
                 </p>
@@ -349,7 +400,7 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Outstanding</p>
+                <p className="text-sm font-medium text-muted-foreground">Outstanding</p>
                 <p className="text-2xl font-bold text-amber-600 mt-1">
                   {formatCurrency(financialData?.totalOutstanding || 0, 'ZMW')}
                 </p>
@@ -363,7 +414,7 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Interest Income</p>
+                <p className="text-sm font-medium text-muted-foreground">Interest Income</p>
                 <p className="text-2xl font-bold text-blue-600 mt-1">
                   {formatCurrency(financialData?.interestIncome || 0, 'ZMW')}
                 </p>
@@ -380,8 +431,8 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Disbursed ({dateRange})</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
+                <p className="text-sm font-medium text-muted-foreground">Disbursed ({dateRange})</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
                   {formatCurrency(financialData?.totalDisbursed || 0, 'ZMW')}
                 </p>
               </div>
@@ -394,8 +445,8 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Active Loans</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
+                <p className="text-sm font-medium text-muted-foreground">Active Loans</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
                   {financialData?.activeLoansCount || 0}
                 </p>
               </div>
@@ -408,11 +459,11 @@ export function AccountingPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Defaulted Amount</p>
+                <p className="text-sm font-medium text-muted-foreground">Defaulted Amount</p>
                 <p className="text-2xl font-bold text-red-600 mt-1">
                   {formatCurrency(financialData?.defaultedAmount || 0, 'ZMW')}
                 </p>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {financialData?.defaultedCount || 0} loans
                 </p>
               </div>
@@ -459,7 +510,7 @@ export function AccountingPage() {
         <Card>
           <CardHeader>
             <CardTitle>Loan Status Distribution</CardTitle>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Overview of loan portfolio by status
             </p>
           </CardHeader>
@@ -519,7 +570,7 @@ export function AccountingPage() {
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: entry.color }}
                   />
-                  <span className="text-xs text-slate-600">
+                  <span className="text-xs text-muted-foreground">
                     {entry.name}: <strong>{entry.value}</strong>
                   </span>
                 </div>
@@ -535,7 +586,7 @@ export function AccountingPage() {
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>Bank Reconciliation</CardTitle>
-              <p className="text-sm text-slate-500 mt-1">Match bank statement transactions with repayments</p>
+              <p className="text-sm text-muted-foreground mt-1">Match bank statement transactions with repayments</p>
             </div>
             <Button
               variant="outline"
@@ -547,10 +598,10 @@ export function AccountingPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-slate-500">
-            <FileCheck className="w-12 h-12 mx-auto mb-4 text-slate-300" />
+          <div className="text-center py-8 text-muted-foreground">
+            <FileCheck className="w-12 h-12 mx-auto mb-4 text-neutral-400 dark:text-neutral-600" />
             <p>Upload a bank statement CSV to reconcile transactions</p>
-            <p className="text-xs mt-2">Supports common CSV formats with date, description, and amount columns</p>
+            <p className="text-xs mt-2 text-muted-foreground">Supports common CSV formats with date, description, and amount columns</p>
           </div>
         </CardContent>
       </Card>
@@ -616,26 +667,26 @@ export function AccountingPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-slate-600 mb-1">Total Income</p>
-              <p className="text-2xl font-bold text-blue-600">
+            <div className="p-4 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+              <p className="text-sm text-slate-600 dark:text-blue-200 mb-1">Total Income</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {formatCurrency(financialData?.interestIncome || 0, 'ZMW')}
               </p>
-              <p className="text-xs text-slate-500 mt-1">Interest + Principal</p>
+              <p className="text-xs text-muted-foreground mt-1">Interest + Principal</p>
             </div>
-            <div className="p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-slate-600 mb-1">Collections</p>
-              <p className="text-2xl font-bold text-green-600">
+            <div className="p-4 bg-green-50 dark:bg-green-500/10 rounded-lg">
+              <p className="text-sm text-slate-600 dark:text-green-200 mb-1">Collections</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(financialData?.totalCollections || 0, 'ZMW')}
               </p>
-              <p className="text-xs text-slate-500 mt-1">This period</p>
+              <p className="text-xs text-muted-foreground mt-1">This period</p>
             </div>
-            <div className="p-4 bg-amber-50 rounded-lg">
-              <p className="text-sm text-slate-600 mb-1">Outstanding</p>
-              <p className="text-2xl font-bold text-amber-600">
+            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 rounded-lg">
+              <p className="text-sm text-slate-600 dark:text-amber-200 mb-1">Outstanding</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                 {formatCurrency(financialData?.totalOutstanding || 0, 'ZMW')}
               </p>
-              <p className="text-xs text-slate-500 mt-1">Pending payments</p>
+              <p className="text-xs text-muted-foreground mt-1">Pending payments</p>
             </div>
           </div>
         </CardContent>
@@ -673,18 +724,7 @@ export function AccountingPage() {
                 </tr>
               </thead>
               <tbody>
-                {repayments
-                  ?.filter((r: any) => {
-                    if (!searchTerm) return true;
-                    const search = searchTerm.toLowerCase();
-                    return (
-                      r.loanId?.toLowerCase().includes(search) ||
-                      r.id?.toLowerCase().includes(search) ||
-                      r.type?.toLowerCase().includes(search) ||
-                      r.description?.toLowerCase().includes(search) ||
-                      String(r.amount || '').includes(search)
-                    );
-                  })
+                {filteredTransactions
                   .sort((a: any, b: any) => {
                     const aDate = a.paidAt || a.dueDate;
                     const bDate = b.paidAt || b.dueDate;

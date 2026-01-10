@@ -89,11 +89,16 @@ export function LoansPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Initialize statusFilter from URL query params or default to 'all'
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const statusParam = new URLSearchParams(window.location.search).get('status');
+    const overdueParam = new URLSearchParams(window.location.search).get('overdue');
+    return statusParam || (overdueParam === 'true' ? 'overdue' : 'all');
+  });
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Read query parameters from URL on mount and when they change
+  // Read query parameters from URL on mount and when they change to sync with sidebar navigation
   useEffect(() => {
     const statusParam = searchParams.get('status');
     const overdueParam = searchParams.get('overdue');
@@ -102,6 +107,9 @@ export function LoansPage() {
       setStatusFilter(statusParam);
     } else if (overdueParam === 'true') {
       setStatusFilter('overdue');
+    } else if (!statusParam && !overdueParam) {
+      // If no query params, default to 'all'
+      setStatusFilter('all');
     }
   }, [searchParams]);
   const [newLoanDrawerOpen, setNewLoanDrawerOpen] = useState(false);
@@ -233,8 +241,8 @@ export function LoansPage() {
         const filterStatus = statusFilter.toLowerCase().trim();
         
         if (statusFilter === 'active') {
-          // Active includes both 'active' and 'approved' loans
-          if (loanStatus !== 'active' && loanStatus !== 'approved') {
+          // Active filter - exact match for 'active' status only
+          if (loanStatus !== 'active') {
             return false;
           }
         } else if (statusFilter === 'overdue') {
@@ -262,6 +270,16 @@ export function LoansPage() {
         } else if (statusFilter === 'pending') {
           // Pending filter - exact match for 'pending' status only
           if (loanStatus !== 'pending') {
+            return false;
+          }
+        } else if (statusFilter === 'approved') {
+          // Approved filter - includes both 'approved' and 'active' loans (for sidebar navigation)
+          if (loanStatus !== 'approved' && loanStatus !== 'active') {
+            return false;
+          }
+        } else if (statusFilter === 'rejected') {
+          // Rejected filter - exact match
+          if (loanStatus !== 'rejected') {
             return false;
           }
         } else if (statusFilter === 'draft') {
@@ -809,11 +827,19 @@ export function LoansPage() {
               </Button>
             </div>
 
-            {/* Filter Tabs */}
-            <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+            {/* Status Filter Chips (Full List) */}
+            <Tabs value={statusFilter} onValueChange={(value) => {
+              setStatusFilter(value);
+              // Update URL query params to sync with sidebar
+              if (value === 'all') {
+                setSearchParams({}, { replace: true });
+              } else {
+                setSearchParams({ status: value }, { replace: true });
+              }
+            }} className="w-full">
               <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
                 <TabsList className="inline-flex w-full md:grid md:grid-cols-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 p-1 min-w-max md:min-w-0">
-                  <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-800 whitespace-nowrap">
+                  <TabsTrigger value="all" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">
                     All
                   </TabsTrigger>
                   <TabsTrigger value="pending" className="rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-neutral-700 whitespace-nowrap">

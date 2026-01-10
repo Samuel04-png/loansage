@@ -163,18 +163,35 @@ export function LoginPage() {
 
         toast.success('Welcome back!');
         
-        // Update last login in background (non-blocking, don't wait for it)
+        // Update last login in background (non-blocking), with simple retry/backoff
         Promise.resolve().then(async () => {
           try {
             const { supabase } = await import('../../../lib/supabase/client');
-            const updatePromise = supabase
-              .from('users')
-              .update({ last_login: new Date().toISOString() })
-              .eq('id', user.id);
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Update timeout')), 10000) // Increased to 10 seconds
-            );
-            await Promise.race([updatePromise, timeoutPromise]);
+            const maxAttempts = 3;
+            let attempt = 0;
+            let success = false;
+            while (attempt < maxAttempts && !success) {
+              try {
+                attempt += 1;
+                const updatePromise = supabase
+                  .from('users')
+                  .update({ last_login: new Date().toISOString() })
+                  .eq('id', user.id);
+                const timeoutMs = 10000;
+                const timeoutPromise = new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error('Update timeout')), timeoutMs)
+                );
+                await Promise.race([updatePromise, timeoutPromise]);
+                success = true;
+              } catch (err) {
+                const waitMs = 500 * Math.pow(2, attempt - 1); // 500ms, 1000ms, 2000ms
+                console.warn(`Update last_login attempt ${attempt} failed, retrying in ${waitMs}ms`, err);
+                await new Promise((res) => setTimeout(res, waitMs));
+              }
+            }
+            if (!success) {
+              console.warn('Failed to update last login after retries (non-critical)');
+            }
           } catch (error) {
             // Silently fail - this is not critical
             console.warn('Failed to update last login (non-critical):', error);

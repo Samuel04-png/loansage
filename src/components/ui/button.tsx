@@ -15,9 +15,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           {
             'bg-gradient-to-r from-[#006BFF] to-[#3B82FF] hover:from-[#0052CC] hover:to-[#006BFF] text-white shadow-md hover:shadow-lg': variant === 'default',
             'bg-[#DC2626] text-white hover:bg-[#B91C1C] shadow-md hover:shadow-lg': variant === 'destructive',
-            'border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-900 dark:text-neutral-100': variant === 'outline',
-            'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-700': variant === 'secondary',
-            'hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100 text-neutral-700 dark:text-neutral-300': variant === 'ghost',
+            'border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 text-foreground': variant === 'outline',
+            'bg-neutral-100 dark:bg-neutral-800 text-foreground hover:bg-neutral-200 dark:hover:bg-neutral-700': variant === 'secondary',
+            'hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-foreground text-neutral-700 dark:text-neutral-300': variant === 'ghost',
             'text-[#006BFF] underline-offset-4 hover:underline hover:text-[#0052CC]': variant === 'link',
             'h-11 md:h-10 px-4 py-2.5 min-h-[44px] md:min-h-0': size === 'default', // 44px on mobile, 40px on desktop
             'h-10 md:h-9 px-3 py-2 text-xs min-h-[44px] md:min-h-0': size === 'sm', // 44px on mobile, 36px on desktop

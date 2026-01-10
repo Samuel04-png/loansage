@@ -64,6 +64,8 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Store,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { NotificationDropdown } from '../../../components/NotificationDropdown';
 import { GlobalSearchDialog } from '../../../components/search/GlobalSearchDialog';
@@ -80,6 +82,7 @@ import { switchAgency } from '../../../lib/firebase/firestore-helpers';
 import { AddAgencyDialog } from './AddAgencyDialog';
 import { BottomNav, BottomNavItem } from '../../../components/navigation/BottomNav';
 import { OnboardingTour } from '../../../components/onboarding/OnboardingTour';
+import { useLoanStatusCounts } from '../../../hooks/useLoanStatusCounts';
 
 export function AdminLayout() {
   const location = useLocation();
@@ -89,6 +92,7 @@ export function AdminLayout() {
   const { logoUrl, agencyName } = useWhitelabel();
   const { plan } = useFeatureGate();
   const queryClient = useQueryClient();
+  const loanCounts = useLoanStatusCounts();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [addAgencyDialogOpen, setAddAgencyDialogOpen] = useState(false);
@@ -122,6 +126,8 @@ export function AdminLayout() {
       records: true,
       management: true,
       system: true,
+      accounting: true,
+      loans: true,
     };
   });
 
@@ -156,7 +162,13 @@ export function AdminLayout() {
   const primaryNav = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { id: 'reports', label: 'Reports', icon: PieChart, path: '/admin/reports' },
-    { id: 'accounting', label: 'Accounting', icon: Calculator, path: '/admin/accounting' },
+  ], []);
+
+  // Accounting sub-navigation (expandable)
+  const accountingNav = useMemo(() => [
+    { id: 'accounting-cleared', label: 'Cleared', icon: CheckCircle2, path: '/admin/accounting?filter=cleared' },
+    { id: 'accounting-renew', label: 'Renew', icon: RefreshCw, path: '/admin/accounting?filter=renew' },
+    { id: 'accounting-overdue', label: 'Overdue', icon: AlertCircle, path: '/admin/accounting?filter=overdue' },
   ], []);
 
   const recordsNav = useMemo(() => [
@@ -164,12 +176,48 @@ export function AdminLayout() {
     { id: 'employees', label: 'Employees', icon: Users, path: '/admin/employees' },
   ], []);
 
+  // Loans sub-navigation items (these will be children of the Loans dropdown)
+  const loansSubItems = useMemo(() => [
+    { 
+      id: 'loans-pending', 
+      label: 'Pending', 
+      icon: AlertCircle, 
+      path: '/admin/loans?status=pending', 
+      nested: true,
+      badge: loanCounts.pending > 0 ? loanCounts.pending.toString() : undefined
+    },
+    { 
+      id: 'loans-approved', 
+      label: 'Approved', 
+      icon: CheckCircle2, 
+      path: '/admin/loans?status=approved', 
+      nested: true,
+      badge: loanCounts.approved > 0 ? loanCounts.approved.toString() : undefined
+    },
+    { 
+      id: 'loans-rejected', 
+      label: 'Rejected', 
+      icon: XCircle, 
+      path: '/admin/loans?status=rejected', 
+      nested: true,
+      badge: loanCounts.rejected > 0 ? loanCounts.rejected.toString() : undefined
+    },
+  ], [loanCounts.pending, loanCounts.approved, loanCounts.rejected]);
+
   const managementNav = useMemo(() => [
-    { id: 'loans', label: 'Loans', icon: FileText, path: '/admin/loans' },
-    { id: 'collaterals', label: 'Collaterals', icon: Shield, path: '/admin/collaterals' },
-    { id: 'crm', label: 'CRM', icon: Users, path: '/admin/crm' },
+    // Loans parent with children
+    { 
+      id: 'loans', 
+      label: 'Loans', 
+      icon: FileText, 
+      path: '/admin/loans',
+      children: loansSubItems,
+      expandable: true
+    },
+    // Top-level sibling items
     { id: 'invitations', label: 'Invitations', icon: Mail, path: '/admin/invitations' },
-  ], []);
+    { id: 'crm', label: 'CRM', icon: Users, path: '/admin/crm' },
+  ], [loansSubItems]);
 
   const systemNav = useMemo(() => [
     { id: 'activity-logs', label: 'Activity Logs', icon: ClipboardList, path: '/admin/activity-logs' },
@@ -244,10 +292,39 @@ export function AdminLayout() {
   }, [userAgencies]);
 
   // Memoized NavItem component to prevent re-renders
-  const NavItem = memo(({ item, collapsed, currentPath }: { item: any; collapsed: boolean; currentPath: string }) => {
-    // Check if current path starts with the item path for nested routes
-    const isActive = currentPath === item.path || currentPath.startsWith(item.path + '/');
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  
+  const toggleItemExpanded = (itemId: string) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const NavItem = memo(({ item, collapsed, currentPath, onNavigate }: { item: any; collapsed: boolean; currentPath: string; onNavigate?: () => void }) => {
+    // For query-based routes, check both path and query parameters
+    const itemPath = item.path;
+    const baseCurrentPath = currentPath.split('?')[0];
+    const basePath = itemPath.split('?')[0];
+    
+    let isActive = false;
+    
+    // If item has query params (like /admin/loans?status=pending)
+    if (itemPath.includes('?')) {
+      isActive = currentPath === itemPath;
+    } else {
+      // Regular path matching with nested route support
+      isActive = baseCurrentPath === basePath || baseCurrentPath.startsWith(basePath + '/');
+    }
+    
     const Icon = item.icon;
+    const isExpandable = item.expandable && item.children && item.children.length > 0;
+    const isItemExpanded = expandedItems.has(item.id);
     
     // Map tour attributes
     const tourAttr = item.id === 'customers' ? 'customers' :
@@ -255,32 +332,16 @@ export function AdminLayout() {
                      item.id === 'reports' ? 'reports' :
                      item.id === 'settings' ? 'settings' : undefined;
     
-    const content = (
-      <Link
-        to={item.path}
-        data-tour={tourAttr}
-        className={cn(
-          'flex items-center w-full px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
-          collapsed ? 'justify-center' : '',
-          isActive
-            ? 'text-[#006BFF] dark:text-blue-400 font-semibold bg-[#006BFF]/5 dark:bg-blue-500/10'
-            : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
-        )}
-        onClick={(e) => {
-          // Prevent navigation if already on this page to avoid flickering
-          if (currentPath === item.path) {
-            e.preventDefault();
-          }
-        }}
-      >
+    const buttonContent = (
+      <>
         {/* Left border accent for active state */}
-        {isActive && (
+        {isActive && !isExpandable && (
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-[#006BFF] dark:bg-blue-400 rounded-r-full" />
         )}
         <Icon
           className={cn(
             'flex-shrink-0 transition-colors duration-200',
-            collapsed ? 'w-5 h-5' : 'w-4 h-4 mr-3',
+            collapsed ? 'w-5 h-5' : 'w-4 h-4',
             isActive 
               ? 'text-[#006BFF] dark:text-blue-400' 
               : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
@@ -289,14 +350,30 @@ export function AdminLayout() {
         {!collapsed && (
           <>
             <span className="flex-1 text-sm">{item.label}</span>
-            {item.badge && (
+            {isExpandable && (
+              <ChevronRight
+                className={cn(
+                  'w-4 h-4 transition-transform duration-200 text-neutral-400',
+                  isItemExpanded ? 'rotate-90' : ''
+                )}
+              />
+            )}
+            {item.badge && !isExpandable && (
               <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-[#006BFF]/10 text-[#006BFF] dark:bg-blue-500/20 dark:text-blue-400 rounded-full">
                 {item.badge}
               </span>
             )}
           </>
         )}
-      </Link>
+      </>
+    );
+
+    const buttonClasses = cn(
+      'flex items-center justify-start w-full px-3 py-2.5 rounded-lg transition-all duration-200 group relative cursor-pointer gap-3',
+      collapsed ? 'justify-center' : '',
+      isActive
+        ? 'text-[#006BFF] dark:text-blue-400 font-semibold bg-[#006BFF]/5 dark:bg-blue-500/10'
+        : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
     );
 
     if (collapsed) {
@@ -304,7 +381,20 @@ export function AdminLayout() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              {content}
+              <button
+                onClick={(e) => {
+                  if (isExpandable) {
+                    toggleItemExpanded(item.id);
+                  } else if (item.path) {
+                    // use router navigation when possible
+                    if (onNavigate) onNavigate();
+                    window.location.href = item.path;
+                  }
+                }}
+                className={buttonClasses}
+              >
+                {buttonContent}
+              </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="bg-neutral-900 text-white text-xs">
               {item.label}
@@ -314,7 +404,39 @@ export function AdminLayout() {
       );
     }
 
-    return content;
+    // Render parent with children if expandable
+    if (isExpandable) {
+      return (
+        <div>
+          <button
+            onClick={() => toggleItemExpanded(item.id)}
+            className={buttonClasses}
+          >
+            {buttonContent}
+          </button>
+          {isItemExpanded && (
+            <div className="ml-4 mt-1 space-y-1 pl-3 border-l border-neutral-200 dark:border-neutral-700">
+              {item.children.map((child: any) => (
+                <NavItem key={child.id} item={child} collapsed={false} currentPath={currentPath} onNavigate={onNavigate} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Regular non-expandable item - wrap in Link for navigation
+    return (
+      <Link
+        to={item.path}
+        className={buttonClasses}
+        onClick={() => {
+          if (onNavigate) onNavigate();
+        }}
+      >
+        {buttonContent}
+      </Link>
+    );
   });
   NavItem.displayName = 'NavItem';
 
@@ -326,7 +448,8 @@ export function AdminLayout() {
     sectionKey,
     currentPath,
     isExpanded,
-    onToggle
+    onToggle,
+    parentPath
   }: { 
     title: string; 
     items: any[]; 
@@ -335,10 +458,19 @@ export function AdminLayout() {
     currentPath: string;
     isExpanded: boolean;
     onToggle: (key: string) => void;
+    parentPath?: string;
   }) => {
     if (collapsed) {
       return (
         <div className="space-y-1">
+          {parentPath && (
+            <NavItem 
+              key={`${sectionKey}-parent`} 
+              item={{ id: sectionKey, label: title, icon: Calculator, path: parentPath }} 
+              collapsed={true} 
+              currentPath={currentPath} 
+            />
+          )}
           {items.map((item) => (
             <NavItem key={item.id} item={item} collapsed={true} currentPath={currentPath} />
           ))}
@@ -346,30 +478,50 @@ export function AdminLayout() {
       );
     }
 
-    const hasToggle = title === 'Records' || title === 'Loan Management' || title === 'System';
+    const hasToggle = title === 'Records' || title === 'Loan Management' || title === 'System' || title === 'Accounting';
+    const isAccounting = title === 'Accounting';
+    const isLoanManagement = title === 'Loan Management';
 
   return (
       <div className="mb-4">
         {hasToggle ? (
-          <button
-            onClick={() => onToggle(sectionKey)}
-            className="flex items-center w-full px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider hover:text-neutral-700 transition-colors"
-          >
-            <span className="flex-1 text-left">{title}</span>
-            <ChevronDown
-              className={cn(
-                'w-4 h-4 transition-transform duration-200',
-                isExpanded ? 'rotate-0' : '-rotate-90'
-              )}
-            />
-          </button>
+          <div className="flex items-center w-full">
+            {(isAccounting || isLoanManagement) && parentPath ? (
+              <Link
+                to={parentPath}
+                className={cn(
+                  "flex-1 flex items-center px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider hover:text-neutral-700 transition-colors",
+                  currentPath === parentPath || currentPath.startsWith(parentPath + '/') || currentPath.startsWith(parentPath + '?')
+                    ? 'text-[#006BFF] dark:text-blue-400'
+                    : ''
+                )}
+              >
+                {isAccounting && <Calculator className="w-3.5 h-3.5 mr-2" />}
+                {isLoanManagement && <FileText className="w-3.5 h-3.5 mr-2" />}
+                <span>{title}</span>
+              </Link>
+            ) : (
+              <span className="flex-1 px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider">{title}</span>
+            )}
+            <button
+              onClick={() => onToggle(sectionKey)}
+              className="px-2 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition-colors"
+            >
+              <ChevronDown
+                className={cn(
+                  'w-4 h-4 transition-transform duration-200 text-neutral-400',
+                  isExpanded ? 'rotate-0' : '-rotate-90'
+                )}
+              />
+            </button>
+          </div>
         ) : (
           <div className="px-3 py-2 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
             {title}
             </div>
           )}
         {(!hasToggle || isExpanded) && (
-          <div className="space-y-1">
+          <div className={cn("space-y-1", (isAccounting || isLoanManagement) && "ml-4 pl-2 border-l border-neutral-200 dark:border-neutral-700")}>
             {items.map((item) => (
               <NavItem key={item.id} item={item} collapsed={false} currentPath={currentPath} />
             ))}
@@ -521,6 +673,16 @@ export function AdminLayout() {
                   onToggle={toggleSection}
                 />
                 <NavSection 
+                  title="Accounting" 
+                  items={accountingNav} 
+                  collapsed={false} 
+                  sectionKey="accounting"
+                  currentPath={location.pathname}
+                  isExpanded={expandedSections.accounting ?? true}
+                  onToggle={toggleSection}
+                  parentPath="/admin/accounting"
+                />
+                <NavSection 
                   title="Records" 
                   items={recordsNav} 
                   collapsed={false} 
@@ -534,9 +696,10 @@ export function AdminLayout() {
                   items={managementNav} 
                   collapsed={false} 
                   sectionKey="management"
-                  currentPath={location.pathname}
+                  currentPath={location.pathname + location.search}
                   isExpanded={expandedSections.management ?? true}
                   onToggle={toggleSection}
+                  parentPath="/admin/loans"
                 />
                 <NavSection 
                   title="System" 
@@ -550,7 +713,7 @@ export function AdminLayout() {
               </>
             ) : (
               <div className="space-y-1">
-                {[...primaryNav, ...recordsNav, ...managementNav, ...systemNav].map((item) => (
+                {[...primaryNav, ...accountingNav, ...recordsNav, ...managementNav, ...systemNav].map((item) => (
                   <NavItem key={item.id} item={item} collapsed={true} currentPath={location.pathname} />
           ))}
         </div>
@@ -771,20 +934,9 @@ export function AdminLayout() {
                   Loan Management
                 </div>
                 {managementNav.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={item.path}
-                    onClick={() => setMobileMenuOpen(false)}
-        className={cn(
-                      'flex items-center w-full px-3 py-2 rounded-lg transition-all',
-                      activePath === item.id
-                        ? 'bg-white text-[#006BFF] font-medium shadow-sm'
-                        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 mr-3" />
-                    <span className="text-sm">{item.label}</span>
-                  </Link>
+                  <div key={item.id}>
+                    <NavItem item={item} collapsed={false} currentPath={location.pathname} onNavigate={() => setMobileMenuOpen(false)} />
+                  </div>
                 ))}
               </div>
               <div className="pt-2 mt-2 border-t border-neutral-200">

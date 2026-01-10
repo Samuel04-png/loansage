@@ -140,6 +140,7 @@ function AppContent() {
                 }
               />
               <Route path="/auth/accept-invite" element={<AcceptInvitePage />} />
+              <Route path="/invite" element={<Navigate to="/auth/accept-invite" replace />} />
 
               {/* Admin routes */}
               <Route

@@ -218,7 +218,7 @@ export function useAuth() {
         subscription.unsubscribe();
       }
     };
-  }, [initialized, setUser, setSession, setProfile, initialize]);
+  }, [initialized, initialize]);
 
   return {
     user,

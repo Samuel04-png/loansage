@@ -230,6 +230,41 @@ export async function updateLoanStatus(agencyId: string, loanId: string): Promis
       // Ignore audit log errors
     });
 
+    // Send email notification if status changed to overdue
+    if (newStatus === 'overdue' || (hasOverdue && newStatus !== 'defaulted')) {
+      try {
+        const customerRef = doc(db, 'agencies', agencyId, 'customers', loan.customerId);
+        const customerSnap = await getDoc(customerRef);
+        if (customerSnap.exists()) {
+          const customer = customerSnap.data();
+          const overdueAmount = repayments
+            .filter((r: any) => r.status === 'overdue')
+            .reduce((sum: number, r: any) => sum + Number(r.amountDue || 0), 0);
+          
+          // Trigger email via Cloud Function
+          const { getFunctions, httpsCallable } = await import('firebase/functions');
+          const functions = getFunctions();
+          const sendLoanEmail = httpsCallable(functions, 'sendLoanEmail');
+          await sendLoanEmail({
+            agencyId,
+            loanId,
+            customerId: loan.customerId,
+            customerEmail: customer.email,
+            templateType: 'loan_overdue',
+            data: {
+              loanNumber: loan.loanNumber || loanId,
+              customerName: customer.fullName || customer.name,
+              overdueAmount,
+            },
+          }).catch((err) => {
+            console.error('Failed to send overdue email:', err);
+          });
+        }
+      } catch (error) {
+        console.error('Error sending overdue email notification:', error);
+      }
+    }
+
     return { statusChanged: true, newStatus };
   }
 

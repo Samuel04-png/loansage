@@ -52,12 +52,24 @@ function parseCSV(csvText: string): { headers: string[]; rows: any[] } {
   };
   
   const headers = parseLine(lines[0]);
+  
+  // Normalize headers: convert to lowercase and create a mapping
+  const headerMap = new Map<string, string>();
+  headers.forEach(header => {
+    const cleanHeader = header.trim().replace(/^"|"$/g, '');
+    const normalized = cleanHeader.toLowerCase().replace(/\s+/g, '');
+    headerMap.set(normalized, cleanHeader);
+  });
+  
   const rows = lines.slice(1).map(line => {
     const values = parseLine(line);
     const row: any = {};
     headers.forEach((header, index) => {
       const cleanHeader = header.trim().replace(/^"|"$/g, '');
+      const normalized = cleanHeader.toLowerCase().replace(/\s+/g, '');
+      // Store both original and normalized for flexible lookup
       row[cleanHeader] = values[index]?.trim().replace(/^"|"$/g, '') || '';
+      row[normalized] = values[index]?.trim().replace(/^"|"$/g, '') || '';
     });
     return row;
   });
@@ -159,17 +171,38 @@ export async function importCustomersFromCSV(
       const rowNumber = i + 2; // +2 because row 1 is header, and arrays are 0-indexed
       
       try {
-        // Map CSV/Excel columns to customer data (support multiple column name variations)
+        // Helper function to find value by multiple possible header names (case-insensitive)
+        const getValue = (...keys: string[]): string => {
+          for (const key of keys) {
+            // Try exact match first
+            if (row[key] !== undefined && row[key] !== '') return String(row[key]);
+            // Try lowercase normalized
+            const normalized = key.toLowerCase().replace(/\s+/g, '');
+            if (row[normalized] !== undefined && row[normalized] !== '') return String(row[normalized]);
+            // Try variations
+            for (const rowKey in row) {
+              if (rowKey.toLowerCase().replace(/\s+/g, '') === normalized) {
+                return String(row[rowKey]);
+              }
+            }
+          }
+          return '';
+        };
+        
+        // Map CSV/Excel columns to customer data (support multiple column name variations, case-insensitive)
         const customerData = {
-          fullName: row['Full Name'] || row['fullName'] || row['Name'] || row['name'] || row['Customer Name'] || '',
-          email: row['Email'] || row['email'] || row['Email Address'] || '',
-          phone: row['Phone'] || row['phone'] || row['Phone Number'] || row['Mobile'] || row['mobile'] || '',
-          nrc: row['NRC/ID'] || row['NRC'] || row['nrc'] || row['ID Number'] || row['ID'] || row['id'] || row['National ID'] || '',
-          address: row['Address'] || row['address'] || row['Location'] || row['location'] || '',
-          employer: row['Employer'] || row['employer'] || row['Company'] || row['company'] || '',
-          employmentStatus: row['Employment Status'] || row['employmentStatus'] || row['Status'] || undefined,
-          monthlyIncome: row['Monthly Income'] || row['monthlyIncome'] || row['Income'] ? parseFloat(String(row['Monthly Income'] || row['monthlyIncome'] || row['Income'] || '0')) : undefined,
-          jobTitle: row['Job Title'] || row['jobTitle'] || row['Position'] || '',
+          fullName: getValue('Full Name', 'fullName', 'Name', 'name', 'Customer Name', 'customerName', 'FullName'),
+          email: getValue('Email', 'email', 'Email Address', 'emailAddress', 'E-mail'),
+          phone: getValue('Phone', 'phone', 'Phone Number', 'phoneNumber', 'Mobile', 'mobile', 'Telephone', 'tel'),
+          nrc: getValue('NRC/ID', 'NRC', 'nrc', 'ID Number', 'ID', 'id', 'National ID', 'nationalId', 'NRC Number', 'nrcNumber'),
+          address: getValue('Address', 'address', 'Location', 'location', 'Residence'),
+          employer: getValue('Employer', 'employer', 'Company', 'company', 'Workplace'),
+          employmentStatus: getValue('Employment Status', 'employmentStatus', 'Status', 'status', 'EmploymentStatus') || undefined,
+          monthlyIncome: (() => {
+            const incomeStr = getValue('Monthly Income', 'monthlyIncome', 'Income', 'income', 'Salary', 'salary');
+            return incomeStr ? parseFloat(incomeStr) || undefined : undefined;
+          })(),
+          jobTitle: getValue('Job Title', 'jobTitle', 'Position', 'position', 'JobTitle', 'Job'),
           createdBy,
         };
         

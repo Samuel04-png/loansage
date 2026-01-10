@@ -66,12 +66,35 @@ export async function executeBulkImport(
   type: 'customers' | 'loans' | 'mixed',
   fileName: string,
   fileSize: number,
-  dryRun: boolean = false
+  dryRun: boolean = false,
+  providedBatchId?: string // Allow passing batch ID for linking with quarantine
 ): Promise<BulkImportResult> {
-  const batchId = `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Defensive: Ensure IDs are strings (may receive numbers from CSV)
+  agencyId = String(agencyId || '').trim();
+  userId = String(userId || '').trim();
+  
+  if (!agencyId || !userId) {
+    return {
+      batchId: `import-error-${Date.now()}`,
+      success: 0,
+      failed: rows.length,
+      skipped: 0,
+      created: { customers: 0, loans: 0 },
+      linked: { customers: 0, loans: 0 },
+      errors: [{ rowIndex: 0, error: 'Missing required agencyId or userId' }],
+      auditLog: {
+        userId: 'error',
+        timestamp: new Date(),
+        fileSize,
+        fileName,
+      },
+    };
+  }
+  
+  const batchId = providedBatchId || `import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
   const result: BulkImportResult = {
-    batchId,
+    batchId: batchId,
     success: 0,
     failed: 0,
     skipped: 0,
@@ -253,18 +276,24 @@ export async function executeBulkImport(
           throw new Error(`Missing required fields: fullName="${customerData.fullName}", phone="${customerData.phone}", nrc="${customerData.nrc}"`);
         }
 
-        // Create new customer
-        const customerId = await createCustomerInTransaction(
+        // Upsert customer (create or update)
+        const customerResult = await createCustomerInTransaction(
           agencyId,
           userId,
           customerData
         );
         
-        console.log(`Created customer ${customerId} for row ${row.rowIndex}`);
-        result.created.customers++;
+        const customerId = String(customerResult.customerId || customerResult);
+        console.log(`${customerResult.isUpdate ? 'Updated' : 'Created'} customer ${customerId} for row ${row.rowIndex}`);
+        
+        if (customerResult.isUpdate) {
+          result.linked.customers++;
+        } else {
+          result.created.customers++;
+        }
         result.success++;
         
-        // Update row with created customer ID for loan linking
+        // Update row with customer ID for loan linking
         row.customerId = customerId;
       }
     } catch (error: any) {
@@ -332,12 +361,13 @@ export async function executeBulkImport(
           }
 
           // Create customer
-          customerId = await createCustomerInTransaction(
+          const customerResult = await createCustomerInTransaction(
             agencyId,
             userId,
             customerData
           );
           
+          customerId = String(customerResult.customerId || customerResult);
           result.created.customers++;
           row.customerId = customerId;
         } catch (error: any) {
@@ -368,8 +398,8 @@ export async function executeBulkImport(
         // Create new loan
         const loanResult = await createLoanTransaction({
           agencyId,
-          customerId: customerId,
-          officerId: userId,
+          customerId: String(customerId || '').trim(),
+          officerId: String(userId || '').trim(),
           amount,
           interestRate,
           durationMonths,
@@ -462,54 +492,92 @@ async function createCustomerInTransaction(
   agencyId: string,
   createdBy: string,
   data: any
-): Promise<string> {
-  return await runTransaction(db, async (transaction) => {
-    // Generate customer ID (Firebase will use this)
-    const customersRef = collection(db, 'agencies', agencyId, 'customers');
-    const customerRef = doc(customersRef);
-    const customerId = customerRef.id;
+): Promise<{ customerId: string; isUpdate: boolean }> {
+  const customersRef = collection(db, 'agencies', agencyId, 'customers');
+  
+  // Prepare customer data
+  const customerData = {
+    fullName: String(data.fullName || '').trim(),
+    phone: String(data.phone || '').trim(),
+    email: String(data.email || '').trim() || null,
+    nrc: String(data.nrc || '').trim(),
+    address: String(data.address || '').trim() || null,
+    employmentStatus: data.employmentStatus || null,
+    monthlyIncome: data.monthlyIncome ? parseFloat(String(data.monthlyIncome)) : null,
+    employer: data.employer || null,
+    jobTitle: data.jobTitle || null,
+    createdBy,
+    agencyId: agencyId,
+    status: 'active',
+    updatedAt: serverTimestamp(),
+  };
 
-    // Prepare customer data
-    // IMPORTANT: Include status: 'active' and agencyId for proper filtering in Customers table
-    const customerData = {
-      fullName: String(data.fullName || '').trim(),
-      phone: String(data.phone || '').trim(),
-      email: String(data.email || '').trim() || null,
-      nrc: String(data.nrc || '').trim(),
-      address: String(data.address || '').trim() || null,
-      employmentStatus: data.employmentStatus || null,
-      monthlyIncome: data.monthlyIncome ? parseFloat(String(data.monthlyIncome)) : null,
-      employer: data.employer || null,
-      jobTitle: data.jobTitle || null,
-      createdBy,
-      agencyId: agencyId, // Required for queries that filter by agencyId
-      status: 'active', // Required: Customers table filters by status != 'archived'
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      loanIds: [],
-      // Initialize stats for proper display
-      totalLoans: 0,
-      activeLoans: 0,
-      totalBorrowed: 0,
-    };
-
-    // Check for duplicates (by phone or NRC)
+  // Check for existing customer OUTSIDE transaction (transactions can't query)
+  let existingCustomerId: string | null = null;
+  
+  try {
     const phoneQuery = query(customersRef, where('phone', '==', customerData.phone));
     const phoneSnapshot = await getDocs(phoneQuery);
     if (!phoneSnapshot.empty) {
-      throw new Error(`Customer with phone ${customerData.phone} already exists`);
+      existingCustomerId = phoneSnapshot.docs[0].id;
+    }
+  } catch (error) {
+    console.warn('Phone query failed, trying NRC:', error);
+  }
+  
+  if (!existingCustomerId) {
+    try {
+      const nrcQuery = query(customersRef, where('nrc', '==', customerData.nrc));
+      const nrcSnapshot = await getDocs(nrcQuery);
+      if (!nrcSnapshot.empty) {
+        existingCustomerId = nrcSnapshot.docs[0].id;
+      }
+    } catch (error) {
+      console.warn('NRC query failed:', error);
+    }
+  }
+
+  // Use transaction to atomically update or create
+  return await runTransaction(db, async (transaction) => {
+    if (existingCustomerId) {
+      // Update existing customer
+      const existingCustomerRef = doc(customersRef, existingCustomerId);
+      const existingCustomerDoc = await transaction.get(existingCustomerRef);
+      
+      if (existingCustomerDoc.exists()) {
+        const existingData = existingCustomerDoc.data();
+        // Merge new data with existing, preserving critical fields
+        transaction.update(existingCustomerRef, {
+          ...customerData,
+          // Preserve existing stats and timestamps
+          totalLoans: existingData.totalLoans ?? 0,
+          activeLoans: existingData.activeLoans ?? 0,
+          totalBorrowed: existingData.totalBorrowed ?? 0,
+          createdAt: existingData.createdAt || serverTimestamp(),
+          loanIds: existingData.loanIds || [],
+          id: existingCustomerId,
+          customerId: existingCustomerId,
+        });
+        return { customerId: existingCustomerId, isUpdate: true };
+      }
     }
 
-    const nrcQuery = query(customersRef, where('nrc', '==', customerData.nrc));
-    const nrcSnapshot = await getDocs(nrcQuery);
-    if (!nrcSnapshot.empty) {
-      throw new Error(`Customer with NRC ${customerData.nrc} already exists`);
-    }
+    // Create new customer
+    const customerRef = doc(customersRef);
+    const customerId = customerRef.id;
+    
+    transaction.set(customerRef, {
+      ...customerData,
+      id: customerId,
+      customerId: customerId,
+      createdAt: serverTimestamp(),
+      loanIds: [],
+      totalLoans: 0,
+      activeLoans: 0,
+      totalBorrowed: 0,
+    });
 
-    // Create customer
-    transaction.set(customerRef, customerData);
-
-    return customerId;
+    return { customerId, isUpdate: false };
   });
 }
 

@@ -708,13 +708,23 @@ export function CollateralsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {coll.verificationStatus === 'verified' || coll.status === 'VERIFIED' ? (
-                            <Badge className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20">Verified</Badge>
-                          ) : coll.verificationStatus === 'pending' || coll.status === 'PENDING' ? (
-                            <Badge className="bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20">Pending</Badge>
-                          ) : (
-                            <Badge variant="outline">{coll.verificationStatus || coll.status || 'N/A'}</Badge>
-                          )}
+                          {(() => {
+                            const status = (coll.verificationStatus || coll.status || 'pending').toLowerCase();
+                            const statusMap: Record<string, { label: string; className: string }> = {
+                              'verified': { label: 'Verified', className: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300' },
+                              'in_custody': { label: 'In Custody', className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-300' },
+                              'liquidated': { label: 'Liquidated', className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300' },
+                              'released': { label: 'Released', className: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300' },
+                              'pending': { label: 'Pending', className: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300' },
+                              'pending_verification': { label: 'Pending Verification', className: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300' },
+                            };
+                            const statusInfo = statusMap[status] || statusMap['pending'];
+                            return (
+                              <Badge variant="outline" className={cn('border', statusInfo.className)}>
+                                {statusInfo.label}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-neutral-600 text-sm">
                           {formatDateSafe(coll.createdAt)}

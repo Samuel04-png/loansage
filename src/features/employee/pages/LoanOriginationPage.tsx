@@ -501,12 +501,17 @@ export function LoanOriginationPage() {
   const runRiskAnalysis = async () => {
     setIsAnalyzing(true);
     try {
+      // Prioritize manual input over defaults - use nullish coalescing to only fallback on null/undefined
+      const inputAmount = loanTermsForm.getValues('amount');
+      const inputInterestRate = loanTermsForm.getValues('interestRate');
+      const inputDuration = loanTermsForm.getValues('durationMonths');
+      
       const analysis = await analyzeLoanRisk(
         {
-          amount: loanTermsForm.getValues('amount') || 0,
-          currency: loanTermsForm.getValues('currency') || 'ZMW',
-          interestRate: loanTermsForm.getValues('interestRate') || 15,
-          durationMonths: loanTermsForm.getValues('durationMonths') || 12,
+          amount: inputAmount ?? 0,
+          currency: loanTermsForm.getValues('currency') ?? 'ZMW',
+          interestRate: inputInterestRate ?? 15, // Only use default if null/undefined, not if 0
+          durationMonths: inputDuration ?? 12, // Only use default if null/undefined, not if 0
           collateral: safeCollateral,
           loanType: safeLoanType,
           loan_type: safeLoanType, // For compatibility
@@ -1198,9 +1203,9 @@ export function LoanOriginationPage() {
                       <span className="text-muted-foreground">Monthly Payment:</span>
                       <p className="font-semibold text-lg">
                         {formatCurrency(
-                          (loanTermsForm.watch('amount') || 0) *
-                          (loanTermsForm.watch('interestRate') || 0) / 100 / 12 +
-                          (loanTermsForm.watch('amount') || 0) / (loanTermsForm.watch('durationMonths') || 1)
+                          (loanTermsForm.watch('amount') ?? 0) *
+                          (loanTermsForm.watch('interestRate') ?? 0) / 100 / 12 +
+                          (loanTermsForm.watch('amount') ?? 0) / (loanTermsForm.watch('durationMonths') ?? 1)
                         )}
                       </p>
                     </div>
@@ -1208,9 +1213,9 @@ export function LoanOriginationPage() {
                       <span className="text-muted-foreground">Total Interest:</span>
                       <p className="font-semibold text-lg">
                         {formatCurrency(
-                          (loanTermsForm.watch('amount') || 0) *
-                          (loanTermsForm.watch('interestRate') || 0) / 100 *
-                          (loanTermsForm.watch('durationMonths') || 0) / 12
+                          (loanTermsForm.watch('amount') ?? 0) *
+                          (loanTermsForm.watch('interestRate') ?? 0) / 100 *
+                          (loanTermsForm.watch('durationMonths') ?? 0) / 12
                         )}
                       </p>
                     </div>

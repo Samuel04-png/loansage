@@ -37,7 +37,8 @@ import {
   Calendar, 
   FileText, 
   User, 
-  AlertTriangle, 
+  AlertTriangle,
+  Eye, 
   CheckCircle2, 
   Clock, 
   TrendingUp, 
@@ -963,21 +964,30 @@ export function LoanDetailPage() {
                             {coll.location && <span>Location: {coll.location}</span>}
                           </div>
                           {coll?.photos && Array.isArray(coll.photos) && coll.photos.length > 0 && (
-                            <div className="mt-3 flex gap-2">
-                              {coll.photos.slice(0, 3).map((photo: string, idx: number) => (
-                                <img
-                                  key={idx}
-                                  src={photo}
-                                  alt={`Collateral ${idx + 1}`}
-                                  className="w-16 h-16 object-cover rounded border border-neutral-200"
-                                />
-                              ))}
-                              {coll.photos.length > 3 && (
-                                <div className="w-16 h-16 bg-neutral-100 rounded border border-neutral-200 flex items-center justify-center text-xs text-neutral-500">
-                                  +{coll.photos.length - 3}
-                                </div>
-                          )}
-                        </div>
+                            <div className="mt-4">
+                              <p className="text-xs font-medium text-neutral-600 mb-2">Collateral Photos ({coll.photos.length})</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                {coll.photos.map((photo: string, idx: number) => (
+                                  <div
+                                    key={idx}
+                                    className="relative group cursor-pointer"
+                                    onClick={() => {
+                                      // Open image in modal/lightbox (you can enhance this with a proper image viewer)
+                                      window.open(photo, '_blank');
+                                    }}
+                                  >
+                                    <img
+                                      src={photo}
+                                      alt={`Collateral photo ${idx + 1}`}
+                                      className="w-full h-24 object-cover rounded-lg border border-neutral-200 hover:border-[#006BFF] transition-colors"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-lg transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                      <Eye className="w-5 h-5 text-white" />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <div className="text-right ml-4">

@@ -263,15 +263,15 @@ export function AcceptInvitePage() {
   }
 
   if (!invitation) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="space-y-1 text-center">
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="space-y-1 text-center">
             <div className="mx-auto w-12 h-12 bg-red-500 rounded-full flex items-center justify-center mb-4">
               <AlertCircle className="w-6 h-6 text-white" />
-            </div>
+          </div>
             <CardTitle className="text-2xl font-bold">Invitation Not Found</CardTitle>
-            <CardDescription>
+          <CardDescription>
               This invitation link is invalid or has expired
             </CardDescription>
           </CardHeader>
@@ -421,18 +421,18 @@ export function AcceptInvitePage() {
               transition={{ delay: 0.6 }}
             >
               <Button type="submit" className="w-full" disabled={loading} size="lg">
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating account...
-                  </>
-                ) : (
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
                   <>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     Accept Invitation & Create Account
                   </>
-                )}
-              </Button>
+              )}
+            </Button>
             </motion.div>
 
             <Link to="/auth/login">

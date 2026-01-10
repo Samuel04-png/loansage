@@ -90,6 +90,16 @@ export function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [testingAI, setTestingAI] = useState(false);
   const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // Load notification preference from user profile
+  useEffect(() => {
+    if (profile?.settings?.notifications_enabled !== undefined) {
+      setNotificationsEnabled(profile.settings.notifications_enabled !== false);
+    } else if (user?.user_metadata?.settings?.notifications_enabled !== undefined) {
+      setNotificationsEnabled(user.user_metadata.settings.notifications_enabled !== false);
+    }
+  }, [profile, user]);
 
   // Agency form
   const agencyForm = useForm<AgencyFormData>({
@@ -1414,7 +1424,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     id="notifications-enabled"
-                    checked={notificationsEnabled}
+                    checked={notificationsEnabled ?? true}
                     onCheckedChange={async (checked) => {
                       setNotificationsEnabled(checked);
                       if (!user?.id) return;

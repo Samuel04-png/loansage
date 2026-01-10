@@ -25,14 +25,23 @@ import { Badge } from '../../../components/ui/badge';
 import { Progress } from '../../../components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { Dialog, DialogContent, DialogHeader } from '../../../components/ui/dialog';
 import toast from 'react-hot-toast';
 import { parseFile } from '../../../lib/data-import';
 import { analyzeImport, ColumnMapping, MatchSuggestion, DataCleaningSuggestion } from '../../../lib/ai/bulk-import-assistant';
 import { executeBulkImport, ImportRow } from '../../../lib/data-import/bulk-import-service';
+import { executeSmartImport, SmartImportResult } from '../../../lib/data-import/smart-import-service';
+import { splitMultiSectionCSV, getSectionDescription, sectionToCSV } from '../../../lib/data-import/multi-section-splitter';
+import { sanitizeRows } from '../../../lib/data-import/ai-sanitization-service';
+
 import { useAuth } from '../../../hooks/useAuth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
+// TODO: Fix orphan detection and reconciliation - temporarily disabled due to type errors
+// import { OrphanReconciliationModal } from './OrphanReconciliationModal';
+// import { PostImportReconciliationAlert } from './PostImportReconciliationAlert';
+// import type { LoanImportResult } from '../../../lib/loan-reconciliation/loan-import-helper';
 
 interface BulkImportWizardProps {
   onComplete?: () => void;
@@ -42,6 +51,7 @@ type ImportStep = 'upload' | 'analyze' | 'review' | 'import' | 'complete';
 
 export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
   const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<{ headers: string[]; rows: any[] } | null>(null);
@@ -53,7 +63,13 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
   const [dryRun, setDryRun] = useState(false); // Default to false so imports actually save
+  const [useSmartImport, setUseSmartImport] = useState(true); // Enable Smart AI Import by default
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Multi-section CSV handling
+  const [multiSections, setMultiSections] = useState<any[]>([]);
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState<number>(0);
+  const [showSectionSelector, setShowSectionSelector] = useState(false);
 
   // Fetch existing data for matching
   const { data: existingCustomers } = useQuery({
@@ -100,9 +116,43 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
     setIsAnalyzing(true);
 
     try {
-      // Parse file
-      const data = await parseFile(selectedFile);
-      setParsedData(data);
+      // If Smart Import is enabled, check for section markers first
+      if (useSmartImport && selectedFile.name.endsWith('.csv')) {
+        const fileText = await selectedFile.text();
+        
+        // Check for multi-section markers
+        if (fileText.includes('===')) {
+          const splitResult = splitMultiSectionCSV(fileText);
+          if (splitResult.hasSections && splitResult.sections.length > 1) {
+            // Multi-section file detected
+            setMultiSections(splitResult.sections);
+            setShowSectionSelector(true);
+            toast.success(`Multi-section file detected: ${splitResult.sections.length} sections found`, { duration: 4000 });
+            setIsAnalyzing(false);
+            return; // User needs to select a section first
+          } else if (splitResult.sections.length === 1) {
+            // Single section in file - extract it
+            const section = splitResult.sections[0];
+            const csvText = sectionToCSV(section);
+            const blob = new Blob([csvText], { type: 'text/csv' });
+            const csvFile = new File([blob], selectedFile.name, { type: 'text/csv' });
+            const data = await parseFile(csvFile);
+            setParsedData(data);
+          } else {
+            // No sections found despite === markers, parse normally
+            const data = await parseFile(selectedFile);
+            setParsedData(data);
+          }
+        } else {
+          // Regular CSV without sections
+          const data = await parseFile(selectedFile);
+          setParsedData(data);
+        }
+      } else {
+        // Smart import disabled or not CSV - parse directly
+        const data = await parseFile(selectedFile);
+        setParsedData(data);
+      }
 
       // Move to analyze step
       setCurrentStep('analyze');
@@ -228,8 +278,17 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
   };
 
   const handleImport = async () => {
-    if (!file || !profile?.agency_id || !user?.id || importRows.length === 0) {
+    if (!file || !profile?.agency_id || !user?.id) {
       toast.error('Missing required information for import');
+      return;
+    }
+
+    // If Smart Import is enabled, we process the file directly (bypasses review step)
+    // Otherwise, use the rows from the review step
+    if (useSmartImport && !dryRun) {
+      // Smart Import will handle everything - skip the rowsToImport check
+    } else if (importRows.length === 0) {
+      toast.error('No rows to import. Please review the data first.');
       return;
     }
 
@@ -264,15 +323,65 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
 
     setIsImporting(true);
     try {
-      const result = await executeBulkImport(
-        profile.agency_id,
-        user.id,
-        rowsToImport,
-        analysis.summary.detectedType,
-        file.name,
-        file.size,
-        dryRun
-      );
+      let result: any;
+      
+      // Use Smart AI Import if enabled and not dry run
+      if (useSmartImport && !dryRun && file) {
+        toast.success('Using Smart AI Import with preprocessing...', { duration: 3000 });
+        
+        try {
+          const smartResult = await executeSmartImport(
+            file,
+            profile.agency_id,
+            user.id,
+            analysis.summary.detectedType,
+            {
+              useAI: true,
+              confidenceThreshold: 0.7,
+              autoApprove: false,
+              quarantineEnabled: true,
+              fieldMappings: {
+                phone: ['phone', 'mobile', 'phoneNumber', 'contact'],
+                email: ['email', 'emailAddress', 'eMail'],
+                fullName: ['name', 'fullName', 'customerName', 'borrowerName'],
+                nrc: ['nrc', 'nrcNumber', 'idNumber', 'nationalId'],
+                address: ['address', 'location', 'residence'],
+              },
+            }
+          );
+          
+          result = smartResult;
+          
+          // Show quarantine dialog if there are quarantined rows
+          if (smartResult.quarantined > 0) {
+            // Don't auto-open, let user click the button
+          }
+        } catch (smartError: any) {
+          console.error('Smart import failed, falling back to standard import:', smartError);
+          toast.error('Smart import failed, using standard import...', { duration: 3000 });
+          // Fallback to standard import
+          result = await executeBulkImport(
+            profile.agency_id,
+            user.id,
+            rowsToImport,
+            analysis.summary.detectedType,
+            file.name,
+            file.size,
+            dryRun
+          );
+        }
+      } else {
+        // Standard import (or dry run)
+        result = await executeBulkImport(
+          profile.agency_id,
+          user.id,
+          rowsToImport,
+          analysis.summary.detectedType,
+          file.name,
+          file.size,
+          dryRun
+        );
+      }
 
       console.log('Import completed with result:', result);
 
@@ -290,22 +399,58 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
         if (result.success > 0) {
           const summary = `Successfully imported ${result.success} records ` +
             `(${result.created.customers} customers, ${result.created.loans} loans)`;
-          toast.success(summary, { duration: 5000 });
+          if (useSmartImport && (result as SmartImportResult).aiStats) {
+            const smartResult = result as SmartImportResult;
+            toast.success(
+              `${summary}. AI cleaned ${smartResult.aiStats.rowsCleaned} rows ` +
+              `(avg confidence: ${(smartResult.aiStats.averageConfidence * 100).toFixed(0)}%)`,
+              { duration: 7000 }
+            );
+          } else {
+            toast.success(summary, { duration: 5000 });
+          }
         }
         
         if (result.failed > 0) {
+            toast.error(
+              `${result.failed} records failed. ${result.errors?.length || 0} errors. ` +
+              `Check the error list below for details.`,
+              { duration: 8000 }
+            );
+          }
+
+          // Refresh loans and customer loan lists so UI reflects newly imported loans
+          try {
+            queryClient.invalidateQueries({ queryKey: ['loans', profile?.agency_id] });
+            queryClient.invalidateQueries({ queryKey: ['customer-loans', profile?.agency_id] });
+          } catch (err) {
+            console.warn('Failed to invalidate loan queries after import:', err);
+          }
+        
+        // Show quarantine notification
+        if (useSmartImport && (result as SmartImportResult).quarantined > 0) {
+          const smartResult = result as SmartImportResult;
           toast.error(
-            `${result.failed} records failed. ${result.errors?.length || 0} errors. ` +
-            `Check the error list below for details.`,
-            { duration: 8000 }
+            `${smartResult.quarantined} row(s) need review. Visit the "Data Management" tab to fix them.`,
+            { duration: 10000 }
           );
         }
         
         if (result.success === 0 && result.failed === 0) {
-          toast.warning(
+          toast.error(
             'No records were imported. Check if rows have valid data and are not set to skip.',
             { duration: 6000 }
           );
+        }
+        
+        // Invalidate queries to refresh UI immediately
+        if (result.success > 0 && !dryRun) {
+          // Invalidate all relevant queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+          queryClient.invalidateQueries({ queryKey: ['loans'] });
+          queryClient.invalidateQueries({ queryKey: ['all-customers-export'] });
+          queryClient.invalidateQueries({ queryKey: ['accounting-loans'] });
+          queryClient.invalidateQueries({ queryKey: ['accounting-repayments'] });
         }
         
         if (onComplete && result.success > 0) onComplete();
@@ -563,12 +708,40 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
                   </div>
                 </div>
 
+                {/* Smart AI Import Toggle */}
+                <div className={`flex items-center gap-2 p-4 rounded-lg ${useSmartImport ? 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800' : 'bg-neutral-50 dark:bg-neutral-800'}`}>
+                  <input
+                    type="checkbox"
+                    id="smartImport"
+                    checked={useSmartImport}
+                    onChange={(e) => setUseSmartImport(e.target.checked)}
+                    className="w-4 h-4"
+                    disabled={dryRun}
+                  />
+                  <label htmlFor="smartImport" className="text-sm font-medium text-neutral-700 dark:text-neutral-300 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      <span>
+                        <strong>Smart AI Import</strong> - Uses AI to clean messy data, handle multi-section files, and extract phone numbers from emails
+                      </span>
+                    </div>
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 ml-6">
+                      Automatically normalizes phone numbers, fixes email addresses, and quarantines rows needing review
+                    </div>
+                  </label>
+                </div>
+
                 <div className={`flex items-center gap-2 p-4 rounded-lg ${dryRun ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/20'}`}>
                   <input
                     type="checkbox"
                     id="dryRun"
                     checked={dryRun}
-                    onChange={(e) => setDryRun(e.target.checked)}
+                    onChange={(e) => {
+                      setDryRun(e.target.checked);
+                      if (e.target.checked) {
+                        setUseSmartImport(false); // Disable smart import in dry run
+                      }
+                    }}
                     className="w-4 h-4"
                   />
                   <label htmlFor="dryRun" className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
@@ -632,13 +805,21 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${(importResult as SmartImportResult)?.quarantined ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                       {importResult.success}
                     </div>
                     <div className="text-sm text-neutral-600 dark:text-neutral-400">Success</div>
                   </div>
+                  {(importResult as SmartImportResult)?.quarantined > 0 && (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {(importResult as SmartImportResult).quarantined}
+                      </div>
+                      <div className="text-sm text-neutral-600 dark:text-neutral-400">Need Review</div>
+                    </div>
+                  )}
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                       {importResult.failed}
@@ -646,6 +827,52 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
                     <div className="text-sm text-neutral-600 dark:text-neutral-400">Failed</div>
                   </div>
                 </div>
+
+                {/* Smart Import Stats */}
+                {useSmartImport && (importResult as SmartImportResult)?.aiStats && (
+                  <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <h4 className="font-semibold mb-2 text-purple-900 dark:text-purple-100 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      AI Cleaning Statistics
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="font-medium text-purple-800 dark:text-purple-200">
+                          {(importResult as SmartImportResult).aiStats.rowsCleaned}
+                        </div>
+                        <div className="text-purple-600 dark:text-purple-400">Rows Cleaned</div>
+                      </div>
+                      <div>
+                        <div className="font-medium text-purple-800 dark:text-purple-200">
+                          {((importResult as SmartImportResult).aiStats.averageConfidence * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-purple-600 dark:text-purple-400">Avg Confidence</div>
+                      </div>
+                      <div>
+                        <div className="font-medium text-purple-800 dark:text-purple-200">
+                          {(importResult as SmartImportResult).aiStats.rowsNeedingReview}
+                        </div>
+                        <div className="text-purple-600 dark:text-purple-400">Need Review</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quarantine Review Button */}
+                {useSmartImport && (importResult as SmartImportResult)?.quarantined > 0 && (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                          Attention Needed: {(importResult as SmartImportResult).quarantined} rows need review
+                        </h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Some rows had missing fields or low confidence scores. Review and fix them before importing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {importResult.errors && importResult.errors.length > 0 && (
                   <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
@@ -694,6 +921,86 @@ export function BulkImportWizard({ onComplete }: BulkImportWizardProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Multi-Section CSV Selector Dialog */}
+      <Dialog open={showSectionSelector} onOpenChange={setShowSectionSelector}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader className="mb-4">
+            <h2 className="text-xl font-bold">Select Data Section to Import</h2>
+            <p className="text-sm text-muted-foreground mt-2">
+              This file contains multiple data sections. Please select which section you'd like to import.
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {multiSections.map((section, idx) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  setSelectedSectionIndex(idx);
+                  // Process the selected section
+                  const csvText = sectionToCSV(section);
+                  const blob = new Blob([csvText], { type: 'text/csv' });
+                  const csvFile = new File([blob], `${section.name.toLowerCase()}.csv`, { type: 'text/csv' });
+                  parseFile(csvFile).then((data) => {
+                    setParsedData(data);
+                    setShowSectionSelector(false);
+                    setCurrentStep('analyze');
+                    toast.success(`Selected "${section.name}" for import`);
+                  }).catch((error) => {
+                    toast.error(`Failed to process section: ${error.message}`);
+                  });
+                }}
+                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedSectionIndex === idx
+                    ? 'border-[#006BFF] bg-[#006BFF]/5'
+                    : 'border-neutral-200 dark:border-neutral-700 hover:border-[#006BFF]'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      {section.name}
+                    </h3>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                      {section.rowCount} row{section.rowCount !== 1 ? 's' : ''} • {section.headers.length} columns
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {section.headers.slice(0, 5).map((header, i) => (
+                        <span key={i} className="text-xs px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded">
+                          {header}
+                        </span>
+                      ))}
+                      {section.headers.length > 5 && (
+                        <span className="text-xs px-2 py-1 text-neutral-500">+{section.headers.length - 5} more</span>
+                      )}
+                    </div>
+                  </div>
+                  {selectedSectionIndex === idx && (
+                    <CheckCircle2 className="w-5 h-5 text-[#006BFF] flex-shrink-0" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSectionSelector(false);
+                setMultiSections([]);
+                setFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Orphan Reconciliation - TEMPORARILY DISABLED */}
+      {/* TODO: Fix type errors in orphan detection service */}
     </div>
   );
 }
@@ -863,6 +1170,4 @@ function ImportReviewStep({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
+  );}

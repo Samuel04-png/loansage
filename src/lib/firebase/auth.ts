@@ -111,11 +111,12 @@ const convertFirebaseUser = async (firebaseUser: FirebaseUser): Promise<User> =>
   try {
     if (!isDemoMode) {
       const userDocRef = doc(db, 'users', firebaseUser.uid);
-      // Use getDoc with error handling for IndexedDB issues
+      // Use getDoc with error handling and a slightly longer timeout for slow networks
+      const getDocTimeoutMs = 10000; // increased from 5000 -> 10000
       const userDoc = await Promise.race([
         getDoc(userDocRef),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('getDoc timeout')), 5000)
+          setTimeout(() => reject(new Error('getDoc timeout')), getDocTimeoutMs)
         )
       ]) as any;
       
@@ -124,6 +125,14 @@ const convertFirebaseUser = async (firebaseUser: FirebaseUser): Promise<User> =>
       }
     }
   } catch (error: any) {
+    // Log the current auth UID for debugging when read fails
+    try {
+      const currentUid = (auth && (auth.currentUser as any)) ? (auth.currentUser as any).uid : null;
+      console.warn('Failed to get user doc for uid:', currentUid, 'error:', error?.message || error);
+    } catch (e) {
+      console.warn('Failed to read auth.currentUser when logging error');
+    }
+
     // If offline, try to get from cache explicitly
     if (error?.code === 'unavailable' || error?.message?.includes('offline')) {
       try {
@@ -140,7 +149,7 @@ const convertFirebaseUser = async (firebaseUser: FirebaseUser): Promise<User> =>
       }
     } else {
       // Other errors (including timeout), log and continue with defaults
-      // Only log timeout errors in development to reduce console noise
+      // Include auth uid when logging to make debugging easier
       const errorMessage = error?.message || String(error || '');
       if (import.meta.env.DEV || !errorMessage.includes('timeout')) {
         console.warn('Failed to fetch user data from Firestore:', error);
