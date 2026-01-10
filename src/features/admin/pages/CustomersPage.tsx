@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, doc, deleteDoc, writeBatch, query as firestoreQuery, where } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, writeBatch, query as firestoreQuery, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/config';
 import { useAuth } from '../../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -25,8 +25,6 @@ import { EditCustomerDrawer } from '../components/EditCustomerDrawer';
 import { exportCustomers } from '../../../lib/data-export';
 import { importCustomersFromCSV } from '../../../lib/data-import';
 import { createCustomer, updateCustomer } from '../../../lib/firebase/firestore-helpers';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { cn } from '../../../lib/utils';
@@ -40,7 +38,7 @@ import {
 import { TableCard, TableCardRow } from '../../../components/ui/responsive-table';
 import { EmptyState } from '../../../components/ui/empty-state';
 import { Breadcrumbs } from '../../../components/ui/breadcrumbs';
-import { Edit, Archive, Trash2, Eye } from 'lucide-react';
+import { Edit, Archive, Eye } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
