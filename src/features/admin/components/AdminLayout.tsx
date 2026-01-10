@@ -73,7 +73,7 @@ import { AIFloatingIndicator } from '../../../components/ai/AIFloatingIndicator'
 import { AIChatPanel } from '../../../components/ai/AIChatPanel';
 import { ThemeToggle } from '../../../components/ThemeToggle';
 import { cn } from '../../../lib/utils';
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader } from '../../../components/ui/dialog';
@@ -96,6 +96,8 @@ export function AdminLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [addAgencyDialogOpen, setAddAgencyDialogOpen] = useState(false);
+  const sidebarNavRef = useRef<HTMLDivElement>(null);
+  const sidebarScrollPositionRef = useRef<number>(0);
   
   // Persist sidebar collapsed state in localStorage
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -130,6 +132,20 @@ export function AdminLayout() {
       loans: true,
     };
   });
+
+  // Persist sidebar scroll position
+  useEffect(() => {
+    if (sidebarNavRef.current) {
+      sidebarNavRef.current.scrollTop = sidebarScrollPositionRef.current;
+    }
+  }, []);
+
+  // Save scroll position when sidebar scrolls
+  const handleSidebarScroll = useCallback(() => {
+    if (sidebarNavRef.current) {
+      sidebarScrollPositionRef.current = sidebarNavRef.current.scrollTop;
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -660,7 +676,11 @@ export function AdminLayout() {
           )}
 
           {/* Navigation - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-3 py-4">
+          <div 
+            ref={sidebarNavRef}
+            onScroll={handleSidebarScroll}
+            className="flex-1 overflow-y-auto px-3 py-4"
+          >
             {!sidebarCollapsed ? (
               <>
                 <NavSection 
